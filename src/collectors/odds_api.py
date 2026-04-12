@@ -1,6 +1,8 @@
 """Collector for The Odds API — live odds from multiple bookmakers."""
 
 import logging
+import time
+from threading import Lock
 import requests
 from src.config import ODDS_API_KEY, ODDS_SPORTS
 
@@ -10,6 +12,54 @@ BASE_URL = "https://api.the-odds-api.com/v4"
 
 # Track API quota globally
 _quota = {"remaining": None, "used": None}
+
+# === Adaptive Pinnacle call gate ===
+# Base interval 18s. On error/429 widen to 30s. After 5 min clean → restore 18s.
+_PIN_BASE_INTERVAL = 18
+_PIN_BACKOFF_INTERVAL = 30
+_PIN_RECOVERY_SECONDS = 300
+_pin_gate = {
+    "current_interval": _PIN_BASE_INTERVAL,
+    "last_error": 0.0,
+    "lock": Lock(),
+}
+# Per-event cache: {(sport_key, eid): (timestamp, result_dict)}
+_corner_cache: dict = {}
+
+
+def _pin_gate_recover_if_clean():
+    """If 5 min have passed since last error, drop interval back to base."""
+    with _pin_gate["lock"]:
+        if (
+            _pin_gate["current_interval"] != _PIN_BASE_INTERVAL
+            and (time.time() - _pin_gate["last_error"]) > _PIN_RECOVERY_SECONDS
+        ):
+            _pin_gate["current_interval"] = _PIN_BASE_INTERVAL
+            logger.info(f"[OddsAPI] Pinnacle gate recovered → {_PIN_BASE_INTERVAL}s")
+
+
+def _pin_gate_register_error(reason: str):
+    """Widen interval to backoff on any error / rate limit."""
+    with _pin_gate["lock"]:
+        if _pin_gate["current_interval"] != _PIN_BACKOFF_INTERVAL:
+            logger.warning(
+                f"[OddsAPI] Pinnacle gate widened {_pin_gate['current_interval']}s "
+                f"→ {_PIN_BACKOFF_INTERVAL}s ({reason})"
+            )
+        _pin_gate["current_interval"] = _PIN_BACKOFF_INTERVAL
+        _pin_gate["last_error"] = time.time()
+
+
+def get_pinnacle_gate_status() -> dict:
+    """Diagnostic helper: returns current interval + last error info."""
+    return {
+        "current_interval": _pin_gate["current_interval"],
+        "base_interval": _PIN_BASE_INTERVAL,
+        "backoff_interval": _PIN_BACKOFF_INTERVAL,
+        "seconds_since_last_error": (
+            int(time.time() - _pin_gate["last_error"]) if _pin_gate["last_error"] else None
+        ),
+    }
 
 
 def get_quota() -> dict:
@@ -188,30 +238,192 @@ def get_best_odds(event: dict, market: str = "h2h") -> dict:
     return result
 
 
+# MAIN markets carry the live active line; alternates carry alternative lines.
+# Pinnacle may live in us2 region for some sports — query all major regions.
+CORNER_MARKETS_FULL = "totals_corners,spreads_corners,alternate_totals_corners,alternate_spreads_corners"
+CORNER_MARKETS_MAIN_ONLY = "totals_corners,spreads_corners"
+CORNER_REGIONS = "eu,uk,us,us2,au"
+
+
+def _parse_corner_response(data: dict, ev_hint: dict | None = None) -> dict:
+    """
+    Parse one event's corner odds response into structured form.
+    Returns: {
+        "home_team": str, "away_team": str,
+        "totals": {line: {over_price, under_price, ...}},  # main only
+        "spreads": [pair_dict],                             # main only
+        "had_pinnacle": bool,
+        "had_main_market": bool,
+        "alt_only_lines": [list of alt lines seen — for log only],
+    }
+    """
+    corners_totals: list = []
+    corners_spreads: list = []
+    bk_market_log: dict = {}
+
+    for bk in data.get("bookmakers", []):
+        bk_key = bk.get("key", "?")
+        bk_name = bk.get("title", bk_key)
+        bk_markets = []
+        for market in bk.get("markets", []):
+            mk = market.get("key", "")
+            bk_markets.append(f"{mk}({len(market.get('outcomes', []))})")
+            is_main = not mk.startswith("alternate_")
+            for o in market.get("outcomes", []):
+                entry = {
+                    "name": o["name"],
+                    "price": o.get("price", 0),
+                    "point": o.get("point"),
+                    "bk": bk_name,
+                    "bk_key": bk_key,
+                    "is_main": is_main,
+                }
+                if "totals_corners" in mk:
+                    corners_totals.append(entry)
+                elif "spreads_corners" in mk:
+                    corners_spreads.append(entry)
+        bk_market_log[bk_key] = bk_markets
+
+    home_team = data.get("home_team", (ev_hint or {}).get("home_team", ""))
+    away_team = data.get("away_team", (ev_hint or {}).get("away_team", ""))
+
+    pinnacle_totals = [c for c in corners_totals if c.get("bk_key") == "pinnacle"]
+    pinnacle_spreads = [c for c in corners_spreads if c.get("bk_key") == "pinnacle"]
+    pinnacle_main_totals = [c for c in pinnacle_totals if c.get("is_main")]
+    pinnacle_main_spreads = [c for c in pinnacle_spreads if c.get("is_main")]
+    alt_lines = sorted({
+        c.get("point") for c in (pinnacle_totals + pinnacle_spreads)
+        if not c.get("is_main") and c.get("point") is not None
+    })
+
+    logger.info(
+        f"[OddsAPI] Corner parse {home_team} vs {away_team}: "
+        f"books={list(bk_market_log.keys())} | "
+        f"Pin totals all={len(pinnacle_totals)} main={len(pinnacle_main_totals)} | "
+        f"Pin spreads all={len(pinnacle_spreads)} main={len(pinnacle_main_spreads)}"
+    )
+
+    parsed: dict = {
+        "home_team": home_team,
+        "away_team": away_team,
+        "totals": {},
+        "spreads": [],
+        "had_pinnacle": bool(pinnacle_totals or pinnacle_spreads),
+        "had_main_market": bool(pinnacle_main_totals or pinnacle_main_spreads),
+        "alt_only_lines": alt_lines,
+    }
+    if corners_totals:
+        parsed["totals"] = _build_corner_best(corners_totals)
+    if corners_spreads:
+        parsed["spreads"] = _build_corner_spreads(corners_spreads)
+    return parsed
+
+
+def _http_get_corner(sport_key: str, eid: str, markets_str: str):
+    return requests.get(
+        f"{BASE_URL}/sports/{sport_key}/events/{eid}/odds",
+        params={
+            "apiKey": ODDS_API_KEY,
+            "regions": CORNER_REGIONS,
+            "markets": markets_str,
+            "oddsFormat": "decimal",
+        },
+        headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
+        timeout=20,
+    )
+
+
+def fetch_pinnacle_corners(sport_key: str, eid: str, ev_hint: dict | None = None,
+                           max_retries: int = 3) -> dict:
+    """
+    ISOLATED function to fetch Pinnacle corner odds for one event.
+
+    Independent from other odds-fetch logic — edits to other code must NOT
+    touch this function. It is the single source of truth for corner data.
+
+    Behaviour:
+      1. Cache: if a result was fetched within `current_interval` seconds, return it.
+      2. Retry up to `max_retries` (default 3) on empty/error.
+      3. Each attempt fetches FULL markets (main + alternates).
+      4. On 422 (markets unsupported), retries with main-only.
+      5. On any error/429: register error → gate widens to 30s.
+      6. Returns parsed dict; never raises.
+    """
+    _pin_gate_recover_if_clean()
+
+    cache_key = (sport_key, eid)
+    cached = _corner_cache.get(cache_key)
+    if cached:
+        ts, result = cached
+        if (time.time() - ts) < _pin_gate["current_interval"]:
+            logger.info(
+                f"[OddsAPI] Corner cache HIT {eid} "
+                f"(age={int(time.time() - ts)}s, ttl={_pin_gate['current_interval']}s)"
+            )
+            return result
+
+    last_parsed: dict = {}
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = _http_get_corner(sport_key, eid, CORNER_MARKETS_FULL)
+            if resp.status_code == 422:
+                logger.warning(f"[OddsAPI] Corner FULL 422 for {eid}, retrying main-only")
+                resp = _http_get_corner(sport_key, eid, CORNER_MARKETS_MAIN_ONLY)
+            if resp.status_code == 429:
+                _pin_gate_register_error("429 rate limit")
+                logger.warning(f"[OddsAPI] Corner 429 for {eid} attempt {attempt}/{max_retries}")
+                time.sleep(0.6)
+                continue
+            resp.raise_for_status()
+            _update_quota(resp)
+            data = resp.json()
+
+            parsed = _parse_corner_response(data, ev_hint)
+            last_parsed = parsed
+
+            has_data = bool(parsed.get("totals") or parsed.get("spreads"))
+            if has_data:
+                logger.info(
+                    f"[OddsAPI] fetch_pinnacle_corners OK {eid} attempt {attempt}: "
+                    f"totals={list(parsed['totals'].keys())} "
+                    f"spreads={[p.get('home_point') for p in parsed['spreads']]}"
+                )
+                _corner_cache[cache_key] = (time.time(), parsed)
+                return parsed
+
+            # Empty: no Pinnacle main lines parsed. Log + retry.
+            logger.warning(
+                f"[OddsAPI] fetch_pinnacle_corners EMPTY {eid} attempt {attempt}/{max_retries}: "
+                f"had_pinnacle={parsed['had_pinnacle']} had_main={parsed['had_main_market']} "
+                f"alt_lines={parsed['alt_only_lines']}"
+            )
+            time.sleep(0.5)
+        except Exception as exc:
+            _pin_gate_register_error(f"exception: {type(exc).__name__}")
+            logger.warning(
+                f"[OddsAPI] fetch_pinnacle_corners ERROR {eid} attempt {attempt}/{max_retries}: {exc}"
+            )
+            time.sleep(0.6)
+
+    # All retries exhausted. Cache empty briefly so we don't hammer API.
+    _corner_cache[cache_key] = (time.time(), last_parsed)
+    logger.warning(
+        f"[OddsAPI] fetch_pinnacle_corners GAVE UP {eid} after {max_retries} attempts"
+    )
+    return last_parsed
+
+
 def get_corner_odds(league_code: str, event_ids: list[str] | None = None) -> dict:
     """
     Fetch corner odds for all events in a league.
-    Uses per-event endpoint (bulk doesn't support alternate corner markets).
-    If event_ids provided, skip the events list call to save quota.
-    Returns: {"home__away": {"totals": {line: {...}}, "spreads": [{...}],
-              "h1_totals": {...}, "h1_spreads": [...]}}
+    Thin wrapper that delegates per-event work to `fetch_pinnacle_corners`.
+    Returns: {"home__away": {"totals": {line: {...}}, "spreads": [{...}]}}
     """
     sport_key = ODDS_SPORTS.get(league_code)
     if not sport_key:
         return {}
 
-    # MAIN markets (totals_corners, spreads_corners) carry the active line
-    # the bookmaker is currently offering. Alternate markets carry only
-    # alternative lines and may NOT include the live main line. We must
-    # fetch BOTH and prefer the main on display.
-    CORNER_MARKETS_FULL = "totals_corners,spreads_corners,alternate_totals_corners,alternate_spreads_corners"
-    CORNER_MARKETS_MAIN_ONLY = "totals_corners,spreads_corners"
-    CORNER_MARKETS_ALT_ONLY = "alternate_totals_corners,alternate_spreads_corners"
-    # Pinnacle may live in us2 region for some sports — query all major regions.
-    CORNER_REGIONS = "eu,uk,us,us2,au"
-
     try:
-        # Get event list if not provided
         if not event_ids:
             resp = requests.get(
                 f"{BASE_URL}/sports/{sport_key}/events",
@@ -227,99 +439,33 @@ def get_corner_odds(league_code: str, event_ids: list[str] | None = None) -> dic
         if not events:
             return {}
 
-        def _fetch_corner_event(eid: str, markets_str: str):
-            return requests.get(
-                f"{BASE_URL}/sports/{sport_key}/events/{eid}/odds",
-                params={
-                    "apiKey": ODDS_API_KEY,
-                    "regions": CORNER_REGIONS,
-                    "markets": markets_str,
-                    "oddsFormat": "decimal",
-                },
-                # Disable any HTTP caching from intermediates
-                headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
-                timeout=20,
-            )
-
-        result = {}
+        result: dict = {}
         for ev in events:
             eid = ev.get("id", "")
             if not eid:
                 continue
-            try:
-                # Try fetching MAIN + ALTERNATE in one request
-                resp2 = _fetch_corner_event(eid, CORNER_MARKETS_FULL)
-                if resp2.status_code == 422:
-                    logger.warning(f"[OddsAPI] Corner FULL 422 for {eid}, retrying main-only")
-                    resp2 = _fetch_corner_event(eid, CORNER_MARKETS_MAIN_ONLY)
-                    if resp2.status_code == 422:
-                        logger.warning(f"[OddsAPI] Corner MAIN-ONLY 422 for {eid}, retrying alt-only")
-                        resp2 = _fetch_corner_event(eid, CORNER_MARKETS_ALT_ONLY)
-                resp2.raise_for_status()
-                _update_quota(resp2)
-                data = resp2.json()
-
-                corners_totals = []
-                corners_spreads = []
-                bk_market_log = {}
-
-                for bk in data.get("bookmakers", []):
-                    bk_key = bk.get("key", "?")
-                    bk_name = bk.get("title", bk_key)
-                    bk_markets = []
-                    for market in bk.get("markets", []):
-                        mk = market.get("key", "")
-                        bk_markets.append(f"{mk}({len(market.get('outcomes', []))})")
-                        # Tag whether this entry came from the MAIN market (active line)
-                        # or an ALTERNATE market.
-                        is_main = not mk.startswith("alternate_")
-                        for o in market.get("outcomes", []):
-                            entry = {
-                                "name": o["name"],
-                                "price": o.get("price", 0),
-                                "point": o.get("point"),
-                                "bk": bk_name,
-                                "bk_key": bk_key,
-                                "is_main": is_main,
-                            }
-                            if "totals_corners" in mk:
-                                corners_totals.append(entry)
-                            elif "spreads_corners" in mk:
-                                corners_spreads.append(entry)
-                    bk_market_log[bk_key] = bk_markets
-
-                home_team = data.get("home_team", ev.get("home_team", ""))
-                away_team = data.get("away_team", ev.get("away_team", ""))
-                key = f"{home_team}__{away_team}"
-
-                # Detailed logging — bookmakers + markets per event
-                pinnacle_totals = sum(1 for c in corners_totals if c.get("bk_key") == "pinnacle")
-                pinnacle_spreads = sum(1 for c in corners_spreads if c.get("bk_key") == "pinnacle")
-                logger.info(
-                    f"[OddsAPI] Corner {home_team} vs {away_team}: "
-                    f"books={list(bk_market_log.keys())} | "
-                    f"totals={len(corners_totals)} (Pin:{pinnacle_totals}) | "
-                    f"spreads={len(corners_spreads)} (Pin:{pinnacle_spreads})"
-                )
-                if pinnacle_totals == 0 and pinnacle_spreads == 0 and bk_market_log:
-                    logger.warning(f"[OddsAPI] NO PINNACLE corners for {home_team} vs {away_team}. Books seen: {bk_market_log}")
-
-                match_data = {}
-                if corners_totals:
-                    match_data["totals"] = _build_corner_best(corners_totals)
-                if corners_spreads:
-                    match_data["spreads"] = _build_corner_spreads(corners_spreads)
-                if match_data:
-                    result[key] = match_data
-
-            except Exception as exc:
-                logger.warning(f"[OddsAPI] Corner event {eid} error: {exc}")
+            parsed = fetch_pinnacle_corners(sport_key, eid, ev_hint=ev)
+            if not parsed:
                 continue
+            home_team = parsed.get("home_team") or ev.get("home_team", "")
+            away_team = parsed.get("away_team") or ev.get("away_team", "")
+            key = f"{home_team}__{away_team}"
+            match_data = {}
+            if parsed.get("totals"):
+                match_data["totals"] = parsed["totals"]
+            if parsed.get("spreads"):
+                match_data["spreads"] = parsed["spreads"]
+            if match_data:
+                result[key] = match_data
 
-        logger.info(f"[OddsAPI] Corner odds: {len(result)}/{len(events)} events for {league_code}")
+        logger.info(
+            f"[OddsAPI] Corner odds: {len(result)}/{len(events)} events for {league_code} "
+            f"(gate={_pin_gate['current_interval']}s)"
+        )
         return result
 
     except Exception as e:
+        _pin_gate_register_error(f"top-level: {type(e).__name__}")
         logger.error(f"[OddsAPI] Corner odds failed for {league_code}: {e}")
         return {}
 
