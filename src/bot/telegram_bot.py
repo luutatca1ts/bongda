@@ -2091,7 +2091,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for ev in live_odds:
                 odds_map[f"{ev['home_team']}__{ev['away_team']}"] = ev
 
-            current_msg = f"\n\U0001f3c6 {league_name} \u2014 LIVE [v5-pinnacle]\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            current_msg = f"\n\U0001f3c6 {league_name} \u2014 LIVE [v6-corners]\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
 
             for sc in live_scores:
                 home = sc["home_team"]
@@ -2289,12 +2289,15 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     over_prob = 1 - cum_prob
                     return over_prob, cum_prob
 
-                if corner_totals_odds or corner_lines or corner_spreads:
+                # Pinnacle-only corner data
+                live_corner_lines = [l for l in corner_totals_odds.keys() if corner_totals_odds[l].get("over_price")]
+                has_corner_data = bool(live_corner_lines or corner_spreads)
+                if not has_corner_data:
+                    current_msg += f"  \u2691 Ph\u1ea1t g\u00f3c: Ch\u01b0a c\u00f3 k\u00e8o\n"
+                else:
                     pace_str = f" | live {live_corner_pace:.1f}/90'" if m_minute > 5 else ""
                     actual_str = f" | thực tế: {actual_corners}" if actual_corners > 0 else ""
                     current_msg += f"  \u2691 Phạt góc (xC: {corner_xg}{actual_str}{pace_str}):\n"
-                    # Only Pinnacle's listed line (single entry from collector)
-                    live_corner_lines = [l for l in corner_totals_odds.keys() if corner_totals_odds[l].get("over_price")]
                     for line in live_corner_lines:
                         cl = corner_lines.get(line, {})
                         co = corner_totals_odds.get(line, {})
@@ -2343,9 +2346,12 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 h1c_spreads = corner_data.get("h1_spreads", [])
                 h1c_xg = h1c_pred.get("xg", 4.7)
 
-                if h1c_totals_odds or h1c_lines or h1c_spreads:
+                live_h1c_lines = [l for l in h1c_totals_odds.keys() if h1c_totals_odds[l].get("over_price")]
+                has_h1c_data = bool(live_h1c_lines or h1c_spreads)
+                if not has_h1c_data:
+                    current_msg += f"  \u2691 Ch\u01b0a c\u00f3 k\u00e8o hi\u1ec7p 1\n"
+                else:
                     current_msg += f"  \u2691 G\u00f3c hi\u1ec7p 1 (xC: {h1c_xg}):\n"
-                    live_h1c_lines = [l for l in h1c_totals_odds.keys() if h1c_totals_odds[l].get("over_price")]
                     for line in live_h1c_lines:
                         cl = h1c_lines.get(line, {})
                         co = h1c_totals_odds.get(line, {})

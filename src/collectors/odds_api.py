@@ -200,8 +200,10 @@ def get_corner_odds(league_code: str, event_ids: list[str] | None = None) -> dic
     if not sport_key:
         return {}
 
-    # Only these 2 markets are supported by the API; _1st_half variants return 422
-    CORNER_MARKETS = "alternate_totals_corners,alternate_spreads_corners"
+    # Fetch both main and alternate corner markets.
+    # Live matches typically only have main markets (totals_corners, spreads_corners);
+    # pre-match has both. Parser handles both via substring check.
+    CORNER_MARKETS = "totals_corners,spreads_corners,alternate_totals_corners,alternate_spreads_corners"
 
     try:
         # Get event list if not provided
