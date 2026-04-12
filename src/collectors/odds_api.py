@@ -332,27 +332,12 @@ def _build_corner_best(corners_list: list, target_line: float = 9.5) -> dict:
 def _build_corner_spreads(spreads_list: list) -> list:
     """
     Build corner Asian Handicap pairs from raw spread outcomes.
-    Returns: [{home_name, away_name, home_point, away_point, home_price, away_price, bk}]
+    Pairs MUST have:
+      - Same absolute point (opposite signs)
+      - DIFFERENT team names
+    Returns sorted by line "balance" (most balanced = main line first):
+      [{home_name, away_name, home_point, away_point, home_price, away_price, bk}]
     """
-    # Group by bookmaker + point to form pairs
-    by_bk = {}
-    for s in spreads_list:
-        bk = s["bk"]
-        point = s.get("point")
-        if point is None:
-            continue
-        if bk not in by_bk:
-            by_bk[bk] = {}
-        if point not in by_bk[bk]:
-            by_bk[bk][point] = {"name": s["name"], "price": s["price"]}
-        else:
-            # Second outcome for same point = the other side
-            existing = by_bk[bk][point]
-            # point > 0 = underdog getting corners, point < 0 = favorite giving
-            # The Odds API: first team listed with negative point = favorite
-            pass
-
-    # Simpler approach: group all outcomes by bookmaker, pair them
     pairs = []
     bk_outcomes = {}
     for s in spreads_list:
@@ -362,7 +347,6 @@ def _build_corner_spreads(spreads_list: list) -> list:
         bk_outcomes[bk].append(s)
 
     for bk, outcomes in bk_outcomes.items():
-        # Pair outcomes: same absolute point, opposite signs
         seen = set()
         for i, o1 in enumerate(outcomes):
             if i in seen:
@@ -370,30 +354,36 @@ def _build_corner_spreads(spreads_list: list) -> list:
             for j, o2 in enumerate(outcomes):
                 if j in seen or j == i:
                     continue
-                if o1["point"] is not None and o2["point"] is not None:
-                    # Check if they're a pair (opposite points or same line)
-                    if abs(o1["point"] + o2["point"]) < 0.01:
-                        seen.add(i)
-                        seen.add(j)
-                        # Negative point = giving handicap (favorite)
-                        if o1["point"] < o2["point"]:
-                            home, away = o1, o2
-                        else:
-                            home, away = o2, o1
-                        pairs.append({
-                            "home_name": home["name"],
-                            "away_name": away["name"],
-                            "home_point": home["point"],
-                            "away_point": away["point"],
-                            "home_price": home["price"],
-                            "away_price": away["price"],
-                            "bk": bk,
-                        })
-                        break
+                if o1["point"] is None or o2["point"] is None:
+                    continue
+                # Must be opposite points
+                if abs(o1["point"] + o2["point"]) >= 0.01:
+                    continue
+                # Must be DIFFERENT teams (avoid Chelsea/Chelsea cross-pair bug)
+                if o1["name"].strip().lower() == o2["name"].strip().lower():
+                    continue
+                seen.add(i)
+                seen.add(j)
+                # Team with smaller (more negative) point = favorite = "home" label
+                if o1["point"] < o2["point"]:
+                    home, away = o1, o2
+                else:
+                    home, away = o2, o1
+                pairs.append({
+                    "home_name": home["name"],
+                    "away_name": away["name"],
+                    "home_point": home["point"],
+                    "away_point": away["point"],
+                    "home_price": home["price"],
+                    "away_price": away["price"],
+                    "bk": bk,
+                })
+                break
 
-    # Sort by best home price
-    pairs.sort(key=lambda x: x["home_price"], reverse=True)
-    return pairs[:3]  # Top 3 bookmaker pairs
+    # Sort by line balance — most balanced (closest to 50/50) = main line first.
+    # Main line is what bookmaker considers fair and is what users see by default.
+    pairs.sort(key=lambda x: abs(x["home_price"] - x["away_price"]))
+    return pairs[:5]  # Top 5 to allow value-bet search across alternate lines
 
 
 def get_best_corners(event: dict, target_line: float = 9.5) -> dict:

@@ -71,6 +71,27 @@ def _match_teams(home1: str, away1: str, home2: str, away2: str) -> bool:
 
     return _similar(h1, h2) and _similar(a1, a2)
 
+
+def _match_event(db_home: str, db_away: str, db_utc, ev: dict, max_hours: float = 6.0) -> bool:
+    """
+    Match a DB match against an Odds API event.
+    Requires BOTH team names AND kickoff time within `max_hours` to match.
+    Prevents stale/wrong odds events being paired with the wrong fixture.
+    """
+    if not _match_teams(db_home, db_away, ev.get("home_team", ""), ev.get("away_team", "")):
+        return False
+    if db_utc is None:
+        return True
+    ev_ct = ev.get("commence_time")
+    if not ev_ct:
+        return True
+    try:
+        ev_dt = datetime.fromisoformat(ev_ct.replace("Z", "+00:00")).replace(tzinfo=None)
+        m_dt = db_utc.replace(tzinfo=None) if getattr(db_utc, "tzinfo", None) else db_utc
+        return abs((ev_dt - m_dt).total_seconds()) <= max_hours * 3600
+    except Exception:
+        return True
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,6 +107,9 @@ def run_analysis_pipeline() -> list[str]:
     """
     alerts = []
     session = get_session()
+
+    # Reset per-league corner data — always fetch fresh from API
+    run_analysis_pipeline._corner_per_league = {}
 
     try:
         for league_code, league_name in LEAGUES.items():
@@ -183,10 +207,11 @@ def run_analysis_pipeline() -> list[str]:
                 # Predict
                 prediction = model.predict(match["home_team"], match["away_team"])
 
-                # Match with odds (fuzzy match on team names)
+                # Match with odds — require team name AND kickoff time match
+                m_utc = datetime.fromisoformat(match["utc_date"].replace("Z", "+00:00")).replace(tzinfo=None)
                 odds_event = None
                 for ev in odds_events:
-                    if _match_teams(match["home_team"], match["away_team"], ev["home_team"], ev["away_team"]):
+                    if _match_event(match["home_team"], match["away_team"], m_utc, ev):
                         odds_event = ev
                         break
 
@@ -238,16 +263,16 @@ def run_analysis_pipeline() -> list[str]:
                 corner_lines = corners_pred.get("lines", {})
                 corner_ah_pred = corners_pred.get("asian_handicap", {})
 
-                # Fetch corner odds for this league (cached per league)
-                if not hasattr(run_analysis_pipeline, '_corner_cache'):
-                    run_analysis_pipeline._corner_cache = {}
-                if league_code not in run_analysis_pipeline._corner_cache:
+                # Fetch corner odds fresh per league (no cache — always live data)
+                if not hasattr(run_analysis_pipeline, '_corner_per_league'):
+                    run_analysis_pipeline._corner_per_league = {}
+                if league_code not in run_analysis_pipeline._corner_per_league:
                     try:
                         eids = [ev["event_id"] for ev in odds_events if ev.get("event_id")]
-                        run_analysis_pipeline._corner_cache[league_code] = get_corner_odds(league_code, event_ids=eids or None)
+                        run_analysis_pipeline._corner_per_league[league_code] = get_corner_odds(league_code, event_ids=eids or None)
                     except Exception:
-                        run_analysis_pipeline._corner_cache[league_code] = {}
-                league_corners = run_analysis_pipeline._corner_cache[league_code]
+                        run_analysis_pipeline._corner_per_league[league_code] = {}
+                league_corners = run_analysis_pipeline._corner_per_league[league_code]
 
                 # Find corner data for this match
                 corner_key = f"{match['home_team']}__{match['away_team']}"
@@ -291,7 +316,7 @@ def run_analysis_pipeline() -> list[str]:
                                     expected_value=ev, confidence=conf, is_value_bet=True,
                                 ))
 
-                # Corner AH value bets — main line only
+                # Corner AH value bets — main line only (matches what bookmaker displays)
                 if corner_spreads:
                     cs = corner_spreads[0]
                     hp = cs.get("home_point", 0)

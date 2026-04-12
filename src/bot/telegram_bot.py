@@ -12,7 +12,7 @@ from telegram.ext import (
 )
 from src.config import TELEGRAM_BOT_TOKEN
 from src.db.models import get_session, Bookmaker, Prediction, Match, DailyReport
-from src.pipeline import _match_teams
+from src.pipeline import _match_teams, _match_event
 from src.bot.formatters import (
     format_bookmaker_list,
     format_stats,
@@ -902,6 +902,7 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
         top_picks = []
         avoid_picks = []
         parlay_picks = []  # ALL positive EV picks for parlay generation
+        safe_picks = []  # Prob >= 70% picks regardless of confidence tier
         total_hist = 0
 
         for league_code, league_matches in by_league.items():
@@ -928,6 +929,17 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             current_msg = f"\n\U0001f3c6 {league_name}\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
 
             for m in league_matches:
+                # Find odds first — require team name AND kickoff time match
+                odds_event = None
+                for ev in odds_events:
+                    if _match_event(m.home_team, m.away_team, m.utc_date, ev):
+                        odds_event = ev
+                        break
+
+                if not odds_event:
+                    logger.info(f"[Analyze] Skip {m.home_team} vs {m.away_team} — no bookmaker odds")
+                    continue
+
                 pred = model.predict(m.home_team, m.away_team)
 
                 try:
@@ -946,16 +958,9 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
                 all_values = []
                 ah = pred.get("asian_handicap", {})
 
-                # Find odds
-                odds_event = None
-                for ev in odds_events:
-                    if _match_teams(m.home_team, m.away_team, ev["home_team"], ev["away_team"]):
-                        odds_event = ev
-                        break
-
-                best_h2h = get_best_odds(odds_event, "h2h") if odds_event else {}
-                best_totals = get_best_odds(odds_event, "totals") if odds_event else {}
-                spread_pairs = get_spread_pairs(odds_event) if odds_event else []
+                best_h2h = get_best_odds(odds_event, "h2h")
+                best_totals = get_best_odds(odds_event, "totals")
+                spread_pairs = get_spread_pairs(odds_event)
 
                 # === 1X2 ===
                 h_odds = best_h2h.get("Home", {})
@@ -1058,36 +1063,36 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
                             all_values.append({"outcome": f"Góc Xỉu {line}", "market": "Phạt góc", "odds": co["under_price"], "ev": ev_cu, "bk": co["under_bk"], "prob": u_prob})
 
                     if corner_spreads:
-                        for cs in corner_spreads[:2]:
-                            hp = cs["home_point"]
-                            ap = cs["away_point"]
-                            hp_str = f"{hp:+g}"
-                            ap_str = f"{ap:+g}"
+                        cs = corner_spreads[0]
+                        hp = cs["home_point"]
+                        ap = cs["away_point"]
+                        hp_str = f"{hp:+g}"
+                        ap_str = f"{ap:+g}"
 
-                            pair_home_is_match_home = _is_home_team(cs["home_name"], m.home_team)
-                            if pair_home_is_match_home:
-                                model_key = f"{hp:+g}" if hp != 0 else "0"
-                                ah_pred = corner_ah_pred.get(model_key, {})
-                                h_prob = ah_pred.get("home", 0)
-                                a_prob = ah_pred.get("away", 0)
-                            else:
-                                model_key = f"{ap:+g}" if ap != 0 else "0"
-                                ah_pred = corner_ah_pred.get(model_key, {})
-                                h_prob = ah_pred.get("away", 0)
-                                a_prob = ah_pred.get("home", 0)
+                        pair_home_is_match_home = _is_home_team(cs["home_name"], m.home_team)
+                        if pair_home_is_match_home:
+                            model_key = f"{hp:+g}" if hp != 0 else "0"
+                            ah_pred = corner_ah_pred.get(model_key, {})
+                            h_prob = ah_pred.get("home", 0)
+                            a_prob = ah_pred.get("away", 0)
+                        else:
+                            model_key = f"{ap:+g}" if ap != 0 else "0"
+                            ah_pred = corner_ah_pred.get(model_key, {})
+                            h_prob = ah_pred.get("away", 0)
+                            a_prob = ah_pred.get("home", 0)
 
-                            current_msg += (
-                                f"    Châu Á: {cs['home_name'][:10]} {hp_str} "
-                                f"{h_prob*100:.0f}% @{cs['home_price']:.2f} | "
-                                f"{cs['away_name'][:10]} {ap_str} "
-                                f"{a_prob*100:.0f}% @{cs['away_price']:.2f} ({cs['bk']})\n"
-                            )
-                            if h_prob > 0:
-                                ev_ch = h_prob * cs["home_price"] - 1
-                                all_values.append({"outcome": f"Góc {cs['home_name'][:10]} {hp_str}", "market": "Góc Châu Á", "odds": cs["home_price"], "ev": ev_ch, "bk": cs["bk"], "prob": h_prob})
-                            if a_prob > 0:
-                                ev_ca = a_prob * cs["away_price"] - 1
-                                all_values.append({"outcome": f"Góc {cs['away_name'][:10]} {ap_str}", "market": "Góc Châu Á", "odds": cs["away_price"], "ev": ev_ca, "bk": cs["bk"], "prob": a_prob})
+                        current_msg += (
+                            f"    Châu Á: {cs['home_name'][:10]} {hp_str} "
+                            f"{h_prob*100:.0f}% @{cs['home_price']:.2f} | "
+                            f"{cs['away_name'][:10]} {ap_str} "
+                            f"{a_prob*100:.0f}% @{cs['away_price']:.2f} ({cs['bk']})\n"
+                        )
+                        if h_prob > 0:
+                            ev_ch = h_prob * cs["home_price"] - 1
+                            all_values.append({"outcome": f"Góc {cs['home_name'][:10]} {hp_str}", "market": "Góc Châu Á", "odds": cs["home_price"], "ev": ev_ch, "bk": cs["bk"], "prob": h_prob})
+                        if a_prob > 0:
+                            ev_ca = a_prob * cs["away_price"] - 1
+                            all_values.append({"outcome": f"Góc {cs['away_name'][:10]} {ap_str}", "market": "Góc Châu Á", "odds": cs["away_price"], "ev": ev_ca, "bk": cs["bk"], "prob": a_prob})
                     if not shown_corner and not corner_spreads:
                         current_msg += f"    Chưa có dữ liệu\n"
 
@@ -1288,6 +1293,22 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
                                 "confidence": conf if conf != "SKIP" else "LOW",
                                 "league": league_name,
                             })
+
+                    # Collect ALL value bets with Prob >= 70% (regardless of confidence tier)
+                    seen_safe = set()
+                    for v in all_values:
+                        if v.get("prob", 0) >= 0.70 and v.get("ev", 0) > 0:
+                            dedup_key = f"{v['market']}__{v['outcome']}"
+                            if dedup_key in seen_safe:
+                                continue
+                            seen_safe.add(dedup_key)
+                            safe_picks.append({
+                                **v,
+                                "home": m.home_team,
+                                "away": m.away_team,
+                                "time": time_str,
+                                "league": league_name,
+                            })
                 elif not odds_event:
                     current_msg += f"  \u2753 Ch\u01b0a c\u00f3 odds\n"
                 else:
@@ -1306,7 +1327,7 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
         # Send header
         title = "K\u00c8O H\u00d4M NAY" if not league_codes else "PH\u00c2N T\u00cdCH"
         header = (
-            f"\U0001f4ca {title} \u2014 {total_analyzed} tr\u1eadn ({len(by_league)} gi\u1ea3i)\n"
+            f"\U0001f4ca {title} \u2014 {total_analyzed} tr\u1eadn ({len(by_league)} gi\u1ea3i) [v2]\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
             f"Model: Poisson | Data: {total_hist} tr\u1eadn l\u1ecbch s\u1eed\n"
         )
@@ -1386,6 +1407,38 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             avoid_msg += f"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
             avoid_msg += f"\u26a0\ufe0f EV \u00e2m > 10% = nh\u00e0 c\u00e1i l\u1eddi, b\u1ea1n l\u1ed7\n"
             await _safe_reply(update, avoid_msg)
+
+        # SAFE PICKS — Prob >= 70% (high-confidence shortlist)
+        if safe_picks:
+            safe_picks.sort(key=lambda x: (-x["prob"], -x["ev"]))
+            safe_by_match = {}
+            for p in safe_picks:
+                mk = f"{p['home']}__{p['away']}"
+                if mk not in safe_by_match:
+                    safe_by_match[mk] = []
+                safe_by_match[mk].append(p)
+
+            safe_msg = (
+                f"\n\U0001f31f K\u00c8O \u0102N CH\u1eaeC \u2014 PROB \u2265 70%\n"
+                f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+                f"Shortlist k\u00e8o c\u00f3 x\u00e1c su\u1ea5t cao nh\u1ea5t\n"
+            )
+            for mk, picks in safe_by_match.items():
+                p0 = picks[0]
+                safe_msg += (
+                    f"\n\U0001f31f {p0['home']} vs {p0['away']}\n"
+                    f"  \U0001f552 {p0['time']} | {p0['league']}\n"
+                )
+                for pick in picks:
+                    safe_msg += (
+                        f"  \u2794 {pick['outcome']} ({pick['market']}) @ {pick['odds']:.2f}\n"
+                        f"    Prob: {pick['prob']*100:.0f}% | EV: {pick['ev']*100:+.1f}% | {pick['bk']}\n"
+                    )
+            safe_msg += (
+                f"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+                f"\U0001f4a1 Ch\u1ec9 li\u1ec7t k\u00ea k\u00e8o c\u00f3 model prob \u2265 70% v\u00e0 EV > 0\n"
+            )
+            await _safe_reply(update, safe_msg)
 
     except Exception as e:
         logger.error(f"[Analyze] Error: {e}", exc_info=True)
@@ -2038,11 +2091,8 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for sc in live_scores:
                 home = sc["home_team"]
                 away = sc["away_team"]
-                total_live += 1
 
-                score_str = f" {sc['home_score']}-{sc['away_score']}"
-
-                # Find matching odds event
+                # Find matching odds event — skip if no bookmaker has odds
                 ev = None
                 for ok, ov in odds_map.items():
                     parts = ok.split("__")
@@ -2050,14 +2100,21 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         ev = ov
                         break
 
+                if not ev:
+                    logger.info(f"[Live] Skip {home} vs {away} — no bookmaker odds")
+                    continue
+
+                total_live += 1
+                score_str = f" {sc['home_score']}-{sc['away_score']}"
+
                 pred = model.predict(home, away)
                 h = pred["h2h"]
                 t = pred["totals"]
                 ah = pred.get("asian_handicap", {})
 
-                best_h2h = get_best_odds(ev, "h2h") if ev else {}
-                best_totals = get_best_odds(ev, "totals") if ev else {}
-                spread_pairs = get_spread_pairs(ev) if ev else []
+                best_h2h = get_best_odds(ev, "h2h")
+                best_totals = get_best_odds(ev, "totals")
+                spread_pairs = get_spread_pairs(ev)
 
                 current_msg += f"\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n"
 
@@ -2401,7 +2458,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 entry["live_signal"] = u_sig
                             match_values.append(entry)
 
-                # Corner AH value — main line only
+                # Corner AH value — main line only (matches what bookmaker displays)
                 if corner_spreads:
                     cs = corner_spreads[0]
                     pair_home_is_match_home = _is_home_team(cs["home_name"], home)

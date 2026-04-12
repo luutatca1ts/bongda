@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-
 CONFIDENCE_EMOJI = {
     "HIGH": "\U0001f534",    # 🔴
     "MEDIUM": "\U0001f7e1",  # 🟡
@@ -20,11 +19,11 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict, all_bookmak
     """Format a value bet alert for Telegram."""
     conf_emoji = CONFIDENCE_EMOJI.get(bet.get("confidence", "LOW"), "\U0001f7e2")
 
-    # Parse date
+    # Parse date — display in Vietnam time
     utc_str = match.get("utc_date", "")
     try:
         dt = datetime.fromisoformat(utc_str.replace("Z", "+00:00"))
-        time_str = dt.strftime("%H:%M - %d/%m/%Y")
+        time_str = dt.strftime("%H:%M - %d/%m/%Y UTC")
     except Exception:
         time_str = utc_str
 
