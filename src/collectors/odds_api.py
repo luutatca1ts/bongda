@@ -378,6 +378,47 @@ def fetch_pinnacle_corners(sport_key: str, eid: str, ev_hint: dict | None = None
             _update_quota(resp)
             data = resp.json()
 
+            # === RAW DEBUG DUMP ===
+            # Print everything the API returned for this corner request so we
+            # can definitively diagnose the "Chưa có kèo" issue.
+            import json as _json
+            try:
+                home_dbg = data.get("home_team", "?")
+                away_dbg = data.get("away_team", "?")
+                bks_dbg = data.get("bookmakers", []) or []
+                logger.warning(
+                    f"[RAW-CORNER] {eid} {home_dbg} vs {away_dbg} | "
+                    f"status={resp.status_code} | bookmakers_count={len(bks_dbg)} | "
+                    f"bookmaker_keys={[b.get('key') for b in bks_dbg]}"
+                )
+                for b in bks_dbg:
+                    bk_key = b.get("key", "?")
+                    bk_title = b.get("title", "?")
+                    mkts = b.get("markets", []) or []
+                    mkt_summary = [
+                        f"{m.get('key')}({len(m.get('outcomes', []))})"
+                        for m in mkts
+                    ]
+                    logger.warning(
+                        f"[RAW-CORNER] {eid} bk={bk_key} ({bk_title}) markets={mkt_summary}"
+                    )
+                    # FULL outcome dump for Pinnacle only — that's what we care about.
+                    if bk_key == "pinnacle":
+                        for m in mkts:
+                            mk = m.get("key", "?")
+                            outcomes = m.get("outcomes", []) or []
+                            for o in outcomes:
+                                logger.warning(
+                                    f"[RAW-CORNER-PIN] {eid} {mk}: "
+                                    f"name={o.get('name')!r} point={o.get('point')} price={o.get('price')}"
+                                )
+                if not bks_dbg:
+                    raw_blob = _json.dumps(data, ensure_ascii=False)[:800]
+                    logger.warning(f"[RAW-CORNER] {eid} EMPTY bookmakers. Raw: {raw_blob}")
+            except Exception as _dbg_exc:
+                logger.warning(f"[RAW-CORNER] dump failed for {eid}: {_dbg_exc}")
+            # === END RAW DEBUG DUMP ===
+
             parsed = _parse_corner_response(data, ev_hint)
             last_parsed = parsed
 
