@@ -2091,7 +2091,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for ev in live_odds:
                 odds_map[f"{ev['home_team']}__{ev['away_team']}"] = ev
 
-            current_msg = f"\n\U0001f3c6 {league_name} \u2014 LIVE\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            current_msg = f"\n\U0001f3c6 {league_name} \u2014 LIVE [v5-pinnacle]\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
 
             for sc in live_scores:
                 home = sc["home_team"]
@@ -2293,16 +2293,11 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pace_str = f" | live {live_corner_pace:.1f}/90'" if m_minute > 5 else ""
                     actual_str = f" | thực tế: {actual_corners}" if actual_corners > 0 else ""
                     current_msg += f"  \u2691 Phạt góc (xC: {corner_xg}{actual_str}{pace_str}):\n"
-                    # Corner O/U with live prob
-                    live_corner_lines = sorted(set(list(corner_lines.keys()) + list(corner_totals_odds.keys())))
-                    if not live_corner_lines:
-                        live_corner_lines = [8.5, 9.5, 10.5, 11.5]
+                    # Only Pinnacle's listed line (single entry from collector)
+                    live_corner_lines = [l for l in corner_totals_odds.keys() if corner_totals_odds[l].get("over_price")]
                     for line in live_corner_lines:
                         cl = corner_lines.get(line, {})
                         co = corner_totals_odds.get(line, {})
-                        if not cl and not co:
-                            continue
-                        # Use live probability if match is in progress
                         if m_minute > 5:
                             o_prob, u_prob = _live_corner_prob(line, actual_corners, m_minute, live_corner_pace)
                         else:
@@ -2310,7 +2305,6 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             u_prob = cl.get("under", 0)
                         o_price = f" @{co['over_price']:.2f}" if co.get("over_price") else ""
                         u_price = f" @{co['under_price']:.2f}" if co.get("under_price") else ""
-                        # Mark if already won/lost
                         if actual_corners > line:
                             status = " ✅ ĐÃ QUA"
                         elif m_minute >= 85 and actual_corners <= line - 2:
@@ -2351,14 +2345,10 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 if h1c_totals_odds or h1c_lines or h1c_spreads:
                     current_msg += f"  \u2691 G\u00f3c hi\u1ec7p 1 (xC: {h1c_xg}):\n"
-                    live_h1c_lines = sorted(set(list(h1c_lines.keys()) + list(h1c_totals_odds.keys())))
-                    if not live_h1c_lines:
-                        live_h1c_lines = [3.5, 4.5, 5.5, 6.5]
+                    live_h1c_lines = [l for l in h1c_totals_odds.keys() if h1c_totals_odds[l].get("over_price")]
                     for line in live_h1c_lines:
                         cl = h1c_lines.get(line, {})
                         co = h1c_totals_odds.get(line, {})
-                        if not cl and not co:
-                            continue
                         o_prob = cl.get("over", 0)
                         u_prob = cl.get("under", 0)
                         o_price = f" @{co['over_price']:.2f}" if co.get("over_price") else ""
@@ -2421,10 +2411,8 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             pt_str = f"{pt:+g}" if pt != 0 else "0"
                             match_values.append({"outcome": f"{pair[name_key]} {pt_str}", "market": "Ch\u00e2u \u00c1", "odds": pair[price_key], "ev": ev_val, "bk": pair["bookmaker"], "prob": sp})
 
-                # Corner O/U value — use LIVE probability
-                live_cv_lines = sorted(set(list(corner_lines.keys()) + list(corner_totals_odds.keys())))
-                if not live_cv_lines:
-                    live_cv_lines = [8.5, 9.5, 10.5, 11.5]
+                # Corner O/U value — only Pinnacle's listed line
+                live_cv_lines = [l for l in corner_totals_odds.keys() if corner_totals_odds[l].get("over_price")]
                 for line in live_cv_lines:
                     cl = corner_lines.get(line, {})
                     co = corner_totals_odds.get(line, {})
