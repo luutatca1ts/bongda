@@ -1325,7 +1325,7 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
         # Send header
         title = "K\u00c8O H\u00d4M NAY" if not league_codes else "PH\u00c2N T\u00cdCH"
         header = (
-            f"\U0001f4ca {title} \u2014 {total_analyzed} tr\u1eadn ({len(by_league)} gi\u1ea3i) [v4]\n"
+            f"\U0001f4ca {title} \u2014 {total_analyzed} tr\u1eadn ({len(by_league)} gi\u1ea3i) [v5-pinnacle]\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
             f"Model: Poisson | Data: {total_hist} tr\u1eadn l\u1ecbch s\u1eed\n"
         )
