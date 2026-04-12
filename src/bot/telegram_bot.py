@@ -2091,7 +2091,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for ev in live_odds:
                 odds_map[f"{ev['home_team']}__{ev['away_team']}"] = ev
 
-            current_msg = f"\n\U0001f3c6 {league_name} \u2014 LIVE [v6-corners]\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            current_msg = f"\n\U0001f3c6 {league_name} \u2014 LIVE [v7-debug]\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
 
             for sc in live_scores:
                 home = sc["home_team"]
