@@ -10,6 +10,15 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
+
+# Diagnostic: force INFO-level logs to bot.log (via stderr redirect in start_bot.bat).
+# Needed so [CORNER-DEBUG-*] and [RAW-CORNER*] logs in odds_api.py are visible.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,
+)
+
 from src.config import TELEGRAM_BOT_TOKEN
 from src.db.models import get_session, Bookmaker, Prediction, Match, DailyReport
 from src.pipeline import _match_teams, _match_event
@@ -1026,6 +1035,20 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
                 home_xc = corners_pred.get("home_xc", 5.5)
                 away_xc = corners_pred.get("away_xc", 5.0)
 
+                # === CORNER DEBUG: log handler-level view for /phantich ===
+                try:
+                    logger.warning(
+                        f"[CORNER-DEBUG-PHANTICH] {league_code} {m.home_team} vs {m.away_team} | "
+                        f"corner_key={corner_key!r} | "
+                        f"league_corners_keys={list(league_corners.keys())} | "
+                        f"corner_data_keys={list((corner_data or {}).keys())} | "
+                        f"totals_raw={corner_totals_odds} | "
+                        f"spreads_count={len(corner_spreads)}"
+                    )
+                except Exception as _dbg_exc:
+                    logger.warning(f"[CORNER-DEBUG-PHANTICH] dump failed: {_dbg_exc}")
+                # === END CORNER DEBUG ===
+
                 if corner_totals_odds or corner_lines or corner_spreads:
                     current_msg += f"  \u2691 Ph\u1ea1t g\u00f3c (xC: {corner_xg} | {m.home_team[:3]} {home_xc} - {away_xc} {m.away_team[:3]}):\n"
 
@@ -2039,6 +2062,29 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 elif isinstance(data, dict):
                     corners_by_league[lc] = data
 
+        # === CORNER DEBUG: log what get_corner_odds actually returned per league ===
+        try:
+            for _lc, _cmap in corners_by_league.items():
+                _keys = list(_cmap.keys()) if isinstance(_cmap, dict) else []
+                logger.warning(
+                    f"[CORNER-DEBUG-FETCH] /live {_lc}: "
+                    f"returned {len(_keys)} match(es) keys={_keys}"
+                )
+                if isinstance(_cmap, dict):
+                    for _ck, _cv in _cmap.items():
+                        _tot = list((_cv or {}).get("totals", {}).keys())
+                        _spr_n = len((_cv or {}).get("spreads", []) or [])
+                        _h1t = list((_cv or {}).get("h1_totals", {}).keys())
+                        _h1s_n = len((_cv or {}).get("h1_spreads", []) or [])
+                        logger.warning(
+                            f"[CORNER-DEBUG-FETCH] /live {_lc} {_ck}: "
+                            f"totals_lines={_tot} spreads_count={_spr_n} "
+                            f"h1_totals_lines={_h1t} h1_spreads_count={_h1s_n}"
+                        )
+        except Exception as _dbg_exc:
+            logger.warning(f"[CORNER-DEBUG-FETCH] /live dump failed: {_dbg_exc}")
+        # === END CORNER DEBUG ===
+
         # Combine
         results = []
         for lc in league_codes:
@@ -2292,6 +2338,21 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Pinnacle-only corner data
                 live_corner_lines = [l for l in corner_totals_odds.keys() if corner_totals_odds[l].get("over_price")]
                 has_corner_data = bool(live_corner_lines or corner_spreads)
+                # === CORNER DEBUG: log handler-level view ===
+                try:
+                    logger.warning(
+                        f"[CORNER-DEBUG-LIVE] {league_code} {home} vs {away} | "
+                        f"corner_key={corner_key!r} | "
+                        f"league_corners_keys={list(league_corners.keys())} | "
+                        f"corner_data_keys={list((corner_data or {}).keys())} | "
+                        f"totals_raw={corner_totals_odds} | "
+                        f"spreads_count={len(corner_spreads)} | "
+                        f"live_corner_lines={live_corner_lines} | "
+                        f"has_corner_data={has_corner_data}"
+                    )
+                except Exception as _dbg_exc:
+                    logger.warning(f"[CORNER-DEBUG-LIVE] dump failed: {_dbg_exc}")
+                # === END CORNER DEBUG ===
                 if not has_corner_data:
                     current_msg += f"  \u2691 Ph\u1ea1t g\u00f3c: Ch\u01b0a c\u00f3 k\u00e8o\n"
                 else:
