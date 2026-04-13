@@ -139,7 +139,7 @@ def _build_picker_msg(command: str, selected: set, live_data: dict) -> str:
 
 def _build_picker_keyboard(command: str, selected: set, live_data: dict) -> InlineKeyboardMarkup:
     """Build inline keyboard with toggle checkboxes."""
-    from src.config import LEAGUES, LEAGUE_REGIONS
+    from src.config import LEAGUES, LEAGUES_SHORT, LEAGUE_REGIONS
     keyboard = []
 
     for region, codes in LEAGUE_REGIONS.items():
@@ -152,14 +152,14 @@ def _build_picker_keyboard(command: str, selected: set, live_data: dict) -> Inli
         for code in codes:
             is_selected = code in selected
             match_count = len(live_data.get(code, []))
-            # Build label
+            name = LEAGUES_SHORT.get(code, LEAGUES.get(code, code))
             check = "\u2705" if is_selected else "\u2b1c"
             if match_count > 0:
-                label = f"{check} \U0001f534{code}({match_count})"
+                label = f"{check} \U0001f534 {name} ({match_count})"
             else:
-                label = f"{check} {code}"
+                label = f"{check} {name}"
             row.append(InlineKeyboardButton(label, callback_data=f"tog:{command}:{code}"))
-            if len(row) == 3:
+            if len(row) == 2:
                 keyboard.append(row)
                 row = []
         if row:
@@ -2730,12 +2730,14 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
             state = {"command": command, "selected": set(), "live_data": live_data}
             _picker_state[chat_id] = state
 
+        from src.config import LEAGUES_SHORT, LEAGUES as _L
+        _nm = LEAGUES_SHORT.get(code, _L.get(code, code))
         if code in state["selected"]:
             state["selected"].discard(code)
-            await query.answer(f"\u274c B\u1ecf {code}")
+            await query.answer(f"\u274c B\u1ecf {_nm}")
         else:
             state["selected"].add(code)
-            await query.answer(f"\u2705 Ch\u1ecdn {code}")
+            await query.answer(f"\u2705 Ch\u1ecdn {_nm}")
 
         # Update message + keyboard
         msg = _build_picker_msg(command, state["selected"], state["live_data"])

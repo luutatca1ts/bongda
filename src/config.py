@@ -99,6 +99,90 @@ LEAGUES = {
     "AFN": "Cúp các Quốc gia Châu Phi",
 }
 
+# Short Vietnamese labels for Telegram picker buttons (fit ~3 per row)
+# LEAGUES keeps the full names for /leagues and message text; this dict is
+# used only for inline-keyboard buttons where long text wraps poorly.
+LEAGUES_SHORT = {
+    # Anh
+    "PL": "Ngoại hạng Anh",
+    "ELC": "Hạng Nhất Anh",
+    "EL1": "Hạng Hai Anh",
+    "EL2": "Hạng Ba Anh",
+    "FAC": "Cúp FA Anh",
+    # Tây Ban Nha
+    "PD": "La Liga",
+    "SD": "La Liga 2",
+    "CDR": "Cúp Nhà vua TBN",
+    # Đức
+    "BL1": "Bundesliga",
+    "BL2": "Bundesliga 2",
+    "BL3": "Hạng Ba Đức",
+    "DFB": "Cúp Đức",
+    # Ý
+    "SA": "Serie A",
+    "SB": "Serie B",
+    # Pháp
+    "FL1": "Ligue 1",
+    "FL2": "Ligue 2",
+    "CDF": "Cúp Pháp",
+    # Hà Lan
+    "DED": "Eredivisie",
+    # Bồ Đào Nha
+    "PPL": "Bồ Đào Nha",
+    # Bỉ
+    "JPL": "Bỉ Pro League",
+    # Thổ Nhĩ Kỳ
+    "TSL": "Süper Lig",
+    # Hy Lạp
+    "GSL": "Hy Lạp",
+    # Áo
+    "ABL": "Bundesliga Áo",
+    # Thụy Sĩ
+    "SSL": "Thụy Sĩ",
+    # Đan Mạch
+    "DSL": "Đan Mạch",
+    # Thụy Điển
+    "ASV": "Allsvenskan",
+    "SUP": "Superettan",
+    # Na Uy
+    "NES": "Eliteserien",
+    # Ba Lan
+    "EPK": "Ekstraklasa",
+    # Nga
+    "RPL": "Premier Nga",
+    # Ireland
+    "LOI": "Ireland",
+    # Phần Lan
+    "VLG": "Veikkausliiga",
+    # UEFA
+    "CL": "Cúp C1",
+    "EL": "Cúp C2",
+    "ECL": "Cúp C3",
+    # Nam Mỹ
+    "BSA": "Brazil Serie A",
+    "BSB": "Brazil Serie B",
+    "ALP": "Argentina",
+    "CHI": "Chile",
+    "COP": "Libertadores",
+    "CSU": "Sudamericana",
+    # Bắc Mỹ
+    "MLS": "MLS",
+    "LMX": "Liga MX",
+    # Châu Á
+    "JL1": "J1 League",
+    "KL1": "K League 1",
+    "CSL": "Trung Quốc",
+    "SPL2": "Ả Rập Saudi",
+    # Châu Đại Dương
+    "ALG": "A-League",
+    # Quốc tế
+    "WC": "World Cup",
+    "EC": "EURO",
+    "CAM": "Copa América",
+    "NL": "Nations League",
+    "AFN": "Cúp Châu Phi",
+}
+
 # League regions for /leagues display
 LEAGUE_REGIONS = {
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 ANH": ["PL", "ELC", "EL1", "EL2", "FAC"],
