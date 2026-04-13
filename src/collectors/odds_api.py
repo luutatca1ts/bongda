@@ -240,9 +240,44 @@ def get_best_odds(event: dict, market: str = "h2h") -> dict:
 
 # MAIN markets carry the live active line; alternates carry alternative lines.
 # Pinnacle may live in us2 region for some sports — query all major regions.
-CORNER_MARKETS_FULL = "totals_corners,spreads_corners,alternate_totals_corners,alternate_spreads_corners"
-CORNER_MARKETS_MAIN_ONLY = "totals_corners,spreads_corners"
+# The Odds API plan on this key does NOT include `totals_corners` / `spreads_corners`
+# (they return HTTP 422 INVALID_MARKET). Only the alternate variants are supported.
+# Pinnacle still exposes its "main" line inside `alternate_totals_corners` — it is
+# simply the line with the most balanced odds (closest to 1.9/1.9). See
+# probe_corners.py / probe_corners2.py for the full diagnosis.
+CORNER_MARKETS_FULL = "alternate_totals_corners,alternate_spreads_corners"
+CORNER_MARKETS_MAIN_ONLY = CORNER_MARKETS_FULL  # kept for caller compat
 CORNER_REGIONS = "eu,uk,us,us2,au"
+
+# Bookmaker priority when Pinnacle is absent. Extend list as needed.
+CORNER_BK_PRIORITY = [
+    "pinnacle",
+    "bet365",
+    "williamhill",
+    "betmgm",
+    "fanduel",
+    "draftkings",
+    "betrivers",
+    "hardrockbet",
+    "ballybet",
+    "mybookieag",
+    "virginbet",
+    "livescorebet",
+    "betfair_ex_uk",
+    "betfair_ex_eu",
+    "betonlineag",
+    "coolbet",
+    "gtbets",
+    "matchbook",
+]
+
+
+def _bk_rank(bk_key: str) -> int:
+    """Lower rank = higher priority. Unknown books sort after known ones."""
+    try:
+        return CORNER_BK_PRIORITY.index(bk_key)
+    except ValueError:
+        return len(CORNER_BK_PRIORITY) + 1
 
 
 def _parse_corner_response(data: dict, ev_hint: dict | None = None) -> dict:
@@ -367,8 +402,12 @@ def fetch_pinnacle_corners(sport_key: str, eid: str, ev_hint: dict | None = None
         try:
             resp = _http_get_corner(sport_key, eid, CORNER_MARKETS_FULL)
             if resp.status_code == 422:
-                logger.warning(f"[OddsAPI] Corner FULL 422 for {eid}, retrying main-only")
-                resp = _http_get_corner(sport_key, eid, CORNER_MARKETS_MAIN_ONLY)
+                # `totals_corners`/`spreads_corners` not in plan — already filtered
+                # out of CORNER_MARKETS_FULL. A 422 here means the league itself
+                # does not offer corner markets.
+                logger.warning(
+                    f"[OddsAPI] Corner 422 for {eid} (league has no corner markets)"
+                )
             if resp.status_code == 429:
                 _pin_gate_register_error("429 rate limit")
                 logger.warning(f"[OddsAPI] Corner 429 for {eid} attempt {attempt}/{max_retries}")
@@ -513,131 +552,157 @@ def get_corner_odds(league_code: str, event_ids: list[str] | None = None) -> dic
 
 def _build_corner_best(corners_list: list, target_line: float = 9.5) -> dict:
     """
-    STRICT Pinnacle-only corner totals.
-    Rule: take Pinnacle's MAIN market line in API order (FIRST entry).
-    No "most balanced" picking. No alternate fallback for line selection —
-    if Pinnacle main isn't there, return empty (caller shows "Chưa có kèo").
+    Corner totals picker with bookmaker fallback.
+
+    The Odds API plan does not expose a separate "main" corner market — every
+    line is returned inside `alternate_totals_corners`. We therefore proxy
+    "main line" as the line whose over/under prices are most balanced
+    (|over - under| minimised), which is how Pinnacle picks its featured line.
+
+    Bookmaker priority: Pinnacle first, then the `CORNER_BK_PRIORITY` list in
+    order. The first bookmaker that has at least one complete (over+under)
+    line wins. Only that bookmaker's most-balanced line is returned.
     """
-    pinnacle_main = {}   # insertion order = API order
-    pinnacle_alt = {}
+    # Group complete lines by bookmaker.
+    by_bk: dict[str, dict] = {}  # bk_key -> {(line): {over, under, bk_name}}
     for c in corners_list:
-        if c.get("bk_key") != "pinnacle" and str(c.get("bk", "")).lower() != "pinnacle":
+        bk_key = (c.get("bk_key") or "").lower()
+        if not bk_key:
             continue
         point = c.get("point")
         if point is None:
             continue
-        bucket = pinnacle_main if c.get("is_main") else pinnacle_alt
-        if point not in bucket:
-            bucket[point] = {"over": None, "under": None}
-        if c["name"] == "Over":
-            bucket[point]["over"] = c["price"]
-        elif c["name"] == "Under":
-            bucket[point]["under"] = c["price"]
+        slot = by_bk.setdefault(bk_key, {})
+        if point not in slot:
+            slot[point] = {"over": None, "under": None, "bk_name": c.get("bk") or bk_key}
+        name = (c.get("name") or "").strip().lower()
+        if name == "over":
+            slot[point]["over"] = c.get("price")
+        elif name == "under":
+            slot[point]["under"] = c.get("price")
 
-    # Verbose dump — every Pinnacle line we received, in API order.
-    logger.info(f"[OddsAPI] _build_corner_best: Pinnacle MAIN lines (API order): {list(pinnacle_main.keys())}")
-    logger.info(f"[OddsAPI] _build_corner_best: Pinnacle ALT  lines (API order): {list(pinnacle_alt.keys())}")
+    # Log what we have per bookmaker (helps future debugging).
+    per_bk_summary = {
+        bk: sorted(l for l, d in lines.items() if d["over"] and d["under"])
+        for bk, lines in by_bk.items()
+    }
+    logger.info(f"[OddsAPI] _build_corner_best: complete lines per bk = {per_bk_summary}")
 
-    main_complete = {l: d for l, d in pinnacle_main.items() if d["over"] and d["under"]}
-
-    if main_complete:
-        # FIRST entry by insertion order = first line API returned for the main market.
-        main_line = next(iter(main_complete))
-        d = main_complete[main_line]
-        logger.info(f"[OddsAPI] _build_corner_best: PICKED Pinnacle MAIN line = {main_line} (over={d['over']}, under={d['under']})")
+    # Try bookmakers in priority order.
+    ordered_bks = sorted(by_bk.keys(), key=_bk_rank)
+    for bk_key in ordered_bks:
+        complete = {
+            l: d for l, d in by_bk[bk_key].items() if d["over"] and d["under"]
+        }
+        if not complete:
+            continue
+        # Pick the most-balanced line (smallest |over - under|). Tie-break on
+        # line value closest to target_line to keep picks stable.
+        picked_line = min(
+            complete.keys(),
+            key=lambda l: (abs(complete[l]["over"] - complete[l]["under"]), abs(l - target_line)),
+        )
+        d = complete[picked_line]
+        bk_name = d["bk_name"]
+        logger.info(
+            f"[OddsAPI] _build_corner_best: PICKED {bk_name} line={picked_line} "
+            f"over={d['over']} under={d['under']} "
+            f"(tried order: {ordered_bks})"
+        )
         return {
-            main_line: {
+            picked_line: {
                 "over_price": d["over"],
-                "over_bk": "Pinnacle",
+                "over_bk": bk_name,
                 "under_price": d["under"],
-                "under_bk": "Pinnacle",
+                "under_bk": bk_name,
             }
         }
 
-    # No main from Pinnacle — refuse to guess from alternates. Caller shows "Chưa có kèo".
-    all_books = sorted({str(c.get("bk", "?")) for c in corners_list})
     logger.warning(
-        f"[OddsAPI] _build_corner_best: Pinnacle has NO MAIN line. "
-        f"alt_lines={list(pinnacle_alt.keys())}, books_seen={all_books}. "
-        f"Returning empty (no fallback to alternates)."
+        f"[OddsAPI] _build_corner_best: no bookmaker has a complete corner totals line. "
+        f"by_bk keys={list(by_bk.keys())}"
     )
     return {}
 
 
 def _build_corner_spreads(spreads_list: list) -> list:
     """
-    STRICT Pinnacle-only corner Asian Handicap.
-    Rule: take Pinnacle's MAIN spreads_corners market in API order (FIRST pair).
-    No "most balanced" picking. No alternate fallback — return [] if main absent.
+    Corner Asian Handicap picker with bookmaker fallback.
+
+    Same rationale as `_build_corner_best`: the API plan only serves
+    `alternate_spreads_corners`, so we proxy the "main" line as the most
+    balanced pair (|home_price - away_price| minimised) from the highest
+    priority bookmaker that has a complete pair.
     """
-    pinnacle_main = [
-        s for s in spreads_list
-        if (s.get("bk_key") == "pinnacle" or str(s.get("bk", "")).lower() == "pinnacle")
-        and s.get("is_main") is True
-    ]
-    pinnacle_alt = [
-        s for s in spreads_list
-        if (s.get("bk_key") == "pinnacle" or str(s.get("bk", "")).lower() == "pinnacle")
-        and s.get("is_main") is not True
-    ]
+    # Group outcomes per bookmaker.
+    by_bk: dict[str, list] = {}
+    bk_name_map: dict[str, str] = {}
+    for s in spreads_list:
+        bk_key = (s.get("bk_key") or "").lower()
+        if not bk_key:
+            continue
+        if s.get("point") is None or s.get("name") is None:
+            continue
+        by_bk.setdefault(bk_key, []).append(s)
+        bk_name_map[bk_key] = s.get("bk") or bk_key
 
-    logger.info(
-        f"[OddsAPI] _build_corner_spreads: Pinnacle MAIN outcomes = "
-        f"{[(o.get('name'), o.get('point'), o.get('price')) for o in pinnacle_main]}"
-    )
-    logger.info(
-        f"[OddsAPI] _build_corner_spreads: Pinnacle ALT count = {len(pinnacle_alt)}"
-    )
-
-    if not pinnacle_main and not pinnacle_alt:
-        all_books = sorted({str(s.get("bk", "?")) for s in spreads_list})
-        logger.warning(f"[OddsAPI] _build_corner_spreads: NO Pinnacle. Total entries: {len(spreads_list)}, books: {all_books}")
-        return []
-
-    def _pair_outcomes_first(outcomes: list) -> list:
-        """Pair outcomes preserving API order. Return FIRST complete pair only."""
-        seen = set()
+    def _all_pairs(outcomes: list) -> list:
+        """Return all complete (home, away) pairs where points sum ≈ 0."""
+        pairs = []
+        used = set()
         for i, o1 in enumerate(outcomes):
-            if i in seen:
+            if i in used:
                 continue
-            for j, o2 in enumerate(outcomes):
-                if j in seen or j == i:
+            for j in range(i + 1, len(outcomes)):
+                if j in used:
                     continue
-                if o1["point"] is None or o2["point"] is None:
-                    continue
-                if abs(o1["point"] + o2["point"]) >= 0.01:
+                o2 = outcomes[j]
+                if abs((o1["point"] or 0) + (o2["point"] or 0)) >= 0.01:
                     continue
                 if o1["name"].strip().lower() == o2["name"].strip().lower():
+                    continue
+                if o1["price"] is None or o2["price"] is None:
                     continue
                 if o1["point"] < o2["point"]:
                     home, away = o1, o2
                 else:
                     home, away = o2, o1
-                return [{
+                pairs.append({
                     "home_name": home["name"],
                     "away_name": away["name"],
                     "home_point": home["point"],
                     "away_point": away["point"],
                     "home_price": home["price"],
                     "away_price": away["price"],
-                    "bk": "Pinnacle",
-                }]
-        return []
+                })
+                used.add(i)
+                used.add(j)
+                break
+        return pairs
 
-    if pinnacle_main:
-        main_pair = _pair_outcomes_first(pinnacle_main)
-        if main_pair:
-            p = main_pair[0]
-            logger.info(
-                f"[OddsAPI] _build_corner_spreads: PICKED Pinnacle MAIN line = "
-                f"home {p['home_point']} ({p['home_price']}) / away {p['away_point']} ({p['away_price']})"
-            )
-            return main_pair
-        logger.warning(f"[OddsAPI] _build_corner_spreads: Pinnacle MAIN present but no complete pair")
+    per_bk_pair_count = {bk: len(_all_pairs(outs)) for bk, outs in by_bk.items()}
+    logger.info(f"[OddsAPI] _build_corner_spreads: complete pair count per bk = {per_bk_pair_count}")
+
+    ordered_bks = sorted(by_bk.keys(), key=_bk_rank)
+    for bk_key in ordered_bks:
+        pairs = _all_pairs(by_bk[bk_key])
+        if not pairs:
+            continue
+        # Most balanced pair = smallest |home_price - away_price|.
+        picked = min(pairs, key=lambda p: abs(p["home_price"] - p["away_price"]))
+        bk_name = bk_name_map.get(bk_key, bk_key)
+        picked["bk"] = bk_name
+        logger.info(
+            f"[OddsAPI] _build_corner_spreads: PICKED {bk_name} "
+            f"{picked['home_name']} {picked['home_point']:+g} @{picked['home_price']:.2f} / "
+            f"{picked['away_name']} {picked['away_point']:+g} @{picked['away_price']:.2f} "
+            f"(tried order: {ordered_bks})"
+        )
+        return [picked]
 
     logger.warning(
-        f"[OddsAPI] _build_corner_spreads: Pinnacle has NO MAIN pair. "
-        f"alt_count={len(pinnacle_alt)}. Returning empty (no fallback to alternates)."
+        f"[OddsAPI] _build_corner_spreads: no bookmaker has a complete corner AH pair. "
+        f"bk_seen={list(by_bk.keys())}"
     )
     return []
 
