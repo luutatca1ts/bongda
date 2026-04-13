@@ -15,124 +15,120 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///football_analytics.db")
 # SUPPORTED LEAGUES — organized by region
 # ================================================================
 
-# All leagues: code -> display name
+# All leagues: code -> display name (tiếng Việt, tên đầy đủ)
+# Synced with Pinnacle coverage on The Odds API (47 verified + DED/DFB off-season
+# + cyclical international tournaments). Source: scripts/check_pinnacle.py
 LEAGUES = {
-    # --- ENGLAND ---
-    "PL": "Premier League",
-    "ELC": "Championship",
-    "EL1": "League One",
-    "EL2": "League Two",
-    "FAC": "FA Cup",
-    # --- SPAIN ---
-    "PD": "La Liga",
-    "SD": "La Liga 2",
-    # --- GERMANY ---
-    "BL1": "Bundesliga",
-    "BL2": "Bundesliga 2",
-    "DFB": "DFB-Pokal",
-    # --- ITALY ---
-    "SA": "Serie A",
-    "SB": "Serie B",
-    # --- FRANCE ---
-    "FL1": "Ligue 1",
-    "FL2": "Ligue 2",
-    # --- NETHERLANDS ---
-    "DED": "Eredivisie",
-    # --- PORTUGAL ---
-    "PPL": "Primeira Liga",
-    # --- BELGIUM ---
-    "JPL": "Jupiler Pro League",
-    # --- TURKEY ---
-    "TSL": "Süper Lig",
-    # --- GREECE ---
-    "GSL": "Super League Greece",
-    # --- SCOTLAND ---
-    "SPL": "Scottish Premiership",
-    # --- AUSTRIA ---
-    "ABL": "Austrian Bundesliga",
-    # --- SWITZERLAND ---
-    "SSL": "Super League Switzerland",
-    # --- DENMARK ---
-    "DSL": "Superliga Denmark",
-    # --- SWEDEN ---
-    "ASV": "Allsvenskan",
-    # --- NORWAY ---
-    "NES": "Eliteserien",
-    # --- POLAND ---
-    "EPK": "Ekstraklasa",
-    # --- CZECH ---
-    "CFL": "Czech First League",
-    # --- ROMANIA ---
-    "RSL": "Liga 1 Romania",
-    # --- UKRAINE ---
-    "UPL": "Ukrainian Premier League",
-    # --- RUSSIA ---
-    "RPL": "Russian Premier League",
-    # --- FINLAND ---
-    "VLG": "Veikkausliiga",
+    # --- ANH ---
+    "PL": "Giải Ngoại hạng Anh",
+    "ELC": "Giải hạng Nhất Anh",
+    "EL1": "Giải hạng Hai Anh",
+    "EL2": "Giải hạng Ba Anh",
+    "FAC": "Cúp FA Anh",
+    # --- TÂY BAN NHA ---
+    "PD": "Giải Vô địch Quốc gia Tây Ban Nha (La Liga)",
+    "SD": "Giải hạng Hai Tây Ban Nha (La Liga 2)",
+    "CDR": "Cúp Nhà vua Tây Ban Nha",
+    # --- ĐỨC ---
+    "BL1": "Giải Vô địch Quốc gia Đức (Bundesliga)",
+    "BL2": "Giải hạng Hai Đức (Bundesliga 2)",
+    "BL3": "Giải hạng Ba Đức (3. Liga)",
+    "DFB": "Cúp Quốc gia Đức",
+    # --- Ý ---
+    "SA": "Giải Vô địch Quốc gia Ý (Serie A)",
+    "SB": "Giải hạng Hai Ý (Serie B)",
+    # --- PHÁP ---
+    "FL1": "Giải Vô địch Quốc gia Pháp (Ligue 1)",
+    "FL2": "Giải hạng Hai Pháp (Ligue 2)",
+    "CDF": "Cúp Quốc gia Pháp",
+    # --- HÀ LAN ---
+    "DED": "Giải Vô địch Quốc gia Hà Lan (Eredivisie)",
+    # --- BỒ ĐÀO NHA ---
+    "PPL": "Giải Vô địch Quốc gia Bồ Đào Nha",
+    # --- BỈ ---
+    "JPL": "Giải Vô địch Quốc gia Bỉ",
+    # --- THỔ NHĨ KỲ ---
+    "TSL": "Giải Vô địch Quốc gia Thổ Nhĩ Kỳ",
+    # --- HY LẠP ---
+    "GSL": "Giải Vô địch Quốc gia Hy Lạp",
+    # --- ÁO ---
+    "ABL": "Giải Vô địch Quốc gia Áo (Bundesliga Áo)",
+    # --- THỤY SĨ ---
+    "SSL": "Giải Vô địch Quốc gia Thụy Sĩ",
+    # --- ĐAN MẠCH ---
+    "DSL": "Giải Vô địch Quốc gia Đan Mạch",
+    # --- THỤY ĐIỂN ---
+    "ASV": "Giải Vô địch Quốc gia Thụy Điển (Allsvenskan)",
+    "SUP": "Giải hạng Hai Thụy Điển (Superettan)",
+    # --- NA UY ---
+    "NES": "Giải Vô địch Quốc gia Na Uy",
+    # --- BA LAN ---
+    "EPK": "Giải Vô địch Quốc gia Ba Lan",
+    # --- NGA ---
+    "RPL": "Giải Vô địch Quốc gia Nga",
+    # --- IRELAND ---
+    "LOI": "Giải Vô địch Quốc gia Ireland",
+    # --- PHẦN LAN ---
+    "VLG": "Giải Vô địch Quốc gia Phần Lan",
     # --- UEFA ---
-    "CL": "Champions League",
-    "EL": "Europa League",
-    "ECL": "Conference League",
-    # --- SOUTH AMERICA ---
-    "BSA": "Brasileirão Série A",
-    "BSB": "Brasileirão Série B",
-    "ALP": "Argentina Liga Profesional",
-    "COP": "Copa Libertadores",
-    "CSU": "Copa Sudamericana",
-    # --- NORTH AMERICA ---
-    "MLS": "MLS",
-    "LMX": "Liga MX",
-    # --- ASIA ---
-    "JL1": "J1 League",
-    "KL1": "K League 1",
-    "CSL": "Chinese Super League",
-    "SPL2": "Saudi Pro League",
-    "ISL": "Indian Super League",
-    # --- OCEANIA ---
-    "ALG": "A-League",
-    # --- INTERNATIONAL ---
-    "WC": "FIFA World Cup",
-    "EC": "UEFA Euro",
-    "CAM": "Copa América",
-    "NL": "UEFA Nations League",
-    "AFN": "Africa Cup of Nations",
-    "ACL": "AFC Champions League",
+    "CL": "Cúp C1 Châu Âu (Champions League)",
+    "EL": "Cúp C2 Châu Âu (Europa League)",
+    "ECL": "Cúp C3 Châu Âu (Conference League)",
+    # --- NAM MỸ ---
+    "BSA": "Giải Vô địch Quốc gia Brazil",
+    "BSB": "Giải hạng Hai Brazil",
+    "ALP": "Giải Vô địch Quốc gia Argentina",
+    "CHI": "Giải Vô địch Quốc gia Chile",
+    "COP": "Cúp Nam Mỹ các Câu lạc bộ (Copa Libertadores)",
+    "CSU": "Cúp Nam Mỹ hạng Hai (Copa Sudamericana)",
+    # --- BẮC MỸ ---
+    "MLS": "Giải Nhà nghề Mỹ (MLS)",
+    "LMX": "Giải Vô địch Quốc gia Mexico (Liga MX)",
+    # --- CHÂU Á ---
+    "JL1": "Giải Vô địch Quốc gia Nhật Bản (J1 League)",
+    "KL1": "Giải Vô địch Quốc gia Hàn Quốc (K League 1)",
+    "CSL": "Giải Vô địch Quốc gia Trung Quốc",
+    "SPL2": "Giải Vô địch Quốc gia Ả Rập Saudi",
+    # --- CHÂU ĐẠI DƯƠNG ---
+    "ALG": "Giải Vô địch Quốc gia Úc (A-League)",
+    # --- QUỐC TẾ (giải theo chu kỳ) ---
+    "WC": "Cúp Thế giới FIFA",
+    "EC": "Giải Vô địch Bóng đá Châu Âu (EURO)",
+    "CAM": "Cúp Bóng đá Nam Mỹ (Copa América)",
+    "NL": "Giải Vô địch các Quốc gia Châu Âu (Nations League)",
+    "AFN": "Cúp các Quốc gia Châu Phi",
 }
 
 # League regions for /leagues display
 LEAGUE_REGIONS = {
     "🏴󠁧󠁢󠁥󠁮󠁧󠁿 ANH": ["PL", "ELC", "EL1", "EL2", "FAC"],
-    "🇪🇸 TÂY BAN NHA": ["PD", "SD"],
-    "🇩🇪 ĐỨC": ["BL1", "BL2", "DFB"],
+    "🇪🇸 TÂY BAN NHA": ["PD", "SD", "CDR"],
+    "🇩🇪 ĐỨC": ["BL1", "BL2", "BL3", "DFB"],
     "🇮🇹 Ý": ["SA", "SB"],
-    "🇫🇷 PHÁP": ["FL1", "FL2"],
+    "🇫🇷 PHÁP": ["FL1", "FL2", "CDF"],
     "🇳🇱 HÀ LAN": ["DED"],
     "🇵🇹 BỒ ĐÀO NHA": ["PPL"],
     "🇧🇪 BỈ": ["JPL"],
     "🇹🇷 THỔ NHĨ KỲ": ["TSL"],
     "🇬🇷 HY LẠP": ["GSL"],
-    "🏴󠁧󠁢󠁳󠁣󠁴󠁿 SCOTLAND": ["SPL"],
     "🇦🇹 ÁO": ["ABL"],
     "🇨🇭 THỤY SĨ": ["SSL"],
     "🇩🇰 ĐAN MẠCH": ["DSL"],
-    "🇸🇪 THỤY ĐIỂN": ["ASV"],
+    "🇸🇪 THỤY ĐIỂN": ["ASV", "SUP"],
     "🇳🇴 NA UY": ["NES"],
     "🇵🇱 BA LAN": ["EPK"],
-    "🇨🇿 SÉC": ["CFL"],
-    "🇷🇴 ROMANIA": ["RSL"],
-    "🇺🇦 UKRAINE": ["UPL"],
     "🇷🇺 NGA": ["RPL"],
+    "🇮🇪 IRELAND": ["LOI"],
     "🇫🇮 PHẦN LAN": ["VLG"],
     "🏆 UEFA": ["CL", "EL", "ECL"],
-    "🌎 NAM MỸ": ["BSA", "BSB", "ALP", "COP", "CSU"],
+    "🌎 NAM MỸ": ["BSA", "BSB", "ALP", "CHI", "COP", "CSU"],
     "🌎 BẮC MỸ": ["MLS", "LMX"],
-    "🌏 CHÂU Á": ["JL1", "KL1", "CSL", "SPL2", "ISL"],
+    "🌏 CHÂU Á": ["JL1", "KL1", "CSL", "SPL2"],
     "🌏 CHÂU ĐẠI DƯƠNG": ["ALG"],
-    "🌍 QUỐC TẾ": ["WC", "EC", "CAM", "NL", "AFN", "ACL"],
+    "🌍 QUỐC TẾ": ["WC", "EC", "CAM", "NL", "AFN"],
 }
 
-# The Odds API sport keys
+# The Odds API sport keys — verified 2026-04-13 via scripts/check_pinnacle.py
 ODDS_SPORTS = {
     # England
     "PL": "soccer_epl",
@@ -143,9 +139,11 @@ ODDS_SPORTS = {
     # Spain
     "PD": "soccer_spain_la_liga",
     "SD": "soccer_spain_segunda_division",
+    "CDR": "soccer_spain_copa_del_rey",
     # Germany
     "BL1": "soccer_germany_bundesliga",
     "BL2": "soccer_germany_bundesliga2",
+    "BL3": "soccer_germany_liga3",
     "DFB": "soccer_germany_dfb_pokal",
     # Italy
     "SA": "soccer_italy_serie_a",
@@ -153,6 +151,7 @@ ODDS_SPORTS = {
     # France
     "FL1": "soccer_france_ligue_one",
     "FL2": "soccer_france_ligue_two",
+    "CDF": "soccer_france_coupe_de_france",
     # Netherlands
     "DED": "soccer_netherlands_eredivisie",
     # Portugal
@@ -163,8 +162,6 @@ ODDS_SPORTS = {
     "TSL": "soccer_turkey_super_league",
     # Greece
     "GSL": "soccer_greece_super_league",
-    # Scotland
-    "SPL": "soccer_spl",
     # Austria
     "ABL": "soccer_austria_bundesliga",
     # Switzerland
@@ -173,10 +170,15 @@ ODDS_SPORTS = {
     "DSL": "soccer_denmark_superliga",
     # Sweden
     "ASV": "soccer_sweden_allsvenskan",
+    "SUP": "soccer_sweden_superettan",
     # Norway
     "NES": "soccer_norway_eliteserien",
     # Poland
     "EPK": "soccer_poland_ekstraklasa",
+    # Russia
+    "RPL": "soccer_russia_premier_league",
+    # Ireland
+    "LOI": "soccer_league_of_ireland",
     # Finland
     "VLG": "soccer_finland_veikkausliiga",
     # UEFA
@@ -187,6 +189,7 @@ ODDS_SPORTS = {
     "BSA": "soccer_brazil_campeonato",
     "BSB": "soccer_brazil_serie_b",
     "ALP": "soccer_argentina_primera_division",
+    "CHI": "soccer_chile_campeonato",
     "COP": "soccer_conmebol_copa_libertadores",
     "CSU": "soccer_conmebol_copa_sudamericana",
     # North America
@@ -196,10 +199,10 @@ ODDS_SPORTS = {
     "JL1": "soccer_japan_j_league",
     "KL1": "soccer_korea_kleague1",
     "CSL": "soccer_china_superleague",
-    "SPL2": "soccer_saudi_professional_league",
+    "SPL2": "soccer_saudi_arabia_pro_league",
     # Oceania
     "ALG": "soccer_australia_aleague",
-    # International
+    # International (cyclical — sport key exists but inactive outside tournament)
     "WC": "soccer_fifa_world_cup",
     "EC": "soccer_uefa_european_championship",
     "CAM": "soccer_conmebol_copa_america",
@@ -218,9 +221,11 @@ API_FOOTBALL_LEAGUES = {
     # Spain
     "PD": 140,
     "SD": 141,
+    "CDR": 143,
     # Germany
     "BL1": 78,
     "BL2": 79,
+    "BL3": 80,
     "DFB": 81,
     # Italy
     "SA": 135,
@@ -228,6 +233,7 @@ API_FOOTBALL_LEAGUES = {
     # France
     "FL1": 61,
     "FL2": 62,
+    "CDF": 66,
     # Netherlands
     "DED": 88,
     # Portugal
@@ -238,28 +244,23 @@ API_FOOTBALL_LEAGUES = {
     "TSL": 203,
     # Greece
     "GSL": 197,
-    # Scotland
-    "SPL": 179,
     # Austria
     "ABL": 218,
     # Switzerland
     "SSL": 207,
     # Denmark
-    "DSL": 120,
+    "DSL": 119,
     # Sweden
     "ASV": 113,
+    "SUP": 114,
     # Norway
     "NES": 103,
     # Poland
     "EPK": 106,
-    # Czech
-    "CFL": 345,
-    # Romania
-    "RSL": 283,
-    # Ukraine
-    "UPL": 333,
     # Russia
     "RPL": 235,
+    # Ireland
+    "LOI": 357,
     # Finland
     "VLG": 244,
     # UEFA
@@ -270,6 +271,7 @@ API_FOOTBALL_LEAGUES = {
     "BSA": 71,
     "BSB": 72,
     "ALP": 128,
+    "CHI": 265,
     "COP": 13,
     "CSU": 11,
     # North America
@@ -280,7 +282,6 @@ API_FOOTBALL_LEAGUES = {
     "KL1": 292,
     "CSL": 169,
     "SPL2": 307,
-    "ISL": 323,
     # Oceania
     "ALG": 188,
     # International
@@ -289,7 +290,6 @@ API_FOOTBALL_LEAGUES = {
     "CAM": 9,
     "NL": 5,
     "AFN": 6,
-    "ACL": 17,
 }
 
 # Football-Data.org supported codes (free tier limited)
