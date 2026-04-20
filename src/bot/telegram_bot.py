@@ -453,16 +453,18 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session()
     try:
         now = datetime.utcnow()
-        cutoff_pred = now - timedelta(hours=24)
+        window_end = now + timedelta(hours=24)
 
+        # Filter by Match.utc_date (kickoff) instead of Prediction.created_at
+        # so we only surface picks whose matches actually kick off within 24h.
         rows = (
             session.query(Prediction, Match)
             .join(Match, Prediction.match_id == Match.match_id)
             .filter(
                 Prediction.is_value_bet == True,
                 Prediction.model_probability >= 0.60,
-                Prediction.created_at >= cutoff_pred,
-                Match.utc_date > now,
+                Match.utc_date >= now,
+                Match.utc_date <= window_end,
             )
             .order_by(Prediction.model_probability.desc())
             .all()
@@ -511,7 +513,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         header = (
             f"\U0001f3af K\u00c8O D\u1ec4 TH\u1eaeNG (Prob \u2265 60%)\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-            f"\u2705 Top {len(top)} k\u00e8o prob cao nh\u1ea5t trong 24h t\u1edbi\n"
+            f"\u2705 Top {len(top)} k\u00e8o prob cao trong 24h t\u1edbi\n"
             f"\U0001f6ab \u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
         )
 
@@ -536,7 +538,8 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         logger.info(
-            f"[ancan] returned {len(top)} picks, filtered {filtered} suspicious"
+            f"[ancan] returned {len(top)} picks trong next 24h, "
+            f"filtered {filtered} suspicious"
         )
         await _send_chunked(update, header + body)
     finally:
@@ -1099,7 +1102,10 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
 
         total_analyzed = sum(len(v) for v in by_league.values())
         if not collect_only:
-            await update.message.reply_text(f"\u23f3 \u0110ang t\u1ea3i odds cho {len(by_league)} gi\u1ea3i ({total_analyzed} tr\u1eadn)...")
+            await update.message.reply_text(
+                f"\u23f3 \u0110ang ph\u00e2n t\u00edch {total_analyzed} tr\u1eadn "
+                f"trong 24h t\u1edbi ({len(by_league)} gi\u1ea3i)..."
+            )
 
         # The Odds API: all leagues + corners in parallel (with per-task timeout)
         async def _get_odds_api(lc):
@@ -1125,10 +1131,37 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             asyncio.gather(*odds_tasks),
             asyncio.gather(*corner_tasks),
         )
+
+        # Belt-and-suspenders 24h filter on odds events. DB matches are
+        # already 24h-filtered, but odds API returns fixtures days out —
+        # trimming here avoids wasted fuzzy matching and makes the skip
+        # count visible in logs.
+        def _within_24h(ev_dict: dict) -> bool:
+            ct = ev_dict.get("commence_time")
+            if not ct:
+                return True
+            try:
+                ev_dt = datetime.fromisoformat(ct.replace("Z", "+00:00")).replace(tzinfo=None)
+            except Exception:
+                return True
+            return now <= ev_dt <= next_24h
+
         all_odds = {}
         corners_map = {lc: data for lc, data in corner_results}
+        skipped_total = 0
         for lc, odds_ev in odds_results:
-            all_odds[lc] = (odds_ev, corners_map.get(lc, {}))
+            before = len(odds_ev)
+            kept = [ev for ev in odds_ev if _within_24h(ev)]
+            skipped = before - len(kept)
+            if skipped:
+                skipped_total += skipped
+                logger.info(
+                    f"[phantich] {lc}: skipped {skipped} fixtures outside 24h window "
+                    f"({before} -> {len(kept)})"
+                )
+            all_odds[lc] = (kept, corners_map.get(lc, {}))
+        if skipped_total:
+            logger.info(f"[phantich] Skipped {skipped_total} fixtures outside 24h window total")
 
         # Fit model & analyze
         messages = []
@@ -1574,9 +1607,9 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             return parlay_picks
 
         # Send header
-        title = "K\u00c8O H\u00d4M NAY" if not league_codes else "PH\u00c2N T\u00cdCH"
+        title = "PH\u00c2N T\u00cdCH 24H T\u1edaI" if not league_codes else "PH\u00c2N T\u00cdCH 24H"
         header = (
-            f"\U0001f4ca {title} \u2014 {total_analyzed} tr\u1eadn ({len(by_league)} gi\u1ea3i) [v5-pinnacle]\n"
+            f"\U0001f4ca {title} \u2014 {total_analyzed} tr\u1eadn ({len(by_league)} gi\u1ea3i)\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
             f"Model: Poisson | Data: {total_hist} tr\u1eadn l\u1ecbch s\u1eed\n"
         )
@@ -2276,8 +2309,8 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
     )
 
     await update.message.reply_text(
-        f"\u23f3 \u0110ang ph\u00e2n t\u00edch t\u1ea5t c\u1ea3 {len(LEAGUES)} gi\u1ea3i, "
-        f"vui l\u00f2ng ch\u1edd 2-5 ph\u00fat..."
+        f"\u23f3 \u0110ang ph\u00e2n t\u00edch tr\u1eadn trong 24h t\u1edbi "
+        f"({len(LEAGUES)} gi\u1ea3i), vui l\u00f2ng ch\u1edd 2-5 ph\u00fat..."
     )
 
     picks = await _run_full_analysis(update, league_codes=None, collect_only=True)
@@ -2301,11 +2334,33 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
     )
 
     calls_str = str(used_calls) if used_calls is not None else "?"
+
+    # Count matches + leagues actually scheduled in the 24h window
+    from datetime import datetime, timedelta
+    _now = datetime.utcnow()
+    _win_end = _now + timedelta(hours=24)
+    _s = get_session()
+    try:
+        scheduled_rows = (
+            _s.query(Match.competition_code)
+            .filter(
+                Match.status == "SCHEDULED",
+                Match.utc_date >= _now,
+                Match.utc_date <= _win_end,
+            )
+            .all()
+        )
+    finally:
+        _s.close()
+    n_matches = len(scheduled_rows)
+    m_leagues = len({r[0] for r in scheduled_rows if r[0]})
+
     msg = (
-        f"\U0001f310 PH\u00c2N T\u00cdCH T\u1ea4T C\u1ea2 {len(LEAGUES)} GI\u1ea2I\n"
+        f"\U0001f310 PH\u00c2N T\u00cdCH 24H T\u1edaI\n"
         f"{'\u2501' * 17}\n"
-        f"\u23f1 {elapsed:.0f}s | \U0001f4c8 {len(picks)} k\u00e8o gi\u00e1 tr\u1ecb "
-        f"| \U0001f4ca {calls_str} Odds API calls\n"
+        f"\u0110\u00e3 ph\u00e2n t\u00edch: {n_matches} tr\u1eadn trong {m_leagues} gi\u1ea3i\n"
+        f"T\u00ecm \u0111\u01b0\u1ee3c: {len(picks)} k\u00e8o gi\u00e1 tr\u1ecb\n"
+        f"\u23f1 {elapsed:.0f}s | \U0001f4ca {calls_str} Odds API calls\n"
     )
 
     if not top20:
