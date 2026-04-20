@@ -6,3 +6,6 @@ __pycache__/
 venv/
 *.log
 .authenticated_chats
+artifacts/api_football_teams_raw.json 
+artifacts/team_mapping_unmatched.csv 
+*.db.*_backup_*
