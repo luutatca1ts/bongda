@@ -435,6 +435,17 @@ BIVARIATE_POISSON_LEAGUES = {"PL", "PD", "BL1", "SA", "FL1"}
 # live-match calls (live uses same quota). MEGA plan = 150K/day.
 API_FOOTBALL_QUOTA_FLOOR = 20000
 
+# Special-match context (derby, cup final, knockout, 6-pointer).
+# Three modes:
+#   "off"      → ignore entirely
+#   "log_only" → compute context, log it, save to Prediction.match_context,
+#                but DO NOT adjust model λ
+#   "on"       → compute + log + save + apply λ adjustments (see
+#                src/analytics/match_context.LAMBDA_ADJUSTMENTS)
+# Default "log_only" ships the classifier cold, lets us verify on live data
+# that DERBY_PAIRS isn't over/under-tagging before we let it steer probabilities.
+USE_MATCH_CONTEXT = "log_only"
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================

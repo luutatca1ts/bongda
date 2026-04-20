@@ -14,12 +14,44 @@ RESULT_EMOJI = {
     "PUSH": "\u2796",  # ➖
 }
 
+# Context flag → (emoji, Vietnamese label) for the line below match title.
+# Order matters: first matched flag wins so we never render two emoji on one row.
+_CONTEXT_BADGES = [
+    ("is_cup_final",           ("\U0001f3c6", "Chung k\u1ebft")),       # 🏆
+    ("is_knockout",            ("\u26a1",     "Knockout")),             # ⚡
+    ("is_derby",               ("\U0001f525", "Derby")),                # 🔥
+    ("is_relegation_6pointer", ("\u2694\ufe0f", "6-pointer tr\u1ee5 h\u1ea1ng")),  # ⚔️
+]
+
+
+def format_match_context_line(match_context: dict | None,
+                              probability: float | None = None) -> str:
+    """Render the special-match context line, or "" if nothing to show.
+
+    Format: "🔥 Derby | Prob: 62%". Probability segment is dropped when
+    probability is None — the line is meaningful on its own.
+    """
+    if not match_context:
+        return ""
+    badge = None
+    for flag, pair in _CONTEXT_BADGES:
+        if match_context.get(flag):
+            badge = pair
+            break
+    if not badge:
+        return ""
+    emoji, label = badge
+    if probability is not None:
+        return f"{emoji} {label} | Prob: {probability*100:.0f}%"
+    return f"{emoji} {label}"
+
 
 def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
                            all_bookmaker_odds: dict | None = None,
                            steam_info: dict | None = None,
                            injury_summary: dict | None = None,
-                           weather_adj: dict | None = None) -> str:
+                           weather_adj: dict | None = None,
+                           match_context: dict | None = None) -> str:
     """Format a value bet alert for Telegram.
 
     Nếu steam_info (từ detect_steam_moves) được truyền vào và cùng hướng với
@@ -39,12 +71,17 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
     except Exception:
         time_str = utc_str
 
+    ctx_line = format_match_context_line(match_context, bet.get("probability"))
+    match_block = f"{match['home_team']} vs {match['away_team']}"
+    if ctx_line:
+        match_block += f"\n{ctx_line}"
+
     msg = (
         f"\u26bd VALUE BET DETECTED\n"
         f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
         f"\U0001f3c6 {match.get('competition', 'N/A')}\n"
         f"\U0001f552 {time_str}\n\n"
-        f"{match['home_team']} vs {match['away_team']}\n\n"
+        f"{match_block}\n\n"
         f"\U0001f4ca Ph\u00e2n t\u00edch:\n"
         f"  \u2022 K\u00e8o: {bet['outcome']} ({bet['market']})\n"
         f"  \u2022 Odds: {bet['odds']}\n"

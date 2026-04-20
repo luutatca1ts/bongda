@@ -241,6 +241,7 @@ class DixonColesModel:
         home_advantage: float = 1.25,
         injury_data: Optional[dict] = None,
         weather_data: Optional[dict] = None,
+        match_context: Optional[dict] = None,
     ) -> dict:
         """Build τ-corrected joint matrix and derive full market dict.
 
@@ -253,6 +254,11 @@ class DixonColesModel:
         weather_data: output of analytics.weather_impact.calculate_weather_adjustment:
             {"total_goals_adjust": float, "description": str}.
             None → no weather adjustment.
+        match_context: output of analytics.match_context.classify_match +
+            the USE_MATCH_CONTEXT=="on" gate already applied by the caller.
+            When passed, additive λ adjustments from LAMBDA_ADJUSTMENTS are
+            applied AFTER weather + injuries. None (or flags all False) →
+            no adjustment.
         """
         if not self._fitted:
             return self._default_prediction()
@@ -279,6 +285,14 @@ class DixonColesModel:
             # defense_mult >1 means weaker defense → scale λ UP for opponent.
             lam = max(0.1, lam * h_atk * a_def)
             mu = max(0.1, mu * a_atk * h_def)
+
+        # --- Match context: additive λ adjustments (derby/final/knockout) ---
+        # Applied LAST so weather/injury baselines are preserved and context
+        # nudges the post-adjusted rates. Caller must gate on
+        # USE_MATCH_CONTEXT=="on"; DC model does not read config itself.
+        if match_context:
+            from src.analytics.match_context import apply_lambda_adjustment
+            lam, mu = apply_lambda_adjustment(lam, mu, match_context)
 
         max_goals = 8
         home_p = np.array([poisson.pmf(i, lam) for i in range(max_goals)])

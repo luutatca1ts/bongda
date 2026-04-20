@@ -56,6 +56,10 @@ class Prediction(Base):
     # because PoissonModel path doesn't always populate).
     home_xg_estimate = Column(Float, nullable=True)
     away_xg_estimate = Column(Float, nullable=True)
+    # Special-match context (derby, cup final, knockout, 6-pointer) — JSON text.
+    # Written when USE_MATCH_CONTEXT != "off". Presence is independent of
+    # whether the model actually used it (log_only mode saves without adjust).
+    match_context = Column(String, nullable=True)
 
 
 class Bookmaker(Base):

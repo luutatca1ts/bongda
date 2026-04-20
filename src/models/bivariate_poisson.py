@@ -207,8 +207,14 @@ class BivariatePoissonModel:
         home_advantage: float = 1.25,
         injury_data: Optional[dict] = None,
         weather_data: Optional[dict] = None,
+        match_context: Optional[dict] = None,
     ) -> dict:
-        """Same output shape as DixonColesModel.predict()."""
+        """Same output shape as DixonColesModel.predict().
+
+        match_context semantics identical to DixonColesModel.predict — applied
+        on λ1/λ2 after weather+injuries; λ3 is NOT adjusted (it models
+        structural correlation, not goal volume).
+        """
         if not self._fitted:
             return self._default_prediction()
 
@@ -238,6 +244,11 @@ class BivariatePoissonModel:
             a_def = float(a.get("defense_mult", 1.0))
             lam1 = max(0.1, lam1 * h_atk * a_def)
             lam2 = max(0.1, lam2 * a_atk * h_def)
+
+        # Match context: additive λ adjustments (caller gates on USE_MATCH_CONTEXT=="on").
+        if match_context:
+            from src.analytics.match_context import apply_lambda_adjustment
+            lam1, lam2 = apply_lambda_adjustment(lam1, lam2, match_context)
 
         # Build joint score matrix via bivariate PMF.
         matrix = np.zeros((MAX_GOALS, MAX_GOALS))

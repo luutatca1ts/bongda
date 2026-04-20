@@ -1,5 +1,6 @@
 """Main analysis pipeline — collect data, predict, find value bets, alert."""
 
+import json
 import logging
 import unicodedata
 import re
@@ -10,7 +11,7 @@ import hashlib
 from src.config import (
     LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES,
     USE_DIXON_COLES, USE_BIVARIATE_POISSON, BIVARIATE_POISSON_LEAGUES,
-    API_FOOTBALL_QUOTA_FLOOR,
+    API_FOOTBALL_QUOTA_FLOOR, USE_MATCH_CONTEXT,
 )
 from src.collectors.football_data import get_upcoming_matches, get_recent_results, get_xg_history
 from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
@@ -19,6 +20,7 @@ from src.collectors.weather import get_weather_forecast, get_venue_coords, is_we
 from src.collectors.api_football import get_af_quota
 from src.analytics.injury_impact import summarize_injuries, count_key_players_out
 from src.analytics.weather_impact import calculate_weather_adjustment
+from src.analytics.match_context import classify_match, context_summary
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
 from src.models.dixon_coles import DixonColesModel
 from src.models.bivariate_poisson import BivariatePoissonModel
@@ -198,13 +200,19 @@ def _predict_with_context(
     model, home: str, away: str,
     injury_data: dict | None = None,
     weather_data: dict | None = None,
+    match_context: dict | None = None,
 ) -> dict:
-    """Call model.predict() with injury+weather kwargs only when the model
-    supports them (DC, BP). PoissonModel.predict() has no such parameters so
-    we degrade gracefully.
+    """Call model.predict() with injury+weather+match_context kwargs only when
+    the model supports them (DC, BP). PoissonModel.predict() has no such
+    parameters so we degrade gracefully.
     """
     if isinstance(model, (DixonColesModel, BivariatePoissonModel)):
-        return model.predict(home, away, injury_data=injury_data, weather_data=weather_data)
+        return model.predict(
+            home, away,
+            injury_data=injury_data,
+            weather_data=weather_data,
+            match_context=match_context,
+        )
     return model.predict(home, away)
 
 
@@ -330,6 +338,7 @@ def _fit_or_fallback(
     session,
     injury_data: dict | None = None,
     weather_data: dict | None = None,
+    match_context: dict | None = None,
 ) -> tuple[dict, bool]:
     """Return (prediction, low_confidence).
 
@@ -343,7 +352,9 @@ def _fit_or_fallback(
     _is_ev_suspicious có thể filter aggressively.
     """
     if model is not None and model._fitted:
-        return _predict_with_context(model, home, away, injury_data, weather_data), False
+        return _predict_with_context(
+            model, home, away, injury_data, weather_data, match_context
+        ), False
 
     try:
         hist = (
@@ -371,7 +382,9 @@ def _fit_or_fallback(
             m2 = ModelClass()
             m2.fit(results)
             if m2._fitted:
-                return _predict_with_context(m2, home, away, injury_data, weather_data), True
+                return _predict_with_context(
+                    m2, home, away, injury_data, weather_data, match_context
+                ), True
     except Exception as e:
         logger.debug(f"[Pipeline] DB historical fit failed for {league_code}: {e}")
 
@@ -567,10 +580,38 @@ def run_analysis_pipeline() -> list[str]:
                     match, is_fd
                 )
 
+                # --- Special-match context (derby / cup final / knockout) ---
+                # 3-mode gate via USE_MATCH_CONTEXT: "off" skips entirely,
+                # "log_only" classifies + logs + saves to DB but does NOT feed
+                # the model, "on" also adjusts λ.
+                match_ctx: dict | None = None
+                model_ctx: dict | None = None
+                if USE_MATCH_CONTEXT != "off":
+                    match_ctx = classify_match(
+                        match["home_team"],
+                        match["away_team"],
+                        competition_code=match.get("competition_code", league_code),
+                        stage=odds_event.get("stage"),
+                    )
+                    if match_ctx and any(
+                        match_ctx.get(k) for k in (
+                            "is_derby", "is_cup_final", "is_knockout",
+                            "is_relegation_6pointer",
+                        )
+                    ):
+                        logger.info(
+                            "[SPECIAL] %s vs %s — %s (mode=%s)",
+                            match["home_team"], match["away_team"],
+                            context_summary(match_ctx), USE_MATCH_CONTEXT,
+                        )
+                    if USE_MATCH_CONTEXT == "on":
+                        model_ctx = match_ctx
+
                 # Predict — fallback chain: fitted FD model → DB history → Pinnacle devig
                 prediction, match_low_conf = _fit_or_fallback(
                     model, league_code, match["home_team"], match["away_team"], odds_event, session,
                     injury_data=inj_summary, weather_data=weather_adj,
+                    match_context=model_ctx,
                 )
                 is_low_confidence = league_low_conf or match_low_conf
                 dynamic_min_ev = 0.05 if is_low_confidence else 0.01
@@ -642,6 +683,7 @@ def run_analysis_pipeline() -> list[str]:
                         weather_description=(weather_adj or {}).get("description") if weather_adj else None,
                         home_xg_estimate=prediction.get("home_xg"),
                         away_xg_estimate=prediction.get("away_xg"),
+                        match_context=json.dumps(match_ctx) if match_ctx else None,
                     )
                     session.add(pred)
 
@@ -670,6 +712,7 @@ def run_analysis_pipeline() -> list[str]:
                     alert_msg = format_value_bet_alert(
                         match, vb, prediction, bk_odds_comparison, steam_info=steam_info,
                         injury_summary=inj_summary, weather_adj=weather_adj,
+                        match_context=match_ctx,
                     )
                     alerts.append(alert_msg)
 
