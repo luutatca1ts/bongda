@@ -8,6 +8,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.db.models import init_db
 from src.bot.telegram_bot import create_bot_app, send_alert, check_quota_alert
 from src.pipeline import run_analysis_pipeline, update_results, generate_daily_report
+from src.analytics.steam_detector import detect_steam_moves, format_steam_alert
+from src.analytics.clv import capture_closing_lines
+from src.analytics.line_movement import cleanup_old_history
+from src.live_pipeline import run_live_pipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +51,64 @@ async def scheduled_results_update(app):
             await send_alert(app, msg)
     except Exception as e:
         logger.error(f"[Scheduler] Results update failed: {e}", exc_info=True)
+
+
+async def scheduled_steam_check(app):
+    """Phát hiện steam move mỗi 15 phút và gửi alert."""
+    logger.info("[Scheduler] Running steam check...")
+    try:
+        loop = asyncio.get_event_loop()
+        steams = await loop.run_in_executor(None, detect_steam_moves)
+        if steams:
+            logger.info(f"[Scheduler] Sending {len(steams)} steam alerts...")
+            for s in steams:
+                await send_alert(app, format_steam_alert(s))
+        else:
+            logger.info("[Scheduler] No steam moves this cycle.")
+    except Exception as e:
+        logger.error(f"[Scheduler] Steam check failed: {e}", exc_info=True)
+
+
+async def scheduled_clv_capture(app):
+    """Capture closing odds cho các trận sắp kickoff (≤45 phút)."""
+    logger.info("[Scheduler] Capturing closing lines...")
+    try:
+        loop = asyncio.get_event_loop()
+        n = await loop.run_in_executor(None, capture_closing_lines)
+        logger.info(f"[Scheduler] CLV captured for {n} predictions.")
+    except Exception as e:
+        logger.error(f"[Scheduler] CLV capture failed: {e}", exc_info=True)
+
+
+async def scheduled_cleanup(app):
+    """Xóa OddsHistory cũ hơn 30 ngày (chạy 3:30 sáng)."""
+    logger.info("[Scheduler] Running odds_history cleanup...")
+    try:
+        loop = asyncio.get_event_loop()
+        n = await loop.run_in_executor(None, cleanup_old_history, 30)
+        logger.info(f"[Scheduler] Cleanup removed {n} old odds_history rows.")
+    except Exception as e:
+        logger.error(f"[Scheduler] Cleanup failed: {e}", exc_info=True)
+
+
+async def scheduled_live_analysis(app):
+    """Live pipeline — chạy mỗi 2 phút trong cửa sổ giờ có nhiều trận live."""
+    # Chỉ chạy trong 00:00-06:00 và 18:00-24:00 (giờ local server)
+    hour = datetime.now().hour
+    if not (hour < 6 or hour >= 18):
+        return
+    logger.info("[Scheduler] Running live analysis...")
+    try:
+        loop = asyncio.get_event_loop()
+        alerts = await loop.run_in_executor(None, run_live_pipeline)
+        if alerts:
+            logger.info(f"[Scheduler] Sending {len(alerts)} live VB alerts...")
+            for alert in alerts:
+                await send_alert(app, alert)
+        else:
+            logger.info("[Scheduler] No live value bets this cycle.")
+    except Exception as e:
+        logger.error(f"[Scheduler] Live analysis failed: {e}", exc_info=True)
 
 
 async def scheduled_daily_report(app):
@@ -103,6 +165,39 @@ def main():
                 name="Results Update",
             )
             scheduler.add_job(
+                scheduled_steam_check,
+                "interval",
+                minutes=15,
+                args=[app],
+                id="steam_check",
+                name="Steam Move Detection",
+            )
+            scheduler.add_job(
+                scheduled_clv_capture,
+                "interval",
+                minutes=15,
+                args=[app],
+                id="clv_capture",
+                name="CLV Capture",
+            )
+            scheduler.add_job(
+                scheduled_cleanup,
+                "cron",
+                hour=3,
+                minute=30,
+                args=[app],
+                id="cleanup_odds_history",
+                name="Cleanup Old Odds History",
+            )
+            scheduler.add_job(
+                scheduled_live_analysis,
+                "interval",
+                minutes=2,
+                args=[app],
+                id="live_analysis",
+                name="Live In-Play Analysis",
+            )
+            scheduler.add_job(
                 scheduled_daily_report,
                 "cron",
                 hour=23,
@@ -112,7 +207,10 @@ def main():
                 name="Daily Report",
             )
             scheduler.start()
-            logger.info("Scheduler started: analysis/30min, results/2h, report/23:00")
+            logger.info(
+                "Scheduler started: analysis/30min, results/2h, steam/15min, "
+                "clv/15min, cleanup/03:30, live/2min (18-06h), report/23:00"
+            )
 
             # Keep running
             stop_event = asyncio.Event()

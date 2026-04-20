@@ -15,8 +15,14 @@ RESULT_EMOJI = {
 }
 
 
-def format_value_bet_alert(match: dict, bet: dict, prediction: dict, all_bookmaker_odds: dict | None = None) -> str:
-    """Format a value bet alert for Telegram."""
+def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
+                           all_bookmaker_odds: dict | None = None,
+                           steam_info: dict | None = None) -> str:
+    """Format a value bet alert for Telegram.
+
+    Nếu steam_info (từ detect_steam_moves) được truyền vào và cùng hướng với
+    bet hiện tại, thêm 1 dòng 🔥 STEAM MOVE vào message.
+    """
     conf_emoji = CONFIDENCE_EMOJI.get(bet.get("confidence", "LOW"), "\U0001f7e2")
 
     # Parse date — display in Vietnam time
@@ -41,6 +47,12 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict, all_bookmak
         f"  \u2022 Confidence: {conf_emoji} {bet.get('confidence', 'N/A')}\n"
     )
 
+    if steam_info:
+        msg += (
+            f"  \U0001f525 STEAM MOVE ({steam_info.get('bookmakers_count', 0)} BK, "
+            f"{steam_info.get('avg_drift_pct', 0):+.1f}%)\n"
+        )
+
     # Add xG info
     if prediction:
         msg += (
@@ -55,6 +67,54 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict, all_bookmak
         for bk_name, odds_val in list(all_bookmaker_odds.items())[:5]:
             msg += f"  {bk_name}: {odds_val}\n"
 
+    msg += f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"
+    return msg
+
+
+def format_live_alert(match: dict, vb: dict, state: dict, model_probs: dict) -> str:
+    """Format live (in-play) value bet alert.
+
+    match: {home_team, away_team, competition, match_id}
+    vb: {market, outcome, probability, odds, bookmaker, ev, confidence}
+    state: từ get_live_match_state (minute, scores, xG, reds, xg_source)
+    model_probs: output của LivePoissonModel.predict_at_state
+    """
+    conf_emoji = CONFIDENCE_EMOJI.get(vb.get("confidence", "LOW"), "\U0001f7e2")
+
+    minute = state.get("minute", 0)
+    hs = state.get("home_score", 0)
+    as_ = state.get("away_score", 0)
+    hxg = state.get("home_xg", 0.0)
+    axg = state.get("away_xg", 0.0)
+    xg_src = state.get("xg_source", "proxy")
+
+    h_reds = state.get("home_red_cards", 0)
+    a_reds = state.get("away_red_cards", 0)
+    reds_line = ""
+    if h_reds or a_reds:
+        reds_line = f"  \U0001f7e5 Red cards: {hs and h_reds or h_reds}-{a_reds}\n"
+
+    rem_min = model_probs.get("remaining_minutes", 0)
+
+    msg = (
+        f"\U0001f525 LIVE VALUE BET\n"
+        f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+        f"\U0001f3c6 {match.get('competition', 'N/A')}\n"
+        f"\u23f1 Ph\u00fat {minute}' | T\u1ef7 s\u1ed1 {hs}-{as_}\n\n"
+        f"{match['home_team']} vs {match['away_team']}\n\n"
+        f"\U0001f4ca K\u00e8o live:\n"
+        f"  \u2022 K\u00e8o: {vb['outcome']} ({vb['market']})\n"
+        f"  \u2022 Live odds: {vb['odds']}\n"
+        f"  \u2022 Model prob: {vb['probability']*100:.1f}%\n"
+        f"  \u2022 Expected Value: {vb['ev']*100:+.1f}%\n"
+        f"  \u2022 Confidence: {conf_emoji} {vb.get('confidence', 'N/A')}\n"
+        f"  \u2022 Bookmaker: {vb.get('bookmaker', 'Pinnacle')}\n\n"
+        f"\u26a1 State:\n"
+        f"  xG ({xg_src}): {hxg:.2f} - {axg:.2f}\n"
+        f"  Remaining \u2248 {rem_min}'\n"
+    )
+    if reds_line:
+        msg += reds_line
     msg += f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"
     return msg
 

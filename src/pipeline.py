@@ -11,6 +11,8 @@ from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
 from src.db.models import get_session, Match, Prediction
 from src.bot.formatters import format_value_bet_alert, format_daily_report
+from src.analytics.line_movement import save_odds_snapshot
+from src.analytics.steam_detector import detect_steam_moves
 
 
 _ALIASES = {
@@ -169,6 +171,12 @@ def run_analysis_pipeline() -> list[str]:
                 logger.error(f"[Pipeline] Failed to get odds for {league_name}: {e}")
                 odds_events = []
 
+            if odds_events:
+                try:
+                    save_odds_snapshot(odds_events)
+                except Exception as e:
+                    logger.error(f"[Pipeline] save_odds_snapshot failed: {e}")
+
             # Build odds lookup by team names
             odds_lookup = {}
             for ev in odds_events:
@@ -255,7 +263,26 @@ def run_analysis_pipeline() -> list[str]:
                         odds_event, vb["market"], vb["outcome"]
                     )
 
-                    alert_msg = format_value_bet_alert(match, vb, prediction, bk_odds_comparison)
+                    # Check for steam move cùng hướng với value bet hiện tại.
+                    # Value bet = bắt cửa có prob cao hơn odds implied → nếu odds
+                    # cửa đó đang shortening (giảm) nghĩa là sharp cũng vào cùng → bullish signal.
+                    steam_info = None
+                    try:
+                        steams = detect_steam_moves(match_id_filter=match["match_id"])
+                        for s in steams:
+                            if (
+                                s["market"] == vb["market"]
+                                and s["outcome"] == vb["outcome"]
+                                and s["direction"] == "shortening"
+                            ):
+                                steam_info = s
+                                break
+                    except Exception as _e:
+                        logger.debug(f"[Pipeline] steam filter failed: {_e}")
+
+                    alert_msg = format_value_bet_alert(
+                        match, vb, prediction, bk_odds_comparison, steam_info=steam_info
+                    )
                     alerts.append(alert_msg)
 
                 # === CORNER VALUE BETS ===
@@ -525,7 +552,17 @@ def generate_daily_report() -> str:
             "low_total": len([p for p in preds if p.confidence == "LOW" and p.result in ("WIN", "LOSE")]),
         }
 
-        return format_daily_report(report)
+        msg = format_daily_report(report)
+
+        # Append CLV summary (7 ngày)
+        try:
+            from src.analytics.clv import get_clv_stats, format_clv_report
+            clv_stats = get_clv_stats(days=7)
+            msg += "\n\n" + format_clv_report(clv_stats)
+        except Exception as e:
+            logger.warning(f"[Report] CLV append failed: {e}")
+
+        return msg
     finally:
         session.close()
 

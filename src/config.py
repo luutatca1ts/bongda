@@ -386,3 +386,27 @@ CONFIDENCE = {
     "MEDIUM": {"min_ev": 0.04, "min_agreement": 0.65},
     "LOW": {"min_ev": 0.01, "min_agreement": 0.50},
 }
+
+# ================================================================
+# LIVE / IN-PLAY CONFIG
+# ================================================================
+
+# xG availability trong API-Football /fixtures/statistics.
+# - True  → dùng expected_goals trực tiếp
+# - False → dùng xG proxy (shots_on_target × 0.25 + shots_off_target × 0.05)
+# Runtime vẫn sẽ tự fallback sang proxy nếu field expected_goals rỗng, bất kể
+# flag này. Đặt False mặc định cho plan free (chưa verify được live).
+# Scripts/probe_live_xg.py có thể chạy để probe thủ công khi có API key.
+LIVE_XG_AVAILABLE = False
+
+# Quota protection cho live pipeline
+LIVE_MAX_MATCHES_PER_CYCLE = 10
+LIVE_QUOTA_MIN_THRESHOLD = 5000  # Pause live khi Odds API remaining < threshold
+
+# Top leagues cho live tracking — giới hạn số trận để tiết kiệm quota
+LIVE_LEAGUE_CODES = [
+    "PL", "PD", "BL1", "SA", "FL1",       # Big 5
+    "CL", "EL", "ECL",                    # UEFA
+    "DED", "PPL",                         # Eredivisie, Liga Portugal
+]
+LIVE_LEAGUE_IDS = {API_FOOTBALL_LEAGUES[c] for c in LIVE_LEAGUE_CODES if c in API_FOOTBALL_LEAGUES}

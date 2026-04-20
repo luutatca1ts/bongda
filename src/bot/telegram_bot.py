@@ -2688,6 +2688,257 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
+async def cmd_dongtien(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hiển thị phân tích dòng tiền (line movement) cho 1 trận cụ thể."""
+    if not await _require_auth(update):
+        return
+
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "\U0001f4a1 C\u00e1ch d\u00f9ng: /dongtien <match_id>\n"
+            "VD: /dongtien 497123\n"
+            "\n\u0110\u1ec3 xem match_id: d\u00f9ng /today ho\u1eb7c /phantich"
+        )
+        return
+
+    try:
+        match_id = int(args[0])
+    except ValueError:
+        await update.message.reply_text("\u274c match_id ph\u1ea3i l\u00e0 s\u1ed1 nguy\u00ean.")
+        return
+
+    from src.analytics.line_movement import (
+        compute_drift,
+        get_all_bookmakers_current,
+        get_current_odds,
+    )
+
+    session = get_session()
+    try:
+        match = session.query(Match).filter(Match.match_id == match_id).first()
+        if match is None:
+            await update.message.reply_text(f"\u274c Kh\u00f4ng t\u00ecm th\u1ea5y tr\u1eadn match_id={match_id}.")
+            return
+
+        try:
+            kickoff = match.utc_date.strftime("%H:%M %d/%m/%Y UTC") if match.utc_date else "?"
+        except Exception:
+            kickoff = str(match.utc_date)
+
+        msg = (
+            f"\U0001f4b8 PH\u00c2N T\u00cdCH D\u00d2NG TI\u1ec0N\n"
+            f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+            f"\U0001f3c6 {match.competition or '?'}\n"
+            f"\u26bd {match.home_team} vs {match.away_team}\n"
+            f"\U0001f552 {kickoff}\n\n"
+        )
+
+        # --- 1X2 Line Movement (Pinnacle) ---
+        # OddsHistory lưu outcome là tên đội (vd "Arsenal") + "Draw" theo format Odds API.
+        msg += "\U0001f4ca 1X2 — Pinnacle\n"
+        any_1x2 = False
+        for display, outcome in (
+            (match.home_team, match.home_team),
+            ("Draw", "Draw"),
+            (match.away_team, match.away_team),
+        ):
+            drift = compute_drift(match_id, "h2h", outcome, "pinnacle")
+            if drift is None:
+                continue
+            any_1x2 = True
+            emoji = {"shortening": "\U0001f53b", "drifting": "\U0001f53a", "stable": "\u27a1\ufe0f"}[drift["direction"]]
+            msg += (
+                f"  {emoji} {display}: {drift['opening_odds']:.2f} \u2192 "
+                f"{drift['current_odds']:.2f} ({drift['drift_pct']:+.2f}%)\n"
+            )
+        if not any_1x2:
+            msg += "  (ch\u01b0a c\u00f3 d\u1eef li\u1ec7u)\n"
+
+        # --- Tài/Xỉu (totals) on latest point ---
+        msg += "\n\U0001f522 T\u00e0i/X\u1ec9u — Pinnacle\n"
+        any_tot = False
+        # Find the latest totals point captured for this match from Pinnacle
+        totals_point = None
+        for outcome in ("Over", "Under"):
+            cur = get_current_odds(match_id, "totals", outcome, "pinnacle")
+            if cur and cur.get("point") is not None:
+                totals_point = cur["point"]
+                break
+        if totals_point is not None:
+            for outcome in ("Over", "Under"):
+                drift = compute_drift(match_id, "totals", outcome, "pinnacle", point=totals_point)
+                if drift is None:
+                    continue
+                any_tot = True
+                emoji = {"shortening": "\U0001f53b", "drifting": "\U0001f53a", "stable": "\u27a1\ufe0f"}[drift["direction"]]
+                msg += (
+                    f"  {emoji} {outcome} {totals_point:g}: {drift['opening_odds']:.2f} \u2192 "
+                    f"{drift['current_odds']:.2f} ({drift['drift_pct']:+.2f}%)\n"
+                )
+        if not any_tot:
+            msg += "  (ch\u01b0a c\u00f3 d\u1eef li\u1ec7u)\n"
+
+        # --- Bookmaker comparison for Home 1X2 ---
+        msg += f"\n\U0001f3e6 So s\u00e1nh nh\u00e0 c\u00e1i — c\u1eeda {match.home_team}\n"
+        home_bks = get_all_bookmakers_current(match_id, "h2h", match.home_team)
+        if home_bks:
+            items = sorted(home_bks.items(), key=lambda x: x[1]["odds"], reverse=True)[:6]
+            for _, info in items:
+                msg += f"  \u2022 {info['bookmaker_name']}: {info['odds']:.2f}\n"
+            odds_vals = [i[1]["odds"] for i in items]
+            if odds_vals:
+                spread_pct = (max(odds_vals) - min(odds_vals)) / min(odds_vals) * 100
+                if spread_pct >= 5.0:
+                    msg += f"\n\u26a0\ufe0f Ch\u00ean h l\u1ec7ch odds {spread_pct:.1f}% — arbitrage ti\u1ec1m n\u0103ng!\n"
+        else:
+            msg += "  (ch\u01b0a c\u00f3 d\u1eef li\u1ec7u)\n"
+
+        msg += (
+            "\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+            "Ch\u00fa th\u00edch: \U0001f53b shortening (odds gi\u1ea3m, ti\u1ec1n v\u00e0o)  "
+            "\U0001f53a drifting (odds t\u0103ng, ti\u1ec1n r\u00fat)  "
+            "\u27a1\ufe0f stable"
+        )
+
+        if len(msg) > 4000:
+            msg = msg[:3980] + "\n... (c\u1eaft)"
+
+        await update.message.reply_text(msg)
+    except Exception as e:
+        logger.error(f"[DongTien] Error: {e}", exc_info=True)
+        await update.message.reply_text(f"\u274c L\u1ed7i /dongtien: {e}")
+    finally:
+        session.close()
+
+
+async def cmd_clv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hiển thị báo cáo Closing Line Value."""
+    if not await _require_auth(update):
+        return
+
+    args = context.args or []
+    days = 30
+    if args:
+        try:
+            days = max(1, min(365, int(args[0])))
+        except ValueError:
+            await update.message.reply_text("\u274c days ph\u1ea3i l\u00e0 s\u1ed1 nguy\u00ean (1-365).")
+            return
+
+    from src.analytics.clv import get_clv_stats, format_clv_report
+    try:
+        stats = get_clv_stats(days=days)
+        await update.message.reply_text(format_clv_report(stats))
+    except Exception as e:
+        logger.error(f"[CLV] Error: {e}", exc_info=True)
+        await update.message.reply_text(f"\u274c L\u1ed7i /clv: {e}")
+
+
+async def cmd_live_vb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Chạy live pipeline ngay bây giờ — tìm value bet trong trận đang live."""
+    if not await _require_auth(update):
+        return
+    import asyncio
+    from src.live_pipeline import run_live_pipeline
+
+    await update.message.reply_text(
+        "\U0001f525 \u0110ang qu\u00e9t tr\u1eadn live t\u00ecm value bet..."
+    )
+    try:
+        loop = asyncio.get_event_loop()
+        alerts = await loop.run_in_executor(None, run_live_pipeline)
+    except Exception as e:
+        logger.error(f"[live_vb] Error: {e}", exc_info=True)
+        await update.message.reply_text(f"\u274c L\u1ed7i /live_vb: {e}")
+        return
+
+    if not alerts:
+        await update.message.reply_text(
+            "\u2139\ufe0f Kh\u00f4ng c\u00f3 live value bet n\u00e0o trong cycle n\u00e0y."
+        )
+        return
+    for msg in alerts:
+        await update.message.reply_text(msg)
+
+
+async def cmd_theodoi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hiển thị timeline state của 1 trận đang live: /theodoi <match_id>."""
+    if not await _require_auth(update):
+        return
+
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "D\u00f9ng: /theodoi <match_id>\nV\u00ed d\u1ee5: /theodoi 12345"
+        )
+        return
+    try:
+        match_id = int(args[0])
+    except ValueError:
+        await update.message.reply_text("\u274c match_id ph\u1ea3i l\u00e0 s\u1ed1.")
+        return
+
+    from src.db.models import LiveMatchState, LivePrediction
+    session = get_session()
+    try:
+        match = session.query(Match).filter(Match.match_id == match_id).first()
+        if not match:
+            await update.message.reply_text(f"\u274c Kh\u00f4ng t\u00ecm th\u1ea5y match_id {match_id}.")
+            return
+
+        states = (
+            session.query(LiveMatchState)
+            .filter(LiveMatchState.match_id == match_id)
+            .order_by(LiveMatchState.captured_at.asc())
+            .all()
+        )
+        if not states:
+            await update.message.reply_text(
+                f"\u2139\ufe0f Ch\u01b0a c\u00f3 snapshot live cho {match.home_team} vs {match.away_team}."
+            )
+            return
+
+        preds = (
+            session.query(LivePrediction)
+            .filter(LivePrediction.match_id == match_id)
+            .order_by(LivePrediction.created_at.asc())
+            .all()
+        )
+
+        msg = (
+            f"\U0001f440 LIVE TIMELINE \u2014 match_id {match_id}\n"
+            f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+            f"{match.home_team} vs {match.away_team}\n"
+            f"{match.competition or ''}\n\n"
+            f"\U0001f4cc Snapshots ({len(states)}):\n"
+        )
+        for s in states[-10:]:
+            msg += (
+                f"  {s.captured_at.strftime('%H:%M')}  {s.minute}'  "
+                f"{s.home_score}-{s.away_score}  "
+                f"xG {s.home_xg:.2f}-{s.away_xg:.2f}  "
+                f"SoT {s.home_shots_on_target}-{s.away_shots_on_target}"
+            )
+            if s.home_red_cards or s.away_red_cards:
+                msg += f"  reds {s.home_red_cards}-{s.away_red_cards}"
+            msg += "\n"
+
+        if preds:
+            msg += f"\n\U0001f525 Live value bets ({len(preds)}):\n"
+            for p in preds[-10:]:
+                msg += (
+                    f"  {p.created_at.strftime('%H:%M')}  "
+                    f"{p.minute}'  {p.market}:{p.outcome}  "
+                    f"@ {p.live_odds:.2f}  EV {p.expected_value*100:+.1f}%  "
+                    f"[{p.confidence}]\n"
+                )
+        msg += "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501"
+        await update.message.reply_text(msg)
+    finally:
+        session.close()
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _require_auth(update): return
     await update.message.reply_text(
@@ -2698,7 +2949,11 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/tatca PL \u2014 L\u1ecdc theo gi\u1ea3i (PL, PD, BL1, SA, FL1, CL)\n"
         "/phantich \u2014 Ph\u00e2n t\u00edch chi ti\u1ebft tr\u1eadn trong 24h\n"
         "/live \u2014 C\u00e1 c\u01b0\u1ee3c tr\u1ef1c ti\u1ebfp (in-play)\n"
+        "\U0001f525 /live_vb \u2014 Qu\u00e9t live value bet ngay (LivePoisson)\n"
+        "\U0001f440 /theodoi <match_id> \u2014 Timeline state + live VB c\u1ee7a 1 tr\u1eadn\n"
         "/today \u2014 Ph\u00e2n t\u00edch to\u00e0n b\u1ed9 h\u00f4m nay\n"
+        "\U0001f4ca /dongtien <match_id> \u2014 Ph\u00e2n t\u00edch d\u00f2ng ti\u1ec1n (line movement)\n"
+        "\U0001f4c8 /clv [days] \u2014 B\u00e1o c\u00e1o Closing Line Value\n"
         "/keoxien \u2014 K\u00e8o xi\u00ean 2\u201310 (parlay)\n"
         "/stats \u2014 Th\u1ed1ng k\u00ea hi\u1ec7u su\u1ea5t model\n"
         "/history \u2014 20 d\u1ef1 \u0111o\u00e1n g\u1ea7n nh\u1ea5t\n"
@@ -2912,6 +3167,10 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("tatca", cmd_matches))
     app.add_handler(CommandHandler("phantich", cmd_analyze))
+    app.add_handler(CommandHandler("dongtien", cmd_dongtien))
+    app.add_handler(CommandHandler("clv", cmd_clv))
+    app.add_handler(CommandHandler("live_vb", cmd_live_vb))
+    app.add_handler(CommandHandler("theodoi", cmd_theodoi))
     app.add_handler(CommandHandler("today", cmd_today))
     app.add_handler(CommandHandler("keoxien", cmd_keoxien))
     app.add_handler(CommandHandler("stats", cmd_stats))
