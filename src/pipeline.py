@@ -7,17 +7,24 @@ from datetime import datetime, date
 
 import hashlib
 
-from src.config import LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES, USE_DIXON_COLES
+from src.config import (
+    LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES,
+    USE_DIXON_COLES, USE_BIVARIATE_POISSON, BIVARIATE_POISSON_LEAGUES,
+    API_FOOTBALL_QUOTA_FLOOR,
+)
 from src.collectors.football_data import get_upcoming_matches, get_recent_results, get_xg_history
 from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
 from src.collectors.injuries import get_injuries_by_team
 from src.collectors.weather import get_weather_forecast, get_venue_coords, is_weather_enabled
+from src.collectors.api_football import get_af_quota
 from src.analytics.injury_impact import summarize_injuries, count_key_players_out
 from src.analytics.weather_impact import calculate_weather_adjustment
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
 from src.models.dixon_coles import DixonColesModel
+from src.models.bivariate_poisson import BivariatePoissonModel
 
-# Factory: swap model family via config flag without touching call sites.
+# Factory: default model family when nothing league-specific applies.
+# Per-league choice (BP vs DC) happens in _select_model().
 ModelClass = DixonColesModel if USE_DIXON_COLES else PoissonModel
 from src.db.models import get_session, Match, Prediction
 from src.bot.formatters import format_value_bet_alert, format_daily_report
@@ -193,12 +200,74 @@ def _predict_with_context(
     weather_data: dict | None = None,
 ) -> dict:
     """Call model.predict() with injury+weather kwargs only when the model
-    supports them (DixonColesModel). PoissonModel.predict() has no such
-    parameters so we degrade gracefully.
+    supports them (DC, BP). PoissonModel.predict() has no such parameters so
+    we degrade gracefully.
     """
-    if isinstance(model, DixonColesModel):
+    if isinstance(model, (DixonColesModel, BivariatePoissonModel)):
         return model.predict(home, away, injury_data=injury_data, weather_data=weather_data)
     return model.predict(home, away)
+
+
+def _select_model(league_code: str, n_results: int):
+    """Pick the best-fit model class for this league.
+
+    BivariatePoisson only when:
+      1. USE_BIVARIATE_POISSON flag is on, AND
+      2. league is in BIVARIATE_POISSON_LEAGUES (top-5 European), AND
+      3. ≥100 matches in the 90-day window (λ3 needs data to identify).
+    Otherwise fall back to DC (or PoissonModel if DC flag is off).
+
+    Why restrict: λ3 is a shared extra parameter. On small or noisy samples
+    it collapses to ~0 and adds nothing while hurting optimizer stability.
+    """
+    if (
+        USE_BIVARIATE_POISSON
+        and league_code in BIVARIATE_POISSON_LEAGUES
+        and n_results >= 100
+    ):
+        return BivariatePoissonModel
+    return ModelClass
+
+
+def _align_xg_to_results(results: list[dict], xg_history: list[dict]) -> tuple[list, float]:
+    """Produce an xg_data list index-aligned with `results`.
+
+    Matches by fuzzy home/away team name (reuses pipeline's _normalize) —
+    dates are not strict-matched because FD and API-Football timestamps can
+    differ by a few minutes. First name match wins; unmatched rows become
+    None so DixonColesModel.fit() falls back to integer goals for them.
+
+    Returns (aligned_list, coverage_fraction).
+    """
+    if not xg_history:
+        return [None] * len(results), 0.0
+
+    buckets: dict[tuple[str, str], dict] = {}
+    for x in xg_history:
+        h = _normalize(x.get("home_team", ""))
+        a = _normalize(x.get("away_team", ""))
+        if h and a:
+            buckets[(h, a)] = x
+
+    aligned: list = []
+    matched = 0
+    for r in results:
+        rh = _normalize(r.get("home_team", ""))
+        ra = _normalize(r.get("away_team", ""))
+        hit = buckets.get((rh, ra))
+        if not hit:
+            # Second pass: partial-token match
+            for (xh, xa), xv in buckets.items():
+                if (rh in xh or xh in rh) and (ra in xa or xa in ra):
+                    hit = xv
+                    break
+        if hit:
+            aligned.append({"home_xg": hit["home_xg"], "away_xg": hit["away_xg"]})
+            matched += 1
+        else:
+            aligned.append(None)
+    coverage = matched / len(results) if results else 0.0
+    return aligned, coverage
 
 
 def _fetch_match_context(match: dict, is_fd: bool) -> tuple[dict | None, dict | None, dict | None]:
@@ -363,10 +432,35 @@ def run_analysis_pipeline() -> list[str]:
                     results = []
 
                 if results:
-                    m = ModelClass()
-                    # Optional xG — empty list today (stub); DC falls back to goals.
-                    xg = get_xg_history(league_code, days=90) if USE_DIXON_COLES else []
-                    m.fit(results, xg_data=xg) if USE_DIXON_COLES else m.fit(results)
+                    # Per-league model selection: BP for top-5 with ≥100 matches,
+                    # else DC (or Poisson if DC flag is off).
+                    Chosen = _select_model(league_code, len(results))
+                    m = Chosen()
+
+                    # Optional xG — gated by API-Football quota floor.
+                    xg_raw: list[dict] = []
+                    if USE_DIXON_COLES:
+                        af_q = get_af_quota().get("current")
+                        if af_q is None or af_q >= API_FOOTBALL_QUOTA_FLOOR:
+                            try:
+                                xg_raw = get_xg_history(league_code, days=90)
+                            except Exception as e:
+                                logger.debug("[xG] fetch failed for %s: %s", league_code, e)
+                                xg_raw = []
+                        else:
+                            logger.warning(
+                                "[xG] skip fetch for %s — AF quota %s < floor %s",
+                                league_code, af_q, API_FOOTBALL_QUOTA_FLOOR,
+                            )
+                    xg_aligned, xg_cov = _align_xg_to_results(results, xg_raw)
+                    logger.info(
+                        "[MODEL] %s: %s (%d matches, xG coverage %.0f%%)",
+                        league_code, Chosen.__name__, len(results), xg_cov * 100,
+                    )
+                    if USE_DIXON_COLES and isinstance(m, DixonColesModel):
+                        m.fit(results, xg_data=xg_aligned)
+                    else:
+                        m.fit(results)
                     if m._fitted:
                         model = m
                         for r in results:
@@ -531,7 +625,7 @@ def run_analysis_pipeline() -> list[str]:
                         )
                         continue
 
-                    # Save prediction (with injury + weather metadata)
+                    # Save prediction (with injury + weather + xG metadata)
                     pred = Prediction(
                         match_id=match["match_id"],
                         market=vb["market"],
@@ -546,6 +640,8 @@ def run_analysis_pipeline() -> list[str]:
                         injury_impact_away=(inj_summary or {}).get("away", {}).get("offensive_drop", 0.0) if inj_summary else 0.0,
                         weather_adjust=(weather_adj or {}).get("total_goals_adjust", 0.0) if weather_adj else 0.0,
                         weather_description=(weather_adj or {}).get("description") if weather_adj else None,
+                        home_xg_estimate=prediction.get("home_xg"),
+                        away_xg_estimate=prediction.get("away_xg"),
                     )
                     session.add(pred)
 

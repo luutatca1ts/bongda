@@ -419,6 +419,22 @@ CONFIDENCE = {
 # Both implement the same predict() shape so the pipeline is model-agnostic.
 USE_DIXON_COLES = True
 
+# Bivariate Poisson model — enabled ONLY for top-5 European leagues with
+# ≥100 matches in 90d (see _select_model in pipeline.py). Captures draw
+# correlation via shared latent component Y3 → better 1-1/2-2 cells and
+# +2-4% draw probability vs DC. Safe default False: shipping it on requires
+# validation on live league data first.
+USE_BIVARIATE_POISSON = False
+
+# Leagues eligible for BivariatePoisson when USE_BIVARIATE_POISSON is on.
+# Restricted to top-5 European → they consistently have enough historical
+# matches AND xG coverage to make the extra λ3 parameter identifiable.
+BIVARIATE_POISSON_LEAGUES = {"PL", "PD", "BL1", "SA", "FL1"}
+
+# API-Football quota floor — below this, we skip xG fetches to protect
+# live-match calls (live uses same quota). MEGA plan = 150K/day.
+API_FOOTBALL_QUOTA_FLOOR = 20000
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================

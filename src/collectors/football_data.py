@@ -106,16 +106,84 @@ def _date_offset(days: int) -> str:
 
 
 def get_xg_history(league_code: str, days: int = 90) -> list[dict]:
-    """Fetch historical xG aligned 1:1 with get_recent_results(league_code, days).
+    """Fetch historical xG for a league over the last `days` via API-Football.
 
-    Returns list[{home_team, away_team, home_xg, away_xg, utc_date}] or [].
+    Returns list[{home_team, away_team, home_xg, away_xg, utc_date, xg_source}].
+    Entries are NOT index-aligned with get_recent_results — caller must match
+    by (home_team, away_team, utc_date). Pipeline does this alignment and
+    falls back to integer goals for unmatched fixtures.
 
-    Football-Data.org (free tier) does NOT expose xG. This is a stub for when
-    we integrate an xG source (API-Football, Understat scrape, Opta). When it
-    returns [], DixonColesModel.fit() falls back to integer goals.
+    Returns [] if API_FOOTBALL_KEY is missing or league isn't in our id map.
 
-    TODO: wire up API-Football /fixtures?league=...&season=... which includes
-    `statistics[].expected_goals` for most top leagues (paid plans only), OR
-    scrape Understat for the big-5 + UEFA.
+    Quota: 1 call to /fixtures + N calls to /fixtures/statistics per league.
+    Typical top-5 league over 90d ≈ 100 finished matches → ≤101 requests/league.
+    xg_data.py caches each statistics call for 24h, so repeat invocations
+    within a day cost O(1).
     """
-    return []
+    from src.config import API_FOOTBALL_KEY, API_FOOTBALL_LEAGUES
+    if not API_FOOTBALL_KEY:
+        return []
+    af_league_id = API_FOOTBALL_LEAGUES.get(league_code)
+    if not af_league_id:
+        return []
+
+    from datetime import date, timedelta
+    from src.collectors.xg_data import get_xg_for_fixture, _session, BASE_URL
+
+    to_d = date.today().isoformat()
+    from_d = (date.today() - timedelta(days=days)).isoformat()
+
+    # API-Football needs a season hint. Europe "2025" covers Aug 2025–May 2026;
+    # calendar-year leagues (Brazil/MLS/J1) use the current year. Simple heuristic:
+    # if today's month >=7 → season = current year; else current year - 1.
+    # Exceptions handled by passing a 2-value attempt list.
+    from datetime import datetime as _dt
+    now = _dt.utcnow()
+    if now.month >= 7:
+        seasons_to_try = [now.year, now.year - 1]
+    else:
+        seasons_to_try = [now.year - 1, now.year]
+
+    fixtures: list[dict] = []
+    for season in seasons_to_try:
+        try:
+            resp = _session.get(
+                f"{BASE_URL}/fixtures",
+                params={
+                    "league": af_league_id,
+                    "season": season,
+                    "from": from_d,
+                    "to": to_d,
+                    "status": "FT",
+                },
+                timeout=25,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception:
+            continue
+        fixtures = payload.get("response", []) or []
+        if fixtures:
+            break
+
+    out: list[dict] = []
+    for fix in fixtures:
+        fid = fix.get("fixture", {}).get("id")
+        if not fid:
+            continue
+        teams = fix.get("teams", {}) or {}
+        home = (teams.get("home") or {}).get("name", "")
+        away = (teams.get("away") or {}).get("name", "")
+        date_str = fix.get("fixture", {}).get("date")
+        xg = get_xg_for_fixture(fid)
+        if not xg:
+            continue
+        out.append({
+            "home_team": home,
+            "away_team": away,
+            "home_xg": float(xg["home_xg"]),
+            "away_xg": float(xg["away_xg"]),
+            "utc_date": date_str,
+            "xg_source": xg.get("xg_source", "proxy"),
+        })
+    return out

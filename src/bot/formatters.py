@@ -66,13 +66,15 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
             f"\u2014 ki\u1ec3m tra odds + line tr\u01b0\u1edbc khi bet\n"
         )
 
-    # Add xG info
+    # Add xG info — compact one-liner (model λ after injury/weather adjustments)
     if prediction:
-        msg += (
-            f"\n\u26a1 Expected Goals:\n"
-            f"  {match['home_team']}: {prediction.get('home_xg', '?')}\n"
-            f"  {match['away_team']}: {prediction.get('away_xg', '?')}\n"
-        )
+        hxg = prediction.get("home_xg")
+        axg = prediction.get("away_xg")
+        if hxg is not None and axg is not None:
+            msg += (
+                f"\n\U0001f4ca xG k\u1ef3 v\u1ecdng: "
+                f"{match['home_team']} {hxg} - {axg} {match['away_team']}\n"
+            )
 
     # Injury warnings (≥3 key players out on either side)
     if injury_summary:

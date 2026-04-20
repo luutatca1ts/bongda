@@ -52,6 +52,10 @@ class Prediction(Base):
     injury_impact_away = Column(Float, default=0.0)
     weather_adjust = Column(Float, default=0.0)
     weather_description = Column(String, nullable=True)
+    # xG estimates surfaced to the user (λ after all adjustments, nullable
+    # because PoissonModel path doesn't always populate).
+    home_xg_estimate = Column(Float, nullable=True)
+    away_xg_estimate = Column(Float, nullable=True)
 
 
 class Bookmaker(Base):
