@@ -424,6 +424,97 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+_CORNER_MARKETS = {
+    "corners_totals", "corners_spreads",
+    "corners_h1_totals", "corners_h1_spreads",
+}
+_MKT_NAMES = {
+    "h2h": "1X2",
+    "totals": "T\u00e0i/X\u1ec9u",
+    "spreads": "Ch\u00e2u \u00c1",
+    "corners_totals": "G\u00f3c T/X",
+    "corners_spreads": "G\u00f3c Ch\u00e2u \u00c1",
+    "corners_h1_totals": "G\u00f3c H1 T/X",
+    "corners_h1_spreads": "G\u00f3c H1 Ch\u00e2u \u00c1",
+}
+
+
+def get_top_prob_picks(session, limit: int = 30) -> dict:
+    """Shared query for /ancan and /phantich PH\u00c2N T\u00cdCH T\u1ea4T C\u1ea2 GI\u1ea2I.
+
+    Query Prediction JOIN Match cho tr\u1eadn kickoff trong 24h t\u1edbi v\u1edbi
+    model_probability >= 0.58 (KH\u00d4NG filter is_value_bet — gi\u1eef c\u1ea3
+    EV \u00e2m). \u00c1p `_is_ev_suspicious` + 3 rule b\u1ed5 sung (Draw>40%,
+    odds<1.25, corner>75%). Sort prob desc, top N.
+
+    Returns: {
+        "top": [(Prediction, Match), ...],
+        "kept_total": int,
+        "filtered": int,
+        "raw_total": int,
+        "total_matches_24h": int,
+    }
+    """
+    from datetime import datetime, timedelta
+
+    now = datetime.utcnow()
+    window_end = now + timedelta(hours=24)
+
+    rows = (
+        session.query(Prediction, Match)
+        .join(Match, Prediction.match_id == Match.match_id)
+        .filter(
+            Prediction.model_probability >= 0.58,
+            Match.utc_date >= now,
+            Match.utc_date <= window_end,
+        )
+        .order_by(Prediction.model_probability.desc())
+        .all()
+    )
+    total_matches_24h = (
+        session.query(Match)
+        .filter(
+            Match.status == "SCHEDULED",
+            Match.utc_date >= now,
+            Match.utc_date <= window_end,
+        )
+        .count()
+    )
+
+    kept: list[tuple] = []
+    filtered = 0
+    for p, m in rows:
+        mkt_for_check = "corner" if p.market in _CORNER_MARKETS else p.market
+        vb = {
+            "ev": p.expected_value or 0,
+            "bookmaker": p.best_bookmaker or "",
+            "market": mkt_for_check,
+            "outcome": p.outcome or "",
+        }
+        susp, _ = _is_ev_suspicious(vb)
+        if susp:
+            filtered += 1
+            continue
+        if p.market == "h2h" and p.outcome == "Draw" and (p.model_probability or 0) > 0.40:
+            filtered += 1
+            continue
+        if (p.best_odds or 0) < 1.25:
+            filtered += 1
+            continue
+        if p.market in _CORNER_MARKETS and (p.model_probability or 0) > 0.75:
+            filtered += 1
+            continue
+        kept.append((p, m))
+
+    return {
+        "top": kept[:limit],
+        "kept_total": len(kept),
+        "filtered": filtered,
+        "raw_total": len(rows),
+        "total_matches_24h": total_matches_24h,
+    }
+
+
 async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """K\u00e8o prob cao \u2014 prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o.
 
@@ -435,87 +526,25 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     if not await _require_auth(update):
         return
-    from datetime import datetime, timedelta
     from src.config import LEAGUES
 
-    CORNER_MARKETS = {
-        "corners_totals", "corners_spreads",
-        "corners_h1_totals", "corners_h1_spreads",
-    }
-    MKT_NAMES = {
-        "h2h": "1X2",
-        "totals": "T\u00e0i/X\u1ec9u",
-        "spreads": "Ch\u00e2u \u00c1",
-        "corners_totals": "G\u00f3c T/X",
-        "corners_spreads": "G\u00f3c Ch\u00e2u \u00c1",
-        "corners_h1_totals": "G\u00f3c H1 T/X",
-        "corners_h1_spreads": "G\u00f3c H1 Ch\u00e2u \u00c1",
-    }
+    CORNER_MARKETS = _CORNER_MARKETS
+    MKT_NAMES = _MKT_NAMES
 
     session = get_session()
     try:
-        now = datetime.utcnow()
-        window_end = now + timedelta(hours=24)
+        result = get_top_prob_picks(session, limit=30)
+        top = result["top"]
+        filtered = result["filtered"]
+        total_matches_24h = result["total_matches_24h"]
+        raw_total = result["raw_total"]
 
-        # Filter by Match.utc_date (kickoff) instead of Prediction.created_at
-        # so we only surface picks whose matches actually kick off within 24h.
-        # No is_value_bet filter — include EV-negative too, just lọc ảo.
-        rows = (
-            session.query(Prediction, Match)
-            .join(Match, Prediction.match_id == Match.match_id)
-            .filter(
-                Prediction.model_probability >= 0.58,
-                Match.utc_date >= now,
-                Match.utc_date <= window_end,
-            )
-            .order_by(Prediction.model_probability.desc())
-            .all()
-        )
-
-        # Count matches in the 24h window (for header "từ X trận")
-        total_matches_24h = (
-            session.query(Match)
-            .filter(
-                Match.status == "SCHEDULED",
-                Match.utc_date >= now,
-                Match.utc_date <= window_end,
-            )
-            .count()
-        )
-
-        if not rows:
+        if raw_total == 0:
             await update.message.reply_text(
                 "\u26d4 Kh\u00f4ng c\u00f3 k\u00e8o prob \u2265 58% trong 24h t\u1edbi.\n"
                 "Th\u1eed /phantich \u0111\u1ec3 ch\u1ea1y ph\u00e2n t\u00edch tr\u01b0\u1edbc."
             )
             return
-
-        kept: list[tuple] = []
-        filtered = 0
-        for p, m in rows:
-            mkt_for_check = "corner" if p.market in CORNER_MARKETS else p.market
-            vb = {
-                "ev": p.expected_value or 0,
-                "bookmaker": p.best_bookmaker or "",
-                "market": mkt_for_check,
-                "outcome": p.outcome or "",
-            }
-            susp, _ = _is_ev_suspicious(vb)
-            if susp:
-                filtered += 1
-                continue
-            if p.market == "h2h" and p.outcome == "Draw" and (p.model_probability or 0) > 0.40:
-                filtered += 1
-                continue
-            if (p.best_odds or 0) < 1.25:
-                filtered += 1
-                continue
-            if p.market in CORNER_MARKETS and (p.model_probability or 0) > 0.75:
-                filtered += 1
-                continue
-            kept.append((p, m))
-
-        top = kept[:30]
         if not top:
             await update.message.reply_text(
                 f"\u26d4 Kh\u00f4ng c\u00f2n k\u00e8o n\u00e0o sau khi l\u1ecdc "
@@ -558,8 +587,9 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         logger.info(
-            f"[ancan] returned {len(top)} picks (incl. EV-neg) trong next 24h, "
-            f"filtered {filtered} suspicious, total_matches_24h={total_matches_24h}"
+            f"[ancan] query returned {raw_total} raw predictions, "
+            f"after filter {result['kept_total']} survived, top {len(top)} displayed "
+            f"(filtered {filtered} ảo, total_matches_24h={total_matches_24h})"
         )
         await _send_chunked(update, header + body)
     finally:
@@ -2324,7 +2354,6 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
 
     user_id = update.effective_user.id if update.effective_user else "?"
     t_start = time.time()
-    session_started_at = datetime.utcnow()
     logger.info(
         f"[phantich-ALL] user={user_id} start leagues={len(LEAGUES)} "
         f"remaining_quota={remaining}"
@@ -2348,26 +2377,23 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
     )
     calls_str = str(used_calls) if used_calls is not None else "?"
 
-    # Re-query predictions just written in this session — apply identical
-    # filtering pipeline as /ancan (prob ≥ 58%, 4 anti-ảo rules, sort prob desc)
-    CORNER_MARKETS = {
-        "corners_totals", "corners_spreads",
-        "corners_h1_totals", "corners_h1_spreads",
-    }
-    MKT_NAMES = {
-        "h2h": "1X2",
-        "totals": "T\u00e0i/X\u1ec9u",
-        "spreads": "Ch\u00e2u \u00c1",
-        "corners_totals": "G\u00f3c T/X",
-        "corners_spreads": "G\u00f3c Ch\u00e2u \u00c1",
-        "corners_h1_totals": "G\u00f3c H1 T/X",
-        "corners_h1_spreads": "G\u00f3c H1 Ch\u00e2u \u00c1",
-    }
+    # Apply IDENTICAL filtering pipeline as /ancan (prob ≥ 58%, 4 anti-ảo rules)
+    # via shared helper `get_top_prob_picks`. No created_at filter: the helper
+    # reads whatever is in DB now.
+    MKT_NAMES = _MKT_NAMES
 
     _now = datetime.utcnow()
     _win_end = _now + timedelta(hours=24)
     _s = get_session()
     try:
+        # Belt-and-suspenders: commit any pending state so the shared helper
+        # sees predictions that may have been written by the analysis phase.
+        # (_run_full_analysis currently only reads, but commit is cheap.)
+        try:
+            _s.commit()
+        except Exception:
+            _s.rollback()
+
         # Count analyzed matches + leagues in 24h window
         scheduled_rows = (
             _s.query(Match.competition_code)
@@ -2381,61 +2407,35 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
         n_matches = len(scheduled_rows)
         m_leagues = len({r[0] for r in scheduled_rows if r[0]})
 
-        # Fresh predictions from THIS session only. No is_value_bet filter —
-        # include EV-negative too; only lọc ảo via the 4 rules below.
-        rows = (
-            _s.query(Prediction, Match)
-            .join(Match, Prediction.match_id == Match.match_id)
-            .filter(
-                Prediction.model_probability >= 0.58,
-                Prediction.created_at >= session_started_at,
-                Match.utc_date >= _now,
-                Match.utc_date <= _win_end,
-            )
-            .order_by(Prediction.model_probability.desc())
-            .all()
-        )
-
-        kept: list[tuple] = []
-        filtered = 0
-        for p, m in rows:
-            mkt_for_check = "corner" if p.market in CORNER_MARKETS else p.market
-            vb = {
-                "ev": p.expected_value or 0,
-                "bookmaker": p.best_bookmaker or "",
-                "market": mkt_for_check,
-                "outcome": p.outcome or "",
-            }
-            susp, _ = _is_ev_suspicious(vb)
-            if susp:
-                filtered += 1
-                continue
-            if p.market == "h2h" and p.outcome == "Draw" and (p.model_probability or 0) > 0.40:
-                filtered += 1
-                continue
-            if (p.best_odds or 0) < 1.25:
-                filtered += 1
-                continue
-            if p.market in CORNER_MARKETS and (p.model_probability or 0) > 0.75:
-                filtered += 1
-                continue
-            kept.append((p, m))
-
-        top = kept[:30]
+        # IDENTICAL logic to /ancan — no created_at gate, no is_value_bet
+        result = get_top_prob_picks(_s, limit=30)
+        top = result["top"]
+        filtered = result["filtered"]
+        raw_total = result["raw_total"]
+        kept_total = result["kept_total"]
 
         logger.info(
-            f"[phantich-ALL] user={user_id} done elapsed={elapsed:.1f}s "
-            f"picks_raw={len(picks)} rows_fetched={len(rows)} kept={len(kept)} "
-            f"top={len(top)} filtered_ao={filtered} odds_api_calls={used_calls}"
+            f"[phantich_all] query returned {raw_total} raw predictions, "
+            f"after filter {kept_total} survived, top {len(top)} displayed "
+            f"(user={user_id} elapsed={elapsed:.1f}s picks_raw={len(picks)} "
+            f"filtered_ao={filtered} odds_api_calls={used_calls})"
         )
 
         has_negative_ev = any((p.expected_value or 0) < 0 for p, _ in top)
 
+        if top:
+            title = f"\U0001f3af TOP {len(top)} K\u00c8O PROB CAO"
+        else:
+            title = (
+                "\u26a0\ufe0f Kh\u00f4ng c\u00f3 k\u00e8o Prob \u2265 58% "
+                "sau khi l\u1ecdc \u1ea3o"
+            )
+
         msg = (
-            f"\U0001f3af TOP 30 K\u00c8O PROB CAO\n"
+            f"{title}\n"
             f"{'\u2501' * 17}\n"
             f"\u0110\u00e3 ph\u00e2n t\u00edch: {n_matches} tr\u1eadn trong {m_leagues} gi\u1ea3i\n"
-            f"T\u00ecm \u0111\u01b0\u1ee3c: {len(kept)} k\u00e8o Prob \u2265 58%\n"
+            f"T\u00ecm \u0111\u01b0\u1ee3c: {kept_total} k\u00e8o Prob \u2265 58%\n"
             f"\u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
             f"\u23f1 {elapsed:.0f}s | \U0001f4ca {calls_str} Odds API calls\n"
         )
@@ -2446,10 +2446,6 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
             )
 
         if not top:
-            msg += (
-                "\n\u26a0\ufe0f Kh\u00f4ng c\u00f3 k\u00e8o Prob \u2265 58% "
-                "sau khi l\u1ecdc \u1ea3o."
-            )
             await update.message.reply_text(msg)
             return
 
