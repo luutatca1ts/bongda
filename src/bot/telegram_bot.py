@@ -222,8 +222,13 @@ def _build_picker_keyboard(command: str, selected: set, live_data: dict, page: i
     keyboard = []
 
     # Shortcut: run across ALL leagues (bypasses selection).
+    _shortcut_label = (
+        "\U0001f310 XEM T\u1ea4T C\u1ea2 LIVE"
+        if command == "live"
+        else "\U0001f310 PH\u00c2N T\u00cdCH T\u1ea4T C\u1ea2 GI\u1ea2I"
+    )
     keyboard.append([InlineKeyboardButton(
-        "\U0001f310 T\u1ea4T C\u1ea2 GI\u1ea2I",
+        _shortcut_label,
         callback_data=f"allleagues:{command}",
     )])
 
@@ -269,7 +274,10 @@ def _build_picker_keyboard(command: str, selected: set, live_data: dict, page: i
     # Bottom action buttons
     keyboard.append([
         InlineKeyboardButton("\u2705 X\u00c1C NH\u1eacN", callback_data=f"run:{command}"),
+    ])
+    keyboard.append([
         InlineKeyboardButton("\U0001f534 CH\u1eccN T\u1ea4T C\u1ea2 LIVE", callback_data=f"alllive:{command}"),
+        InlineKeyboardButton("\U0001f310 CH\u1eccN T\u1ea4T C\u1ea2", callback_data=f"selectall:{command}"),
     ])
     keyboard.append([
         InlineKeyboardButton("\u274c B\u1ecf ch\u1ecdn t\u1ea5t c\u1ea3", callback_data=f"clear:{command}"),
@@ -3532,6 +3540,22 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
         kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=state.get("page", 0))
         await query.edit_message_text(msg, reply_markup=kb)
 
+    # --- Select ALL leagues (tick every checkbox) ---
+    elif action == "selectall" and len(parts) >= 2:
+        command = parts[1]
+        from src.config import LEAGUES as _L_ALL
+        if not state or state["command"] != command:
+            live_data = _get_live_data() if command == "live" else {}
+            state = {"command": command, "selected": set(), "live_data": live_data, "page": 0}
+            _picker_state[chat_id] = state
+
+        state["selected"] = set(_L_ALL.keys())
+        await query.answer(f"\u2705 Ch\u1ecdn t\u1ea5t c\u1ea3 {len(state['selected'])} gi\u1ea3i")
+
+        msg = _build_picker_msg(command, state["selected"], state["live_data"])
+        kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=state.get("page", 0))
+        await query.edit_message_text(msg, reply_markup=kb)
+
     # --- Select all live leagues ---
     elif action == "alllive" and len(parts) >= 2:
         command = parts[1]
@@ -3572,12 +3596,25 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
             await query.answer("\u26a0 Ch\u01b0a ch\u1ecdn gi\u1ea3i n\u00e0o!", show_alert=True)
             return
 
+        from src.config import LEAGUES as _L_RUN
         selected = list(state["selected"])
+        is_all = len(selected) >= len(_L_RUN)
+
         await query.answer(f"\u26a1 \u0110ang ch\u1ea1y {len(selected)} gi\u1ea3i...")
 
         # Remove keyboard from picker message
-        sel_names = ", ".join(sorted(selected))
-        await query.edit_message_text(f"\u2705 \u0110ang {'ph\u00e2n t\u00edch' if command == 'phantich' else 'xem live'}: {sel_names}")
+        if is_all:
+            banner = (
+                "\U0001f310 Ph\u00e2n t\u00edch T\u1ea4T C\u1ea2 gi\u1ea3i..."
+                if command == "phantich"
+                else "\U0001f310 Xem LIVE t\u1ea5t c\u1ea3 gi\u1ea3i..."
+            )
+            await query.edit_message_text(banner)
+        else:
+            sel_names = ", ".join(sorted(selected))
+            await query.edit_message_text(
+                f"\u2705 \u0110ang {'ph\u00e2n t\u00edch' if command == 'phantich' else 'xem live'}: {sel_names}"
+            )
 
         # Clean up state
         _picker_state.pop(chat_id, None)
@@ -3587,17 +3624,27 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
             def __init__(self, real_update):
                 self.message = real_update.callback_query.message
                 self.effective_chat = real_update.effective_chat
+                self.effective_user = real_update.effective_user
+                self.callback_query = None
 
         fake = _FakeUpdate(update)
 
-        # Run command for selected leagues
+        # Run command for selected leagues. All-selected shortcut delegates to
+        # the compact top-20 / grouped-live helpers (with built-in quota guard
+        # for /phantich).
         try:
             if command == "phantich":
-                await _run_full_analysis(fake, league_codes=sorted(selected))
+                if is_all:
+                    await _run_all_leagues_phantich(fake, context)
+                else:
+                    await _run_full_analysis(fake, league_codes=sorted(selected))
             elif command == "live":
-                for league_code in sorted(selected):
-                    context.args = [league_code]
-                    await cmd_live(fake, context)
+                if is_all:
+                    await _run_all_live_summary(fake, context)
+                else:
+                    for league_code in sorted(selected):
+                        context.args = [league_code]
+                        await cmd_live(fake, context)
         except Exception as e:
             logger.error(f"[Picker] Error running {command}: {e}")
 
