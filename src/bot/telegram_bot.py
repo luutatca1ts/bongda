@@ -412,6 +412,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/phantich \u2014 Ph\u00e2n t\u00edch tr\u1eadn trong 24h\n"
         "/live \u2014 C\u00e1 c\u01b0\u1ee3c tr\u1ef1c ti\u1ebfp (in-play)\n"
         "/today \u2014 Ph\u00e2n t\u00edch to\u00e0n b\u1ed9 h\u00f4m nay\n"
+        "\U0001f3af /ancan \u2014 K\u00e8o d\u1ec5 th\u1eafng (Prob \u2265 60%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
         "/keoxien \u2014 K\u00e8o xi\u00ean 2\u201310\n"
         "/stats \u2014 Th\u1ed1ng k\u00ea hi\u1ec7u su\u1ea5t\n"
         "/history \u2014 L\u1ecbch s\u1eed d\u1ef1 \u0111o\u00e1n\n"
@@ -421,6 +422,125 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/giahan \u2014 Ki\u1ec3m tra quota API\n"
         "/help \u2014 Tr\u1ee3 gi\u00fap"
     )
+
+
+async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """K\u00e8o d\u1ec5 th\u1eafng \u2014 prob \u2265 60%, \u0111\u00e3 l\u1ecdc \u1ea3o.
+
+    Query Prediction trong 24h g\u1ea7n nh\u1ea5t, match ch\u01b0a kickoff; \u00e1p
+    `_is_ev_suspicious` + 3 rule b\u1ed5 sung (Draw prob>40%, odds<1.25, corner
+    prob>75%); sort prob desc; hi\u1ec3n th\u1ecb top 20.
+    """
+    if not await _require_auth(update):
+        return
+    from datetime import datetime, timedelta
+    from src.config import LEAGUES
+
+    CORNER_MARKETS = {
+        "corners_totals", "corners_spreads",
+        "corners_h1_totals", "corners_h1_spreads",
+    }
+    MKT_NAMES = {
+        "h2h": "1X2",
+        "totals": "T\u00e0i/X\u1ec9u",
+        "spreads": "Ch\u00e2u \u00c1",
+        "corners_totals": "G\u00f3c T/X",
+        "corners_spreads": "G\u00f3c Ch\u00e2u \u00c1",
+        "corners_h1_totals": "G\u00f3c H1 T/X",
+        "corners_h1_spreads": "G\u00f3c H1 Ch\u00e2u \u00c1",
+    }
+
+    session = get_session()
+    try:
+        now = datetime.utcnow()
+        cutoff_pred = now - timedelta(hours=24)
+
+        rows = (
+            session.query(Prediction, Match)
+            .join(Match, Prediction.match_id == Match.match_id)
+            .filter(
+                Prediction.is_value_bet == True,
+                Prediction.model_probability >= 0.60,
+                Prediction.created_at >= cutoff_pred,
+                Match.utc_date > now,
+            )
+            .order_by(Prediction.model_probability.desc())
+            .all()
+        )
+
+        if not rows:
+            await update.message.reply_text(
+                "\u26d4 Kh\u00f4ng c\u00f3 k\u00e8o prob \u2265 60% trong 24h t\u1edbi.\n"
+                "Th\u1eed /phantich \u0111\u1ec3 ch\u1ea1y ph\u00e2n t\u00edch tr\u01b0\u1edbc."
+            )
+            return
+
+        kept: list[tuple] = []
+        filtered = 0
+        for p, m in rows:
+            mkt_for_check = "corner" if p.market in CORNER_MARKETS else p.market
+            vb = {
+                "ev": p.expected_value or 0,
+                "bookmaker": p.best_bookmaker or "",
+                "market": mkt_for_check,
+                "outcome": p.outcome or "",
+            }
+            susp, _ = _is_ev_suspicious(vb)
+            if susp:
+                filtered += 1
+                continue
+            if p.market == "h2h" and p.outcome == "Draw" and (p.model_probability or 0) > 0.40:
+                filtered += 1
+                continue
+            if (p.best_odds or 0) < 1.25:
+                filtered += 1
+                continue
+            if p.market in CORNER_MARKETS and (p.model_probability or 0) > 0.75:
+                filtered += 1
+                continue
+            kept.append((p, m))
+
+        top = kept[:20]
+        if not top:
+            await update.message.reply_text(
+                f"\u26d4 Kh\u00f4ng c\u00f2n k\u00e8o n\u00e0o sau khi l\u1ecdc "
+                f"(\u0111\u00e3 lo\u1ea1i {filtered} k\u00e8o \u1ea3o)."
+            )
+            return
+
+        header = (
+            f"\U0001f3af K\u00c8O D\u1ec4 TH\u1eaeNG (Prob \u2265 60%)\n"
+            f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+            f"\u2705 Top {len(top)} k\u00e8o prob cao nh\u1ea5t trong 24h t\u1edbi\n"
+            f"\U0001f6ab \u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
+        )
+
+        body = ""
+        for i, (p, m) in enumerate(top, 1):
+            league = LEAGUES.get(
+                m.competition_code or "",
+                m.competition_code or m.competition or "?",
+            )
+            when = m.utc_date.strftime("%d/%m %H:%M") if m.utc_date else "?"
+            mkt = MKT_NAMES.get(p.market, p.market)
+            prob = (p.model_probability or 0) * 100
+            ev = (p.expected_value or 0) * 100
+            odds = p.best_odds or 0
+            body += (
+                f"\n#{i} {m.home_team} vs {m.away_team}\n"
+                f"\u23f0 {when} | \U0001f3c6 {league}\n"
+                f"\u279c {p.outcome} ({mkt}) @ {odds:.2f}\n"
+                f"\u2705 X\u00e1c su\u1ea5t th\u1eafng: {prob:.0f}%\n"
+                f"\U0001f4b0 Odds: {odds:.2f} | EV: {ev:+.1f}%\n"
+                f"\U0001f4ca {p.best_bookmaker or '?'}\n"
+            )
+
+        logger.info(
+            f"[ancan] returned {len(top)} picks, filtered {filtered} suspicious"
+        )
+        await _send_chunked(update, header + body)
+    finally:
+        session.close()
 
 
 async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3340,6 +3460,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "\U0001f525 /live_vb \u2014 Qu\u00e9t live value bet ngay (LivePoisson)\n"
         "\U0001f440 /theodoi <match_id> \u2014 Timeline state + live VB c\u1ee7a 1 tr\u1eadn\n"
         "/today \u2014 Ph\u00e2n t\u00edch to\u00e0n b\u1ed9 h\u00f4m nay\n"
+        "\U0001f3af /ancan \u2014 K\u00e8o d\u1ec5 th\u1eafng (Prob \u2265 60%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
         "\U0001f4ca /dongtien <match_id> \u2014 Ph\u00e2n t\u00edch d\u00f2ng ti\u1ec1n (line movement)\n"
         "\U0001f4c8 /clv [days] \u2014 B\u00e1o c\u00e1o Closing Line Value\n"
         "/keoxien \u2014 K\u00e8o xi\u00ean 2\u201310 (parlay)\n"
@@ -3675,6 +3796,8 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("leagues", cmd_leagues))
     app.add_handler(CommandHandler("giahan", cmd_quota))
     app.add_handler(CommandHandler("live", cmd_live))
+    app.add_handler(CommandHandler("ancan", cmd_ancan))
+    app.add_handler(CommandHandler("dethang", cmd_ancan))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CallbackQueryHandler(callback_league_picker))
 
