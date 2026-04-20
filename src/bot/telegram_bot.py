@@ -21,12 +21,47 @@ logging.basicConfig(
 
 from src.config import TELEGRAM_BOT_TOKEN
 from src.db.models import get_session, Bookmaker, Prediction, Match, DailyReport
-from src.pipeline import _match_teams, _match_event
+from src.pipeline import _match_teams, _match_event, _is_ev_suspicious
 from src.bot.formatters import (
     format_bookmaker_list,
     format_stats,
     format_daily_report,
 )
+
+
+# Vietnamese labels → token "corner" để _is_ev_suspicious (pipeline) match được rule 3.
+_CORNER_LABELS_VN = {"Phạt góc", "Góc Châu Á", "Góc hiệp 1", "Góc H1 Châu Á"}
+
+
+def _filter_suspicious_picks(picks: list[dict], label: str = "picks") -> tuple[list[dict], int]:
+    """Lọc EV ảo cho picks format /phantich (dùng key 'bk' + Vietnamese market).
+
+    Return (filtered_picks, skipped_count). Mỗi pick bị skip sẽ được log warning.
+    """
+    kept: list[dict] = []
+    skipped = 0
+    for p in picks:
+        mkt_vn = p.get("market", "") or ""
+        # Token hóa corner cho rule 3 của _is_ev_suspicious
+        mkt_for_check = "corner" if mkt_vn in _CORNER_LABELS_VN else mkt_vn
+        vb = {
+            "ev": p.get("ev", 0),
+            "bookmaker": p.get("bk", "") or "",
+            "market": mkt_for_check,
+            "outcome": p.get("outcome", ""),
+        }
+        susp, reason = _is_ev_suspicious(vb)
+        if susp:
+            skipped += 1
+            logger.warning(
+                f"[{label}] FILTERED suspicious VB — "
+                f"{p.get('home', '?')} vs {p.get('away', '?')} | "
+                f"{mkt_vn}:{p.get('outcome', '?')} @ {p.get('odds', 0)} "
+                f"(EV {p.get('ev', 0)*100:+.1f}%, bk={p.get('bk', 'N/A')}) — {reason}"
+            )
+            continue
+        kept.append(p)
+    return kept, skipped
 
 logger = logging.getLogger(__name__)
 
@@ -1343,6 +1378,9 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
 
         # If collect_only, return picks without sending messages
         if collect_only:
+            parlay_picks, _n_par_skip = _filter_suspicious_picks(parlay_picks, "phantich/parlay")
+            if _n_par_skip:
+                logger.info(f"[phantich/parlay] Filter đã loại {_n_par_skip} kèo EV ảo.")
             return parlay_picks
 
         # Send header
@@ -1358,6 +1396,17 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             all_text += msg
 
         await _safe_reply(update, all_text)
+
+        # Safety filter: loại kèo EV ảo trước khi format TOP / SAFE / PARLAY.
+        top_picks, _n_top_skip = _filter_suspicious_picks(top_picks, "phantich/top")
+        safe_picks, _n_safe_skip = _filter_suspicious_picks(safe_picks, "phantich/safe")
+        parlay_picks, _n_par_skip = _filter_suspicious_picks(parlay_picks, "phantich/parlay")
+        _filtered_total = _n_top_skip + _n_safe_skip + _n_par_skip
+        if _filtered_total:
+            logger.info(
+                f"[phantich] Filter đã loại {_filtered_total} kèo EV ảo "
+                f"(top={_n_top_skip}, safe={_n_safe_skip}, parlay={_n_par_skip})."
+            )
 
         # TOP PICKS
         if top_picks:
@@ -1400,10 +1449,15 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
                 f"\U0001f7e1 TB: EV>4%, Prob>65%\n"
                 f"\u2691 Góc: Luôn hiển thị (cả trận + H1)\n"
             )
+            if _filtered_total:
+                summary += f"\U0001f6ab Đã lọc {_filtered_total} kèo EV ảo\n"
 
             await _safe_reply(update, summary)
         else:
-            await update.message.reply_text("\u26a0\ufe0f Kh\u00f4ng t\u00ecm th\u1ea5y k\u00e8o N\u00caN \u0110\u00c1NH trong 24h t\u1edbi.")
+            msg = "\u26a0\ufe0f Kh\u00f4ng t\u00ecm th\u1ea5y k\u00e8o N\u00caN \u0110\u00c1NH trong 24h t\u1edbi."
+            if _filtered_total:
+                msg += f"\n\U0001f6ab Đã lọc {_filtered_total} kèo EV ảo"
+            await update.message.reply_text(msg)
 
         # AVOID
         if avoid_picks:
