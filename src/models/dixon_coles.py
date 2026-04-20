@@ -222,16 +222,51 @@ class DixonColesModel:
         mu = math.exp(self.alpha[j] + self.beta[i])
         return float(np.clip(lam, 0.2, 5.0)), float(np.clip(mu, 0.2, 5.0))
 
-    def predict(self, home_team: str, away_team: str, home_advantage: float = 1.25) -> dict:
+    def predict(
+        self,
+        home_team: str,
+        away_team: str,
+        home_advantage: float = 1.25,
+        injury_data: Optional[dict] = None,
+        weather_data: Optional[dict] = None,
+    ) -> dict:
         """Build τ-corrected joint matrix and derive full market dict.
 
         home_advantage arg kept for signature-compat with PoissonModel —
         DC uses its own learned γ instead.
+
+        injury_data: output of analytics.injury_impact.summarize_injuries, shape:
+            {"home": {attack_mult, defense_mult, ...}, "away": {...}}.
+            None → no injury adjustment.
+        weather_data: output of analytics.weather_impact.calculate_weather_adjustment:
+            {"total_goals_adjust": float, "description": str}.
+            None → no weather adjustment.
         """
         if not self._fitted:
             return self._default_prediction()
 
         lam, mu = self.get_home_away_lambdas(home_team, away_team)
+
+        # --- Weather: shift total goals, split evenly between both sides ---
+        # Applied FIRST because it's an additive baseline shift (pitch
+        # playability), then injuries tweak multiplicatively per team.
+        if weather_data and weather_data.get("total_goals_adjust"):
+            shift = float(weather_data["total_goals_adjust"])
+            lam = max(0.1, lam + shift / 2.0)
+            mu = max(0.1, mu + shift / 2.0)
+
+        # --- Injuries: per-team attack/defense multipliers ---
+        if injury_data:
+            h = injury_data.get("home", {}) or {}
+            a = injury_data.get("away", {}) or {}
+            h_atk = float(h.get("attack_mult", 1.0))
+            h_def = float(h.get("defense_mult", 1.0))
+            a_atk = float(a.get("attack_mult", 1.0))
+            a_def = float(a.get("defense_mult", 1.0))
+            # λ_home = home_attack × away_defense_weakness
+            # defense_mult >1 means weaker defense → scale λ UP for opponent.
+            lam = max(0.1, lam * h_atk * a_def)
+            mu = max(0.1, mu * a_atk * h_def)
 
         max_goals = 8
         home_p = np.array([poisson.pmf(i, lam) for i in range(max_goals)])

@@ -8,6 +8,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 FOOTBALL_DATA_API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 API_FOOTBALL_KEY = os.getenv("API_FOOTBALL_KEY", "")
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
 BOT_PASSWORD = os.getenv("BOT_PASSWORD", "")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///football_analytics.db")
 

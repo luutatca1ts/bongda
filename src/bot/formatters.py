@@ -17,11 +17,17 @@ RESULT_EMOJI = {
 
 def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
                            all_bookmaker_odds: dict | None = None,
-                           steam_info: dict | None = None) -> str:
+                           steam_info: dict | None = None,
+                           injury_summary: dict | None = None,
+                           weather_adj: dict | None = None) -> str:
     """Format a value bet alert for Telegram.
 
     Nếu steam_info (từ detect_steam_moves) được truyền vào và cùng hướng với
     bet hiện tại, thêm 1 dòng 🔥 STEAM MOVE vào message.
+
+    injury_summary (output của analytics.injury_impact.summarize_injuries) và
+    weather_adj (output của analytics.weather_impact.calculate_weather_adjustment)
+    được render thành 1-2 dòng cảnh báo nếu có điều chỉnh đáng kể.
     """
     conf_emoji = CONFIDENCE_EMOJI.get(bet.get("confidence", "LOW"), "\U0001f7e2")
 
@@ -67,6 +73,22 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
             f"  {match['home_team']}: {prediction.get('home_xg', '?')}\n"
             f"  {match['away_team']}: {prediction.get('away_xg', '?')}\n"
         )
+
+    # Injury warnings (≥3 key players out on either side)
+    if injury_summary:
+        lines = []
+        h_key = (injury_summary.get("home") or {}).get("key_out", 0)
+        a_key = (injury_summary.get("away") or {}).get("key_out", 0)
+        if h_key >= 3:
+            lines.append(f"  \u26a0\ufe0f {match['home_team']} thi\u1ebfu {h_key} tr\u1ee5 c\u1ed9t")
+        if a_key >= 3:
+            lines.append(f"  \u26a0\ufe0f {match['away_team']} thi\u1ebfu {a_key} tr\u1ee5 c\u1ed9t")
+        if lines:
+            msg += "\n\U0001f6a8 Ch\u1ea5n th\u01b0\u01a1ng:\n" + "\n".join(lines) + "\n"
+
+    # Weather info (only if non-zero adjustment)
+    if weather_adj and weather_adj.get("description"):
+        msg += f"\n\U0001f324\ufe0f Th\u1eddi ti\u1ebft: {weather_adj['description']}\n"
 
     # Add multi-bookmaker odds comparison
     if all_bookmaker_odds:

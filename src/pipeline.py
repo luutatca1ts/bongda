@@ -10,6 +10,10 @@ import hashlib
 from src.config import LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES, USE_DIXON_COLES
 from src.collectors.football_data import get_upcoming_matches, get_recent_results, get_xg_history
 from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
+from src.collectors.injuries import get_injuries_by_team
+from src.collectors.weather import get_weather_forecast, get_venue_coords, is_weather_enabled
+from src.analytics.injury_impact import summarize_injuries, count_key_players_out
+from src.analytics.weather_impact import calculate_weather_adjustment
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
 from src.models.dixon_coles import DixonColesModel
 
@@ -183,6 +187,71 @@ def _pinnacle_implied_h2h(odds_event: dict) -> dict | None:
     return {k: v / total for k, v in probs.items()}
 
 
+def _predict_with_context(
+    model, home: str, away: str,
+    injury_data: dict | None = None,
+    weather_data: dict | None = None,
+) -> dict:
+    """Call model.predict() with injury+weather kwargs only when the model
+    supports them (DixonColesModel). PoissonModel.predict() has no such
+    parameters so we degrade gracefully.
+    """
+    if isinstance(model, DixonColesModel):
+        return model.predict(home, away, injury_data=injury_data, weather_data=weather_data)
+    return model.predict(home, away)
+
+
+def _fetch_match_context(match: dict, is_fd: bool) -> tuple[dict | None, dict | None, dict | None]:
+    """Fetch injury + weather context best-effort.
+
+    Returns:
+        injury_summary: {home: {attack_mult, defense_mult, key_out, names}, away: {...}}
+                        or None if no fixture_id available / API disabled.
+        weather_raw: raw OpenWeatherMap slice (temp, rain_mm_h, wind, condition) or None.
+        weather_adj: {total_goals_adjust, description} or None.
+
+    Robust to any single-source failure — returns None for the failed
+    component but never raises, so the predict path always runs.
+    """
+    # --- INJURIES ---
+    injury_summary = None
+    fixture_id = match.get("fixture_id") or match.get("api_football_id")
+    h_tid = match.get("home_team_af_id")
+    a_tid = match.get("away_team_af_id")
+    if fixture_id and h_tid and a_tid:
+        try:
+            raw = get_injuries_by_team(int(fixture_id), int(h_tid), int(a_tid))
+            if raw.get("home") or raw.get("away"):
+                injury_summary = summarize_injuries(raw)
+                for bucket in ("home", "away"):
+                    team_name = match["home_team"] if bucket == "home" else match["away_team"]
+                    names = injury_summary[bucket].get("names", [])
+                    if names:
+                        logger.info(
+                            "[Injuries] %s OUT/QUESTIONABLE: %s (key_out=%d)",
+                            team_name, ", ".join(names[:5]),
+                            injury_summary[bucket].get("key_out", 0),
+                        )
+        except Exception as e:
+            logger.debug("[Injuries] skip %s vs %s: %s",
+                         match.get("home_team"), match.get("away_team"), e)
+
+    # --- WEATHER ---
+    weather_raw = None
+    weather_adj = None
+    if is_weather_enabled():
+        lat, lon = get_venue_coords(match.get("home_team", ""))
+        if lat is not None and lon is not None:
+            try:
+                weather_raw = get_weather_forecast(lat, lon, match.get("utc_date"))
+                if weather_raw:
+                    weather_adj = calculate_weather_adjustment(weather_raw)
+            except Exception as e:
+                logger.debug("[Weather] skip %s: %s", match.get("home_team"), e)
+
+    return injury_summary, weather_raw, weather_adj
+
+
 def _fit_or_fallback(
     model: "PoissonModel | DixonColesModel | None",
     league_code: str,
@@ -190,6 +259,8 @@ def _fit_or_fallback(
     away: str,
     odds_event: dict,
     session,
+    injury_data: dict | None = None,
+    weather_data: dict | None = None,
 ) -> tuple[dict, bool]:
     """Return (prediction, low_confidence).
 
@@ -203,7 +274,7 @@ def _fit_or_fallback(
     _is_ev_suspicious có thể filter aggressively.
     """
     if model is not None and model._fitted:
-        return model.predict(home, away), False
+        return _predict_with_context(model, home, away, injury_data, weather_data), False
 
     try:
         hist = (
@@ -231,7 +302,7 @@ def _fit_or_fallback(
             m2 = ModelClass()
             m2.fit(results)
             if m2._fitted:
-                return m2.predict(home, away), True
+                return _predict_with_context(m2, home, away, injury_data, weather_data), True
     except Exception as e:
         logger.debug(f"[Pipeline] DB historical fit failed for {league_code}: {e}")
 
@@ -395,15 +466,39 @@ def run_analysis_pipeline() -> list[str]:
                     logger.info(f"[Pipeline] No odds found for {match['home_team']} vs {match['away_team']}")
                     continue
 
+                # --- Injury + Weather context (best-effort, skip on any failure) ---
+                # Returns ({injury_summary or None}, {weather_summary or None},
+                #         {weather_adj_dict}, fixture_id).
+                inj_summary, weather_raw, weather_adj = _fetch_match_context(
+                    match, is_fd
+                )
+
                 # Predict — fallback chain: fitted FD model → DB history → Pinnacle devig
                 prediction, match_low_conf = _fit_or_fallback(
-                    model, league_code, match["home_team"], match["away_team"], odds_event, session
+                    model, league_code, match["home_team"], match["away_team"], odds_event, session,
+                    injury_data=inj_summary, weather_data=weather_adj,
                 )
                 is_low_confidence = league_low_conf or match_low_conf
                 dynamic_min_ev = 0.05 if is_low_confidence else 0.01
                 matches_analyzed += 1
                 if is_low_confidence:
                     low_conf_matches += 1
+
+                # Log key outs (≥3) and weather shift for observability
+                if inj_summary:
+                    h_key = inj_summary["home"].get("key_out", 0)
+                    a_key = inj_summary["away"].get("key_out", 0)
+                    if h_key >= 3 or a_key >= 3:
+                        logger.info(
+                            "[Injuries] %s vs %s — key_out home=%d away=%d",
+                            match["home_team"], match["away_team"], h_key, a_key,
+                        )
+                if weather_adj and weather_adj.get("total_goals_adjust", 0) != 0:
+                    logger.info(
+                        "[Weather] %s vs %s — %s",
+                        match["home_team"], match["away_team"],
+                        weather_adj.get("description", ""),
+                    )
 
                 # Get best odds for each market
                 best_h2h = get_best_odds(odds_event, "h2h")
@@ -436,7 +531,7 @@ def run_analysis_pipeline() -> list[str]:
                         )
                         continue
 
-                    # Save prediction
+                    # Save prediction (with injury + weather metadata)
                     pred = Prediction(
                         match_id=match["match_id"],
                         market=vb["market"],
@@ -447,6 +542,10 @@ def run_analysis_pipeline() -> list[str]:
                         expected_value=vb["ev"],
                         confidence=confidence,
                         is_value_bet=True,
+                        injury_impact_home=(inj_summary or {}).get("home", {}).get("offensive_drop", 0.0) if inj_summary else 0.0,
+                        injury_impact_away=(inj_summary or {}).get("away", {}).get("offensive_drop", 0.0) if inj_summary else 0.0,
+                        weather_adjust=(weather_adj or {}).get("total_goals_adjust", 0.0) if weather_adj else 0.0,
+                        weather_description=(weather_adj or {}).get("description") if weather_adj else None,
                     )
                     session.add(pred)
 
@@ -473,7 +572,8 @@ def run_analysis_pipeline() -> list[str]:
                         logger.debug(f"[Pipeline] steam filter failed: {_e}")
 
                     alert_msg = format_value_bet_alert(
-                        match, vb, prediction, bk_odds_comparison, steam_info=steam_info
+                        match, vb, prediction, bk_odds_comparison, steam_info=steam_info,
+                        injury_summary=inj_summary, weather_adj=weather_adj,
                     )
                     alerts.append(alert_msg)
 

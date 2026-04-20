@@ -47,6 +47,11 @@ class Prediction(Base):
     closing_odds = Column(Float, nullable=True)
     closing_captured_at = Column(DateTime, nullable=True)
     clv = Column(Float, nullable=True)  # %
+    # Injury + weather adjustments factored into this prediction's λ
+    injury_impact_home = Column(Float, default=0.0)
+    injury_impact_away = Column(Float, default=0.0)
+    weather_adjust = Column(Float, default=0.0)
+    weather_description = Column(String, nullable=True)
 
 
 class Bookmaker(Base):
