@@ -5,7 +5,9 @@ import unicodedata
 import re
 from datetime import datetime, date
 
-from src.config import LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES
+import hashlib
+
+from src.config import LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES
 from src.collectors.football_data import get_upcoming_matches, get_recent_results
 from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
@@ -114,7 +116,132 @@ def _is_ev_suspicious(vb: dict) -> tuple[bool, str]:
         return True, f"EV {ev*100:.1f}% trên Pinnacle (sharp book) bất thường"
     if "corner" in market and ev > 0.10:
         return True, f"EV {ev*100:.1f}% trên corner (model kém chính xác)"
+    # Rule 4: giải data hạn chế (non Football-Data hoặc fallback implied prob).
+    # Why: fallback dùng implied probability — EV >8% đồng nghĩa đang bắt
+    # against odds của sharp book (không khả thi) → nhiều khả năng ảo.
+    if vb.get("low_confidence_league") and ev > 0.08:
+        return True, f"EV {ev*100:.1f}% trên giải nhỏ (data hạn chế) — model có thể ảo"
     return False, ""
+
+
+def _synthetic_match_id(event_id: str) -> int:
+    """Stable 31-bit int từ Odds API event_id (UUID) cho non-FD leagues.
+    Why: Match.match_id là Integer → hash xuống range an toàn Integer(32-bit)."""
+    h = hashlib.sha1(event_id.encode("utf-8")).hexdigest()
+    return int(h[:8], 16) & 0x7FFFFFFF
+
+
+def _synthesize_match_from_event(ev: dict, league_code: str) -> dict:
+    """Tạo match dict từ Odds API event — dùng cho giải không có trong
+    Football-Data (không có get_upcoming_matches endpoint)."""
+    eid = ev.get("event_id") or f"{ev.get('home_team', '')}__{ev.get('away_team', '')}"
+    return {
+        "match_id": _synthetic_match_id(eid),
+        "competition": LEAGUES.get(league_code, league_code),
+        "competition_code": league_code,
+        "home_team": ev.get("home_team", ""),
+        "home_team_id": 0,
+        "away_team": ev.get("away_team", ""),
+        "away_team_id": 0,
+        "utc_date": ev.get("commence_time", ""),
+        "_synthetic": True,
+    }
+
+
+def _pinnacle_implied_h2h(odds_event: dict) -> dict | None:
+    """Devig Pinnacle h2h odds → implied probabilities.
+
+    Why: với giải không có historical data (non-FD), lấy Pinnacle prob
+    làm proxy — Pinnacle là sharpest book nên implied prob gần true prob.
+    So sánh với best odds của soft books → tìm value bet thực sự.
+
+    Returns {Home, Draw, Away} normalized hoặc None nếu thiếu data.
+    """
+    pin = odds_event.get("bookmakers", {}).get("pinnacle")
+    if not pin:
+        return None
+    h2h = pin.get("markets", {}).get("h2h") or {}
+    probs = {}
+    for outcome in ("Home", "Draw", "Away"):
+        entry = h2h.get(outcome)
+        if entry is None:
+            continue
+        price = entry if isinstance(entry, (int, float)) else entry.get("price", 0)
+        if price and price > 1.01:
+            probs[outcome] = 1.0 / price
+    if len(probs) < 2:
+        return None
+    total = sum(probs.values())
+    if total <= 0:
+        return None
+    return {k: v / total for k, v in probs.items()}
+
+
+def _fit_or_fallback(
+    model: PoissonModel | None,
+    league_code: str,
+    home: str,
+    away: str,
+    odds_event: dict,
+    session,
+) -> tuple[dict, bool]:
+    """Return (prediction, low_confidence).
+
+    Order of preference:
+    1. Fitted Poisson model (from FD historical) — high confidence
+    2. DB historical ≥20 matches cùng league → fit Poisson on the fly (low conf)
+    3. Devigged Pinnacle implied probability (h2h only) — low confidence
+    4. Default prediction — low confidence
+
+    low_confidence=True khiến pipeline dùng min_ev=0.05 và tag VB để
+    _is_ev_suspicious có thể filter aggressively.
+    """
+    if model is not None and model._fitted:
+        return model.predict(home, away), False
+
+    try:
+        hist = (
+            session.query(Match)
+            .filter(
+                Match.competition_code == league_code,
+                Match.status == "FINISHED",
+                Match.home_goals.isnot(None),
+            )
+            .order_by(Match.utc_date.desc())
+            .limit(300)
+            .all()
+        )
+        if len(hist) >= 20:
+            results = [
+                {
+                    "home_team": m.home_team,
+                    "away_team": m.away_team,
+                    "home_goals": m.home_goals,
+                    "away_goals": m.away_goals,
+                }
+                for m in hist
+            ]
+            m2 = PoissonModel()
+            m2.fit(results)
+            if m2._fitted:
+                return m2.predict(home, away), True
+    except Exception as e:
+        logger.debug(f"[Pipeline] DB historical fit failed for {league_code}: {e}")
+
+    impl = _pinnacle_implied_h2h(odds_event)
+    if impl:
+        return {
+            "home_xg": None,
+            "away_xg": None,
+            "h2h": {k: round(v, 4) for k, v in impl.items()},
+            "totals": {},
+            "btts": {},
+            "asian_handicap": {},
+            "corners": {"lines": {}, "asian_handicap": {}},
+            "corners_h1": {"lines": {}, "asian_handicap": {}},
+        }, True
+
+    return PoissonModel()._default_prediction(), True
 
 
 def run_analysis_pipeline() -> list[str]:
@@ -129,7 +256,10 @@ def run_analysis_pipeline() -> list[str]:
     """
     alerts = []
     session = get_session()
-    filtered_suspicious = 0  # đếm số vb bị chặn vì _is_ev_suspicious
+    filtered_suspicious = 0   # vb bị chặn bởi _is_ev_suspicious
+    leagues_processed = 0     # giải có odds_events
+    matches_analyzed = 0      # trận có odds_event + prediction
+    low_conf_matches = 0      # trận dùng fallback (implied prob / DB hist)
 
     # Reset per-league corner data — always fetch fresh from API
     run_analysis_pipeline._corner_per_league = {}
@@ -141,68 +271,72 @@ def run_analysis_pipeline() -> list[str]:
 
             logger.info(f"[Pipeline] Processing {league_name}...")
 
-            # 1. Get historical results & fit model
-            if league_code not in FOOTBALL_DATA_LEAGUES:
-                logger.info(f"[Pipeline] {league_name} not on Football-Data.org free tier, skipping fixture fetch")
-                # Still fetch odds-only analysis for non-FD leagues
-                # (model won't be fitted, but odds data still useful)
-                continue
-            try:
-                results = get_recent_results(league_code, days=90)
-            except Exception as e:
-                logger.error(f"[Pipeline] Failed to get results for {league_name}: {e}")
-                continue
+            is_fd = league_code in FOOTBALL_DATA_LEAGUES
+            league_low_conf = (league_code in LOW_CONFIDENCE_LEAGUES) or not is_fd
 
-            model = PoissonModel()
-            model.fit(results)
+            # 1. Historical + model fit — only FD leagues have fixture API.
+            # Non-FD leagues fall back to DB history or Pinnacle-implied per match.
+            model: PoissonModel | None = None
+            if is_fd:
+                try:
+                    results = get_recent_results(league_code, days=90)
+                except Exception as e:
+                    logger.error(f"[Pipeline] Failed to get results for {league_name}: {e}")
+                    results = []
 
-            if not model._fitted:
-                logger.warning(f"[Pipeline] Model not fitted for {league_name}, skipping")
-                continue
+                if results:
+                    m = PoissonModel()
+                    m.fit(results)
+                    if m._fitted:
+                        model = m
+                        for r in results:
+                            existing = session.query(Match).filter(Match.match_id == r["match_id"]).first()
+                            if not existing:
+                                session.add(Match(
+                                    match_id=r["match_id"],
+                                    competition=r["competition"],
+                                    competition_code=r.get("competition_code", league_code),
+                                    home_team=r["home_team"],
+                                    home_team_id=r["home_team_id"],
+                                    away_team=r["away_team"],
+                                    away_team_id=r["away_team_id"],
+                                    home_goals=r["home_goals"],
+                                    away_goals=r["away_goals"],
+                                    utc_date=datetime.fromisoformat(r["utc_date"].replace("Z", "+00:00")),
+                                    status="FINISHED",
+                                ))
+                    else:
+                        logger.warning(f"[Pipeline] Model not fitted for {league_name}, will use fallback")
 
-            # Save results to DB
-            for r in results:
-                existing = session.query(Match).filter(Match.match_id == r["match_id"]).first()
-                if not existing:
-                    session.add(Match(
-                        match_id=r["match_id"],
-                        competition=r["competition"],
-                        competition_code=r.get("competition_code", league_code),
-                        home_team=r["home_team"],
-                        home_team_id=r["home_team_id"],
-                        away_team=r["away_team"],
-                        away_team_id=r["away_team_id"],
-                        home_goals=r["home_goals"],
-                        away_goals=r["away_goals"],
-                        utc_date=datetime.fromisoformat(r["utc_date"].replace("Z", "+00:00")),
-                        status="FINISHED",
-                    ))
-
-            # 2. Get upcoming matches
-            try:
-                upcoming = get_upcoming_matches(league_code, days=3)
-            except Exception as e:
-                logger.error(f"[Pipeline] Failed to get upcoming for {league_name}: {e}")
-                continue
-
-            # 3. Get odds
+            # 2. Get odds (ALWAYS — needed for matching + fallback prediction)
             try:
                 odds_events = get_odds(league_code)
             except Exception as e:
                 logger.error(f"[Pipeline] Failed to get odds for {league_name}: {e}")
                 odds_events = []
 
-            if odds_events:
-                try:
-                    save_odds_snapshot(odds_events)
-                except Exception as e:
-                    logger.error(f"[Pipeline] save_odds_snapshot failed: {e}")
+            if not odds_events:
+                logger.info(f"[Pipeline] No odds for {league_name}, skipping")
+                continue
 
-            # Build odds lookup by team names
-            odds_lookup = {}
-            for ev in odds_events:
-                key = f"{ev['home_team']}_{ev['away_team']}".lower()
-                odds_lookup[key] = ev
+            leagues_processed += 1
+
+            try:
+                save_odds_snapshot(odds_events)
+            except Exception as e:
+                logger.error(f"[Pipeline] save_odds_snapshot failed: {e}")
+
+            # 3. Build upcoming list — FD fixtures API for big leagues,
+            # synthetic-from-odds for everyone else.
+            upcoming: list[dict] = []
+            if is_fd:
+                try:
+                    upcoming = get_upcoming_matches(league_code, days=3)
+                except Exception as e:
+                    logger.error(f"[Pipeline] Failed to get upcoming for {league_name}: {e}")
+                    upcoming = []
+            if not upcoming:
+                upcoming = [_synthesize_match_from_event(ev, league_code) for ev in odds_events]
 
             # 4. Analyze each upcoming match
             for match in upcoming:
@@ -221,23 +355,27 @@ def run_analysis_pipeline() -> list[str]:
                 # Save match to DB
                 existing_match = session.query(Match).filter(Match.match_id == match["match_id"]).first()
                 if not existing_match:
+                    try:
+                        utc_dt = datetime.fromisoformat(match["utc_date"].replace("Z", "+00:00"))
+                    except Exception:
+                        utc_dt = None
                     session.add(Match(
                         match_id=match["match_id"],
                         competition=match["competition"],
                         competition_code=match.get("competition_code", league_code),
                         home_team=match["home_team"],
-                        home_team_id=match["home_team_id"],
+                        home_team_id=match.get("home_team_id", 0),
                         away_team=match["away_team"],
-                        away_team_id=match["away_team_id"],
-                        utc_date=datetime.fromisoformat(match["utc_date"].replace("Z", "+00:00")),
+                        away_team_id=match.get("away_team_id", 0),
+                        utc_date=utc_dt,
                         status="SCHEDULED",
                     ))
 
-                # Predict
-                prediction = model.predict(match["home_team"], match["away_team"])
-
-                # Match with odds — require team name AND kickoff time match
-                m_utc = datetime.fromisoformat(match["utc_date"].replace("Z", "+00:00")).replace(tzinfo=None)
+                # Match with odds first — require team name AND kickoff time match
+                try:
+                    m_utc = datetime.fromisoformat(match["utc_date"].replace("Z", "+00:00")).replace(tzinfo=None)
+                except Exception:
+                    m_utc = None
                 odds_event = None
                 for ev in odds_events:
                     if _match_event(match["home_team"], match["away_team"], m_utc, ev):
@@ -248,6 +386,16 @@ def run_analysis_pipeline() -> list[str]:
                     logger.info(f"[Pipeline] No odds found for {match['home_team']} vs {match['away_team']}")
                     continue
 
+                # Predict — fallback chain: fitted FD model → DB history → Pinnacle devig
+                prediction, match_low_conf = _fit_or_fallback(
+                    model, league_code, match["home_team"], match["away_team"], odds_event, session
+                )
+                is_low_confidence = league_low_conf or match_low_conf
+                dynamic_min_ev = 0.05 if is_low_confidence else 0.01
+                matches_analyzed += 1
+                if is_low_confidence:
+                    low_conf_matches += 1
+
                 # Get best odds for each market
                 best_h2h = get_best_odds(odds_event, "h2h")
                 best_totals = get_best_odds(odds_event, "totals")
@@ -256,7 +404,7 @@ def run_analysis_pipeline() -> list[str]:
                 combined_odds = {"h2h": best_h2h, "totals": best_totals, "spreads": best_spreads}
 
                 # Find value bets
-                value_bets = find_value_bets(prediction, combined_odds, min_ev=0.01)
+                value_bets = find_value_bets(prediction, combined_odds, min_ev=dynamic_min_ev)
 
                 for vb in value_bets:
                     confidence = get_confidence_tier(vb["ev"], vb["probability"])
@@ -264,6 +412,7 @@ def run_analysis_pipeline() -> list[str]:
                         continue
 
                     vb["confidence"] = confidence
+                    vb["low_confidence_league"] = is_low_confidence
 
                     # Safety filter: chặn vb EV ảo (quá cao / sharp book / corner).
                     is_susp, susp_reason = _is_ev_suspicious(vb)
@@ -361,6 +510,7 @@ def run_analysis_pipeline() -> list[str]:
                             if conf != "SKIP":
                                 _vb = {"ev": ev, "bookmaker": co.get("over_bk", "?"),
                                        "market": "corners_totals", "outcome": f"Over {line}", "odds": co["over_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -384,6 +534,7 @@ def run_analysis_pipeline() -> list[str]:
                             if conf != "SKIP":
                                 _vb = {"ev": ev, "bookmaker": co.get("under_bk", "?"),
                                        "market": "corners_totals", "outcome": f"Under {line}", "odds": co["under_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -418,6 +569,7 @@ def run_analysis_pipeline() -> list[str]:
                                 _out = f"{cs.get('home_name', 'Home')} {hp:+g}"
                                 _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
                                        "market": "corners_spreads", "outcome": _out, "odds": cs["home_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -443,6 +595,7 @@ def run_analysis_pipeline() -> list[str]:
                                 _out = f"{cs.get('away_name', 'Away')} {ap:+g}"
                                 _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
                                        "market": "corners_spreads", "outcome": _out, "odds": cs["away_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -482,6 +635,7 @@ def run_analysis_pipeline() -> list[str]:
                             if conf != "SKIP":
                                 _vb = {"ev": ev, "bookmaker": co.get("over_bk", "?"),
                                        "market": "corners_h1_totals", "outcome": f"Over {line}", "odds": co["over_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -505,6 +659,7 @@ def run_analysis_pipeline() -> list[str]:
                             if conf != "SKIP":
                                 _vb = {"ev": ev, "bookmaker": co.get("under_bk", "?"),
                                        "market": "corners_h1_totals", "outcome": f"Under {line}", "odds": co["under_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -539,6 +694,7 @@ def run_analysis_pipeline() -> list[str]:
                                 _out = f"{cs.get('home_name', 'Home')} {hp:+g}"
                                 _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
                                        "market": "corners_h1_spreads", "outcome": _out, "odds": cs["home_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -564,6 +720,7 @@ def run_analysis_pipeline() -> list[str]:
                                 _out = f"{cs.get('away_name', 'Away')} {ap:+g}"
                                 _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
                                        "market": "corners_h1_spreads", "outcome": _out, "odds": cs["away_price"]}
+                                _vb["low_confidence_league"] = is_low_confidence
                                 _susp, _r = _is_ev_suspicious(_vb)
                                 if _susp:
                                     filtered_suspicious += 1
@@ -592,8 +749,9 @@ def run_analysis_pipeline() -> list[str]:
         session.close()
 
     logger.info(
-        f"[Pipeline] Cycle summary — {len(alerts)} alerts, "
-        f"{filtered_suspicious} VB bị filter (EV ảo / Pinnacle / corner)."
+        f"[Pipeline] Cycle summary — leagues_processed={leagues_processed}, "
+        f"matches_analyzed={matches_analyzed} (low_conf={low_conf_matches}), "
+        f"alerts={len(alerts)}, filtered_suspicious={filtered_suspicious}"
     )
     return alerts
 

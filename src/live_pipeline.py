@@ -107,23 +107,71 @@ def _find_db_match(session, fixture: dict) -> Match | None:
     return None
 
 
-def _build_pregame_lambdas(home_team: str, away_team: str, league_code: str) -> tuple[float, float]:
-    """Refit Poisson trên recent results của league để lấy λ 90-phút."""
-    try:
-        results = get_recent_results(league_code, days=90)
-    except Exception as e:
-        logger.warning(f"[LivePipeline] get_recent_results failed for {league_code}: {e}")
-        return (1.3, 1.1)
+def _build_pregame_lambdas(
+    home_team: str,
+    away_team: str,
+    league_code: str,
+    session=None,
+) -> tuple[float, float, bool]:
+    """Refit Poisson để lấy λ 90-phút. Return (h, a, low_conf).
 
-    model = PoissonModel()
-    model.fit(results)
-    if not model._fitted:
-        return (1.3, 1.1)
+    Fallback tier:
+    1. Football-Data recent results (nếu league ∈ FOOTBALL_DATA_LEAGUES).
+    2. DB history: Match rows FINISHED cùng competition_code (≥20 trận).
+    3. Default (1.3, 1.1) + low_conf=True.
+    """
+    results = []
+    if league_code in FOOTBALL_DATA_LEAGUES:
+        try:
+            results = get_recent_results(league_code, days=90)
+        except Exception as e:
+            logger.warning(f"[LivePipeline] get_recent_results failed for {league_code}: {e}")
+            results = []
 
-    pred = model.predict(home_team, away_team)
-    h = float(pred.get("home_xg", 1.3))
-    a = float(pred.get("away_xg", 1.1))
-    return (h, a)
+    if results:
+        model = PoissonModel()
+        model.fit(results)
+        if model._fitted:
+            pred = model.predict(home_team, away_team)
+            h = float(pred.get("home_xg", 1.3))
+            a = float(pred.get("away_xg", 1.1))
+            return (h, a, False)
+
+    # Tier 2: DB history
+    if session is not None:
+        try:
+            rows = (
+                session.query(Match)
+                .filter(
+                    Match.competition_code == league_code,
+                    Match.status == "FINISHED",
+                    Match.home_goals.isnot(None),
+                )
+                .order_by(Match.utc_date.desc())
+                .limit(300)
+                .all()
+            )
+            if len(rows) >= 20:
+                hist = [
+                    {
+                        "home_team": r.home_team,
+                        "away_team": r.away_team,
+                        "home_goals": r.home_goals,
+                        "away_goals": r.away_goals,
+                    }
+                    for r in rows
+                ]
+                model = PoissonModel()
+                model.fit(hist)
+                if model._fitted:
+                    pred = model.predict(home_team, away_team)
+                    h = float(pred.get("home_xg", 1.3))
+                    a = float(pred.get("away_xg", 1.1))
+                    return (h, a, True)
+        except Exception as e:
+            logger.warning(f"[LivePipeline] DB history fallback failed {league_code}: {e}")
+
+    return (1.3, 1.1, True)
 
 
 def _already_alerted(session, match_id: int, market: str, outcome: str) -> bool:
@@ -255,14 +303,9 @@ def run_live_pipeline() -> list[str]:
                 away_shots_on_target=int(state.get("away_shots_on_target", 0) or 0),
             ))
 
-            # d. Pregame λ — chỉ refit được khi league nằm trên Football-Data
-            if league_code not in FOOTBALL_DATA_LEAGUES:
-                logger.info(
-                    f"[LivePipeline] {league_code} không có data Football-Data, bỏ."
-                )
-                continue
-            h_lambda, a_lambda = _build_pregame_lambdas(
-                db_match.home_team, db_match.away_team, league_code,
+            # d. Pregame λ — fallback qua DB history nếu league không có FD data
+            h_lambda, a_lambda, low_conf = _build_pregame_lambdas(
+                db_match.home_team, db_match.away_team, league_code, session=session,
             )
 
             # e+f. Live Poisson predict
@@ -301,8 +344,11 @@ def run_live_pipeline() -> list[str]:
                 continue
 
             # h. So model probs vs live odds → value bets
+            # Low-conf leagues: bump min EV lên 0.10 để tránh noise cao từ model không fit tốt
+            min_ev_effective = 0.10 if low_conf else LIVE_MIN_EV
             value_bets = _find_live_value_bets(
                 model_probs, odds_event, db_match.home_team, db_match.away_team,
+                min_ev=min_ev_effective,
             )
 
             # i. Save + alert
@@ -349,8 +395,9 @@ def _find_live_value_bets(
     odds_event: dict,
     home_team: str,
     away_team: str,
+    min_ev: float = LIVE_MIN_EV,
 ) -> list[dict]:
-    """So xác suất model với live odds (Pinnacle). Return list vb thỏa EV ≥ LIVE_MIN_EV."""
+    """So xác suất model với live odds (Pinnacle). Return list vb thỏa EV ≥ min_ev."""
     value_bets: list[dict] = []
 
     # --- h2h ---
@@ -365,7 +412,7 @@ def _find_live_value_bets(
         if prob <= 0 or price <= 1.01:
             continue
         ev = prob * price - 1
-        if ev >= LIVE_MIN_EV:
+        if ev >= min_ev:
             value_bets.append({
                 "market": "h2h",
                 "outcome": mapped,
@@ -392,7 +439,7 @@ def _find_live_value_bets(
         if prob <= 0:
             continue
         ev = prob * price - 1
-        if ev >= LIVE_MIN_EV:
+        if ev >= min_ev:
             value_bets.append({
                 "market": "totals",
                 "outcome": f"{outcome_name} {point}",

@@ -181,13 +181,51 @@ def _build_picker_msg(command: str, selected: set, live_data: dict) -> str:
     return msg
 
 
-def _build_picker_keyboard(command: str, selected: set, live_data: dict) -> InlineKeyboardMarkup:
-    """Build inline keyboard with toggle checkboxes."""
-    from src.config import LEAGUES, LEAGUES_SHORT, LEAGUE_REGIONS
+_PICKER_REGIONS_PER_PAGE = 6  # ~10-15 leagues per page depending on region sizes
+
+
+def _picker_pages() -> list[list[tuple[str, list[str]]]]:
+    """Split LEAGUE_REGIONS into pages of ~10 leagues each.
+
+    Keeping regions intact (don't split a region across pages). Returns
+    list[page], page = list[(region_name, [codes])].
+    Auto-includes any discovered codes missing from LEAGUE_REGIONS into
+    a synthetic 'KHÁC' bucket, so newly discovered leagues still appear.
+    """
+    from src.config import LEAGUE_REGIONS, LEAGUES
+    regions = list(LEAGUE_REGIONS.items())
+
+    # Collect codes not listed in any region → synthetic bucket
+    covered = {c for _, codes in regions for c in codes}
+    extras = [c for c in LEAGUES if c not in covered]
+    if extras:
+        regions = regions + [("\U0001f310 KH\u00c1C", extras)]
+
+    pages: list[list[tuple[str, list[str]]]] = []
+    current: list[tuple[str, list[str]]] = []
+    count = 0
+    for name, codes in regions:
+        if current and count + len(codes) > 10:
+            pages.append(current)
+            current = []
+            count = 0
+        current.append((name, codes))
+        count += len(codes)
+    if current:
+        pages.append(current)
+    return pages
+
+
+def _build_picker_keyboard(command: str, selected: set, live_data: dict, page: int = 0) -> InlineKeyboardMarkup:
+    """Build inline keyboard with toggle checkboxes (paginated)."""
+    from src.config import LEAGUES, LEAGUES_SHORT
     keyboard = []
 
-    for region, codes in LEAGUE_REGIONS.items():
-        # Region header — click to select all in region
+    pages = _picker_pages()
+    total_pages = max(1, len(pages))
+    page = max(0, min(page, total_pages - 1))
+
+    for region, codes in pages[page]:
         keyboard.append([InlineKeyboardButton(
             f"\u2500\u2500 {region} \u2500\u2500",
             callback_data=f"region:{command}:{','.join(codes)}"
@@ -208,6 +246,19 @@ def _build_picker_keyboard(command: str, selected: set, live_data: dict) -> Inli
                 row = []
         if row:
             keyboard.append(row)
+
+    # Pagination row (only shown if >1 page)
+    if total_pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton("\u2b05 Tr\u01b0\u1edbc",
+                                            callback_data=f"pickp:{command}:{page - 1}"))
+        nav.append(InlineKeyboardButton(f"Trang {page + 1}/{total_pages}",
+                                        callback_data="noop"))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton("Sau \u27a1",
+                                            callback_data=f"pickp:{command}:{page + 1}"))
+        keyboard.append(nav)
 
     # Bottom action buttons
     keyboard.append([
@@ -233,10 +284,11 @@ async def _show_league_picker(update, command: str):
         "command": command,
         "selected": auto_selected,
         "live_data": live_data,
+        "page": 0,
     }
 
     msg = _build_picker_msg(command, auto_selected, live_data)
-    kb = _build_picker_keyboard(command, auto_selected, live_data)
+    kb = _build_picker_keyboard(command, auto_selected, live_data, page=0)
     await update.message.reply_text(msg, reply_markup=kb)
 
 
@@ -2031,6 +2083,168 @@ def _analyze_live(hs: dict, as_: dict, minute: int, home_score: int, away_score:
     }
 
 
+_ALL_LIVE_PAGE_SIZE = 10
+
+
+async def _run_all_live_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show simplified summary of ALL live matches across Pinnacle-covered leagues.
+
+    Quota-conscious: uses API-Football /fixtures?live=all (1 call) for scores,
+    then fetches Odds API live odds only for leagues that actually have a live
+    match. Results are cached per-chat for pagination (60s TTL).
+    """
+    import asyncio
+    from src.config import LEAGUES, ODDS_SPORTS, API_FOOTBALL_LEAGUES
+    from src.collectors.api_football import get_live_fixtures
+    from src.collectors.odds_api import get_live_odds, get_live_scores, get_best_odds, get_spread_pairs
+
+    chat_id = update.effective_chat.id if update.effective_chat else None
+    await update.message.reply_text("\u26a1 \u0110ang t\u1ea3i danh s\u00e1ch tr\u1eadn LIVE...")
+
+    loop = asyncio.get_event_loop()
+
+    # Step 1: single call to api-football for all live fixtures.
+    try:
+        fixtures = await loop.run_in_executor(None, get_live_fixtures)
+    except Exception as e:
+        logger.error(f"[AllLive] get_live_fixtures failed: {e}")
+        fixtures = []
+
+    # Group fixtures by league code (only codes in ODDS_SPORTS so we can fetch odds)
+    af_to_code = {fid: code for code, fid in API_FOOTBALL_LEAGUES.items()}
+    by_league: dict[str, list[dict]] = {}
+    for fix in fixtures:
+        code = af_to_code.get(fix.get("league_id"))
+        if code and code in ODDS_SPORTS:
+            by_league.setdefault(code, []).append(fix)
+
+    if not by_league:
+        await update.message.reply_text(
+            "\u26bd Kh\u00f4ng c\u00f3 tr\u1eadn live n\u00e0o "
+            "\u0111ang di\u1ec5n ra \u1edf c\u00e1c gi\u1ea3i c\u00f3 Pinnacle cover."
+        )
+        return
+
+    # Step 2: parallel fetch odds for each league that has live matches.
+    async def _fetch_odds_for_league(lc):
+        try:
+            scores = await loop.run_in_executor(None, get_live_scores, lc)
+            eids = [s["event_id"] for s in (scores or []) if s.get("event_id")]
+            odds = await loop.run_in_executor(None, get_live_odds, lc, eids) if eids else []
+            return lc, scores or [], odds
+        except Exception as e:
+            logger.warning(f"[AllLive] odds fetch failed for {lc}: {e}")
+            return lc, [], []
+
+    odds_results = await asyncio.gather(*[_fetch_odds_for_league(lc) for lc in by_league])
+    scores_by_lc = {lc: scores for lc, scores, _ in odds_results}
+    odds_by_lc = {lc: odds for lc, _, odds in odds_results}
+
+    # Step 3: build rows per (league, match).
+    lines: list[tuple[str, str]] = []  # (league_code, formatted_line)
+    total = 0
+    for code, fxs in by_league.items():
+        for fx in fxs:
+            total += 1
+            home = fx.get("home", "?")
+            away = fx.get("away", "?")
+            hs = fx.get("home_score", 0) or 0
+            ax = fx.get("away_score", 0) or 0
+            minute = fx.get("minute", 0) or 0
+
+            # Find matching odds event
+            ev = None
+            for o in odds_by_lc.get(code, []):
+                if _match_teams(home, away, o.get("home_team", ""), o.get("away_team", "")):
+                    ev = o
+                    break
+
+            parts = [f"\u26bd {home} {hs}-{ax} {away} ({minute}')"]
+            if ev:
+                best_h2h = get_best_odds(ev, "h2h")
+                best_totals = get_best_odds(ev, "totals")
+                spread_pairs = get_spread_pairs(ev)
+
+                h_odds = best_h2h.get("Home", {})
+                d_odds = best_h2h.get("Draw", {})
+                a_odds = best_h2h.get("Away", {})
+                h_p = h_odds.get("price") if isinstance(h_odds, dict) else None
+                d_p = d_odds.get("price") if isinstance(d_odds, dict) else None
+                a_p = a_odds.get("price") if isinstance(a_odds, dict) else None
+                if h_p and d_p and a_p:
+                    parts.append(f"1X2: {h_p:.2f}/{d_p:.2f}/{a_p:.2f}")
+
+                if spread_pairs:
+                    pair = spread_pairs[0]
+                    parts.append(
+                        f"AH {pair['home_point']:+g}@{pair['home_price']:.2f}/"
+                        f"{pair['away_price']:.2f}"
+                    )
+
+                ou_over = best_totals.get("Over", {})
+                ou_under = best_totals.get("Under", {})
+                if isinstance(ou_over, dict) and "price" in ou_over and isinstance(ou_under, dict) and "price" in ou_under:
+                    point = ou_over.get("point", 2.5)
+                    parts.append(f"O/U {point}@{ou_over['price']:.2f}/{ou_under['price']:.2f}")
+
+            lines.append((code, " | ".join(parts)))
+
+    # Step 4: cache + paginate.
+    if chat_id is not None:
+        context.user_data["_all_live_cache"] = {
+            "lines": lines,
+            "total": total,
+            "ts": _now_ts(),
+        }
+
+    await _send_all_live_page(update, lines, total, page=0)
+
+
+def _now_ts() -> float:
+    import time
+    return time.time()
+
+
+async def _send_all_live_page(update: Update, lines: list[tuple[str, str]], total: int, page: int):
+    """Render one page of all-live lines with prev/next keyboard."""
+    from src.config import LEAGUES
+
+    page_size = _ALL_LIVE_PAGE_SIZE
+    max_page = max(0, (len(lines) - 1) // page_size)
+    page = max(0, min(page, max_page))
+    start = page * page_size
+    end = start + page_size
+    chunk = lines[start:end]
+
+    # Group the chunk lines by league code for readability.
+    msg = f"\U0001f534 LIVE \u2014 TR\u1eacN \u0110ANG \u0110\u1ea4U ({total})\n"
+    msg += "\u2501" * 17 + "\n"
+    current_code = None
+    for code, line in chunk:
+        if code != current_code:
+            msg += f"\n\U0001f4cb {LEAGUES.get(code, code)}\n"
+            current_code = code
+        msg += f"{line}\n"
+
+    msg += f"\nTrang {page + 1}/{max_page + 1}"
+
+    kb_rows = []
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("\u2b05 Tr\u01b0\u1edbc", callback_data=f"alllivep:{page - 1}"))
+    if page < max_page:
+        nav_row.append(InlineKeyboardButton("Sau \u27a1", callback_data=f"alllivep:{page + 1}"))
+    if nav_row:
+        kb_rows.append(nav_row)
+
+    kb = InlineKeyboardMarkup(kb_rows) if kb_rows else None
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(msg, reply_markup=kb)
+    else:
+        await update.message.reply_text(msg, reply_markup=kb)
+
+
 async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show live in-play matches with odds and value analysis."""
     if not await _require_auth(update): return
@@ -2044,7 +2258,9 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     league_filter = args[0].upper() if args else None
 
     if not league_filter:
-        await _show_league_picker(update, "live")
+        # No args → show simplified ALL-LIVE summary (all Pinnacle-covered leagues).
+        # User can pick a specific league via /live <code> or buttons in picker.
+        await _run_all_live_summary(update, context)
         return
 
     if league_filter not in LEAGUES:
@@ -3092,6 +3308,41 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
     parts = data.split(":", 2)
     action = parts[0]
 
+    # --- All-live pagination ---
+    if action == "alllivep" and len(parts) >= 2:
+        try:
+            page = int(parts[1])
+        except ValueError:
+            await query.answer("Trang kh\u00f4ng h\u1ee3p l\u1ec7")
+            return
+        cache = context.user_data.get("_all_live_cache")
+        if not cache or (_now_ts() - cache.get("ts", 0)) > 60:
+            await query.answer("Cache h\u1ebft h\u1ea1n, ch\u1ea1y l\u1ea1i /live", show_alert=True)
+            return
+        await query.answer()
+        await _send_all_live_page(update, cache["lines"], cache["total"], page=page)
+        return
+
+    # --- Picker pagination ---
+    if action == "pickp" and len(parts) == 3:
+        command, page_str = parts[1], parts[2]
+        try:
+            page = int(page_str)
+        except ValueError:
+            await query.answer()
+            return
+        if not state or state["command"] != command:
+            live_data = _get_live_data() if command == "live" else {}
+            state = {"command": command, "selected": set(), "live_data": live_data, "page": page}
+            _picker_state[chat_id] = state
+        else:
+            state["page"] = page
+        await query.answer()
+        msg = _build_picker_msg(command, state["selected"], state["live_data"])
+        kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=page)
+        await query.edit_message_text(msg, reply_markup=kb)
+        return
+
     # --- Toggle single league ---
     if action == "tog" and len(parts) == 3:
         command, code = parts[1], parts[2]
@@ -3111,7 +3362,7 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
 
         # Update message + keyboard
         msg = _build_picker_msg(command, state["selected"], state["live_data"])
-        kb = _build_picker_keyboard(command, state["selected"], state["live_data"])
+        kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=state.get("page", 0))
         await query.edit_message_text(msg, reply_markup=kb)
 
     # --- Toggle entire region ---
@@ -3135,7 +3386,7 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
             await query.answer(f"\u2705 Ch\u1ecdn khu v\u1ef1c ({len(codes)} gi\u1ea3i)")
 
         msg = _build_picker_msg(command, state["selected"], state["live_data"])
-        kb = _build_picker_keyboard(command, state["selected"], state["live_data"])
+        kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=state.get("page", 0))
         await query.edit_message_text(msg, reply_markup=kb)
 
     # --- Select all live leagues ---
@@ -3154,7 +3405,7 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
             await query.answer("\u26bd Kh\u00f4ng c\u00f3 gi\u1ea3i live")
 
         msg = _build_picker_msg(command, state["selected"], state["live_data"])
-        kb = _build_picker_keyboard(command, state["selected"], state["live_data"])
+        kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=state.get("page", 0))
         await query.edit_message_text(msg, reply_markup=kb)
 
     # --- Clear all ---
@@ -3168,7 +3419,7 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
         await query.answer("\u274c \u0110\u00e3 b\u1ecf ch\u1ecdn t\u1ea5t c\u1ea3")
 
         msg = _build_picker_msg(command, state["selected"], state["live_data"])
-        kb = _build_picker_keyboard(command, state["selected"], state["live_data"])
+        kb = _build_picker_keyboard(command, state["selected"], state["live_data"], page=state.get("page", 0))
         await query.edit_message_text(msg, reply_markup=kb)
 
     # --- Run command with selected leagues ---

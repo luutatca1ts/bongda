@@ -380,6 +380,32 @@ API_FOOTBALL_LEAGUES = {
 # Only these can fetch fixtures/results from football-data.org
 FOOTBALL_DATA_LEAGUES = {"PL", "PD", "BL1", "SA", "FL1", "CL", "ELC", "DED", "PPL", "BSA", "EC", "WC"}
 
+# ================================================================
+# MERGE discovered Pinnacle leagues (from discover_pinnacle_sports.py)
+# ================================================================
+# Additive-only: entry với code đã tồn tại (ví dụ "PL") giữ nguyên VN title.
+# Chỉ thêm code mới từ discovery (thường dạng SPAIN_LA_LIGA_2 vv). Nhờ vậy
+# LEAGUES_SHORT cho picker vẫn trỏ tới code gốc khi có, và pipeline vẫn
+# nhận diện được giải chưa từng thấy trước đây.
+try:
+    from src.config_full_leagues import LEAGUES_FULL, ODDS_SPORTS_FULL
+except Exception:
+    LEAGUES_FULL, ODDS_SPORTS_FULL = {}, {}
+
+for _code, _title in LEAGUES_FULL.items():
+    if _code not in LEAGUES:
+        LEAGUES[_code] = _title
+for _code, _sk in ODDS_SPORTS_FULL.items():
+    if _code not in ODDS_SPORTS:
+        ODDS_SPORTS[_code] = _sk
+# Low-confidence: giải chưa có trong FOOTBALL_DATA_LEAGUES *và* không nằm
+# trong original LEAGUES → data historical yếu, dùng implied probability.
+# Set này được pipeline dùng để set low_confidence_league flag.
+LOW_CONFIDENCE_LEAGUES = {
+    code for code in ODDS_SPORTS
+    if code not in FOOTBALL_DATA_LEAGUES and code in LEAGUES_FULL
+}
+
 # Confidence thresholds
 CONFIDENCE = {
     "HIGH": {"min_ev": 0.08, "min_agreement": 0.80},
@@ -400,13 +426,12 @@ CONFIDENCE = {
 LIVE_XG_AVAILABLE = False
 
 # Quota protection cho live pipeline
-LIVE_MAX_MATCHES_PER_CYCLE = 10
+LIVE_MAX_MATCHES_PER_CYCLE = 50
 LIVE_QUOTA_MIN_THRESHOLD = 5000  # Pause live khi Odds API remaining < threshold
 
-# Top leagues cho live tracking — giới hạn số trận để tiết kiệm quota
-LIVE_LEAGUE_CODES = [
-    "PL", "PD", "BL1", "SA", "FL1",       # Big 5
-    "CL", "EL", "ECL",                    # UEFA
-    "DED", "PPL",                         # Eredivisie, Liga Portugal
-]
-LIVE_LEAGUE_IDS = {API_FOOTBALL_LEAGUES[c] for c in LIVE_LEAGUE_CODES if c in API_FOOTBALL_LEAGUES}
+# Live tracking: broadened to ALL Pinnacle-covered leagues that also have an
+# API-Football league_id. Trước đây giới hạn Big 5 + UEFA để tiết kiệm quota;
+# giờ dùng LIVE_MAX_MATCHES_PER_CYCLE (50) làm backstop quota thay vì cứng danh
+# sách giải. Các giải không có API-Football id sẽ bị bỏ qua tự nhiên.
+LIVE_LEAGUE_CODES = [c for c in ODDS_SPORTS if c in API_FOOTBALL_LEAGUES]
+LIVE_LEAGUE_IDS = {API_FOOTBALL_LEAGUES[c] for c in LIVE_LEAGUE_CODES}
