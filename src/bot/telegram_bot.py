@@ -429,7 +429,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     Query Prediction trong 24h g\u1ea7n nh\u1ea5t, match ch\u01b0a kickoff; \u00e1p
     `_is_ev_suspicious` + 3 rule b\u1ed5 sung (Draw prob>40%, odds<1.25, corner
-    prob>75%); sort prob desc; hi\u1ec3n th\u1ecb top 20.
+    prob>75%); sort prob desc; hi\u1ec3n th\u1ecb top 30.
     """
     if not await _require_auth(update):
         return
@@ -500,7 +500,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 continue
             kept.append((p, m))
 
-        top = kept[:20]
+        top = kept[:30]
         if not top:
             await update.message.reply_text(
                 f"\u26d4 Kh\u00f4ng c\u00f2n k\u00e8o n\u00e0o sau khi l\u1ecdc "
