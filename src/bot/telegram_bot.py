@@ -425,11 +425,13 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """K\u00e8o d\u1ec5 th\u1eafng \u2014 prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o.
+    """K\u00e8o prob cao \u2014 prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o.
 
-    Query Prediction trong 24h g\u1ea7n nh\u1ea5t, match ch\u01b0a kickoff; \u00e1p
-    `_is_ev_suspicious` + 3 rule b\u1ed5 sung (Draw prob>40%, odds<1.25, corner
-    prob>75%); sort prob desc; hi\u1ec3n th\u1ecb top 30.
+    Query Prediction cho tr\u1eadn kickoff trong 24h t\u1edbi; kh\u00f4ng filter
+    is_value_bet (\u0111\u1ec3 l\u1ea5y c\u1ea3 EV \u00e2m). \u00c1p `_is_ev_suspicious`
+    + 3 rule b\u1ed5 sung (Draw prob>40%, odds<1.25, corner prob>75%); sort prob
+    desc; hi\u1ec3n th\u1ecb top 30. N\u1ebfu c\u00f3 EV<0 th\u00ec th\u00eam 1 d\u00f2ng
+    c\u1ea3nh b\u00e1o bet size nh\u1ecf.
     """
     if not await _require_auth(update):
         return
@@ -457,17 +459,28 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Filter by Match.utc_date (kickoff) instead of Prediction.created_at
         # so we only surface picks whose matches actually kick off within 24h.
+        # No is_value_bet filter — include EV-negative too, just lọc ảo.
         rows = (
             session.query(Prediction, Match)
             .join(Match, Prediction.match_id == Match.match_id)
             .filter(
-                Prediction.is_value_bet == True,
                 Prediction.model_probability >= 0.58,
                 Match.utc_date >= now,
                 Match.utc_date <= window_end,
             )
             .order_by(Prediction.model_probability.desc())
             .all()
+        )
+
+        # Count matches in the 24h window (for header "từ X trận")
+        total_matches_24h = (
+            session.query(Match)
+            .filter(
+                Match.status == "SCHEDULED",
+                Match.utc_date >= now,
+                Match.utc_date <= window_end,
+            )
+            .count()
         )
 
         if not rows:
@@ -510,12 +523,19 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        has_negative_ev = any((p.expected_value or 0) < 0 for p, _ in top)
+
         header = (
-            f"\U0001f3af K\u00c8O D\u1ec4 TH\u1eaeNG (Prob \u2265 58%)\n"
+            f"\U0001f3af K\u00c8O PROB CAO (Prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-            f"\u2705 Top {len(top)} k\u00e8o prob cao trong 24h t\u1edbi\n"
+            f"\u2705 Top {len(top)} k\u00e8o t\u1eeb {total_matches_24h} tr\u1eadn trong 24h t\u1edbi\n"
             f"\U0001f6ab \u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
         )
+        if has_negative_ev:
+            header += (
+                f"\n\U0001f4a1 L\u01b0u \u00fd: EV \u00e2m ngh\u0129a l\u00e0 odds h\u01a1i "
+                f"th\u1ea5p so v\u1edbi x\u00e1c su\u1ea5t th\u1eadt. Bet size nh\u1ecf.\n"
+            )
 
         body = ""
         for i, (p, m) in enumerate(top, 1):
@@ -538,8 +558,8 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         logger.info(
-            f"[ancan] returned {len(top)} picks trong next 24h, "
-            f"filtered {filtered} suspicious"
+            f"[ancan] returned {len(top)} picks (incl. EV-neg) trong next 24h, "
+            f"filtered {filtered} suspicious, total_matches_24h={total_matches_24h}"
         )
         await _send_chunked(update, header + body)
     finally:
@@ -2361,12 +2381,12 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
         n_matches = len(scheduled_rows)
         m_leagues = len({r[0] for r in scheduled_rows if r[0]})
 
-        # Fresh predictions from THIS session only
+        # Fresh predictions from THIS session only. No is_value_bet filter —
+        # include EV-negative too; only lọc ảo via the 4 rules below.
         rows = (
             _s.query(Prediction, Match)
             .join(Match, Prediction.match_id == Match.match_id)
             .filter(
-                Prediction.is_value_bet == True,
                 Prediction.model_probability >= 0.58,
                 Prediction.created_at >= session_started_at,
                 Match.utc_date >= _now,
@@ -2409,14 +2429,21 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
             f"top={len(top)} filtered_ao={filtered} odds_api_calls={used_calls}"
         )
 
+        has_negative_ev = any((p.expected_value or 0) < 0 for p, _ in top)
+
         msg = (
-            f"\U0001f310 PH\u00c2N T\u00cdCH 24H T\u1edaI\n"
+            f"\U0001f3af TOP 30 K\u00c8O PROB CAO\n"
             f"{'\u2501' * 17}\n"
             f"\u0110\u00e3 ph\u00e2n t\u00edch: {n_matches} tr\u1eadn trong {m_leagues} gi\u1ea3i\n"
-            f"T\u00ecm \u0111\u01b0\u1ee3c: {len(kept)} k\u00e8o c\u00f3 Prob \u2265 58%\n"
+            f"T\u00ecm \u0111\u01b0\u1ee3c: {len(kept)} k\u00e8o Prob \u2265 58%\n"
             f"\u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
             f"\u23f1 {elapsed:.0f}s | \U0001f4ca {calls_str} Odds API calls\n"
         )
+        if has_negative_ev:
+            msg += (
+                f"\n\U0001f4a1 L\u01b0u \u00fd: EV \u00e2m ngh\u0129a l\u00e0 odds h\u01a1i "
+                f"th\u1ea5p so v\u1edbi x\u00e1c su\u1ea5t th\u1eadt. Bet size nh\u1ecf.\n"
+            )
 
         if not top:
             msg += (
@@ -2427,9 +2454,7 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
             return
 
         msg += (
-            f"\n\U0001f3af TOP {len(top)} K\u00c8O PROB CAO "
-            f"(Prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
-            f"{'\u2500' * 17}\n"
+            f"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
         )
         for i, (p, m) in enumerate(top, 1):
             league = LEAGUES.get(
