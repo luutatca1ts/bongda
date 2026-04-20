@@ -97,6 +97,26 @@ def _match_event(db_home: str, db_away: str, db_utc, ev: dict, max_hours: float 
 logger = logging.getLogger(__name__)
 
 
+def _is_ev_suspicious(vb: dict) -> tuple[bool, str]:
+    """Return (is_suspicious, reason).
+
+    Why: EV quá cao thường là dấu hiệu model sai (xG thấp bất hợp lý) hoặc odds
+    lỗi (line sai, stale). Pinnacle là sharp book — EV >12% trên Pinnacle là bất
+    thường. Corner market model kém chính xác → threshold thấp hơn (10%).
+    """
+    ev = vb.get("ev", 0)
+    bk = (vb.get("bookmaker") or "").lower()
+    market = (vb.get("market") or "").lower()
+
+    if ev > 0.25:
+        return True, f"EV {ev*100:.1f}% quá cao (>25%), model/data có thể sai"
+    if "pinnacle" in bk and ev > 0.12:
+        return True, f"EV {ev*100:.1f}% trên Pinnacle (sharp book) bất thường"
+    if "corner" in market and ev > 0.10:
+        return True, f"EV {ev*100:.1f}% trên corner (model kém chính xác)"
+    return False, ""
+
+
 def run_analysis_pipeline() -> list[str]:
     """
     Full pipeline:
@@ -109,6 +129,7 @@ def run_analysis_pipeline() -> list[str]:
     """
     alerts = []
     session = get_session()
+    filtered_suspicious = 0  # đếm số vb bị chặn vì _is_ev_suspicious
 
     # Reset per-league corner data — always fetch fresh from API
     run_analysis_pipeline._corner_per_league = {}
@@ -244,6 +265,19 @@ def run_analysis_pipeline() -> list[str]:
 
                     vb["confidence"] = confidence
 
+                    # Safety filter: chặn vb EV ảo (quá cao / sharp book / corner).
+                    is_susp, susp_reason = _is_ev_suspicious(vb)
+                    if is_susp:
+                        filtered_suspicious += 1
+                        logger.warning(
+                            f"[Pipeline] FILTERED suspicious VB — "
+                            f"{match['home_team']} vs {match['away_team']} | "
+                            f"{vb['market']}:{vb['outcome']} @ {vb['odds']} "
+                            f"(EV {vb['ev']*100:+.1f}%, bk={vb.get('bookmaker', 'N/A')}) "
+                            f"— {susp_reason}"
+                        )
+                        continue
+
                     # Save prediction
                     pred = Prediction(
                         match_id=match["match_id"],
@@ -325,23 +359,47 @@ def run_analysis_pipeline() -> list[str]:
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, o_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_totals",
-                                    outcome=f"Over {line}", model_probability=o_prob,
-                                    best_odds=co["over_price"], best_bookmaker=co.get("over_bk", "?"),
-                                    expected_value=ev, confidence=conf, is_value_bet=True,
-                                ))
+                                _vb = {"ev": ev, "bookmaker": co.get("over_bk", "?"),
+                                       "market": "corners_totals", "outcome": f"Over {line}", "odds": co["over_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_totals:Over {line} @ {co['over_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={co.get('over_bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_totals",
+                                        outcome=f"Over {line}", model_probability=o_prob,
+                                        best_odds=co["over_price"], best_bookmaker=co.get("over_bk", "?"),
+                                        expected_value=ev, confidence=conf, is_value_bet=True,
+                                    ))
                     if co.get("under_price") and u_prob > 0:
                         ev = u_prob * co["under_price"] - 1
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, u_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_totals",
-                                    outcome=f"Under {line}", model_probability=u_prob,
-                                    best_odds=co["under_price"], best_bookmaker=co.get("under_bk", "?"),
-                                    expected_value=ev, confidence=conf, is_value_bet=True,
-                                ))
+                                _vb = {"ev": ev, "bookmaker": co.get("under_bk", "?"),
+                                       "market": "corners_totals", "outcome": f"Under {line}", "odds": co["under_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_totals:Under {line} @ {co['under_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={co.get('under_bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_totals",
+                                        outcome=f"Under {line}", model_probability=u_prob,
+                                        best_odds=co["under_price"], best_bookmaker=co.get("under_bk", "?"),
+                                        expected_value=ev, confidence=conf, is_value_bet=True,
+                                    ))
 
                 # Corner AH value bets — main line only (matches what bookmaker displays)
                 if corner_spreads:
@@ -357,25 +415,51 @@ def run_analysis_pipeline() -> list[str]:
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, h_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_spreads",
-                                    outcome=f"{cs.get('home_name', 'Home')} {hp:+g}",
-                                    model_probability=h_prob, best_odds=cs["home_price"],
-                                    best_bookmaker=cs.get("bk", "?"), expected_value=ev,
-                                    confidence=conf, is_value_bet=True,
-                                ))
+                                _out = f"{cs.get('home_name', 'Home')} {hp:+g}"
+                                _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
+                                       "market": "corners_spreads", "outcome": _out, "odds": cs["home_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_spreads:{_out} @ {cs['home_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={cs.get('bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_spreads",
+                                        outcome=_out,
+                                        model_probability=h_prob, best_odds=cs["home_price"],
+                                        best_bookmaker=cs.get("bk", "?"), expected_value=ev,
+                                        confidence=conf, is_value_bet=True,
+                                    ))
                     if a_prob > 0 and cs.get("away_price"):
                         ev = a_prob * cs["away_price"] - 1
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, a_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_spreads",
-                                    outcome=f"{cs.get('away_name', 'Away')} {ap:+g}",
-                                    model_probability=a_prob, best_odds=cs["away_price"],
-                                    best_bookmaker=cs.get("bk", "?"), expected_value=ev,
-                                    confidence=conf, is_value_bet=True,
-                                ))
+                                _out = f"{cs.get('away_name', 'Away')} {ap:+g}"
+                                _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
+                                       "market": "corners_spreads", "outcome": _out, "odds": cs["away_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_spreads:{_out} @ {cs['away_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={cs.get('bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_spreads",
+                                        outcome=_out,
+                                        model_probability=a_prob, best_odds=cs["away_price"],
+                                        best_bookmaker=cs.get("bk", "?"), expected_value=ev,
+                                        confidence=conf, is_value_bet=True,
+                                    ))
 
                 # === FIRST HALF CORNER VALUE BETS ===
                 h1c_pred = prediction.get("corners_h1", {})
@@ -396,23 +480,47 @@ def run_analysis_pipeline() -> list[str]:
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, o_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_h1_totals",
-                                    outcome=f"Over {line}", model_probability=o_prob,
-                                    best_odds=co["over_price"], best_bookmaker=co.get("over_bk", "?"),
-                                    expected_value=ev, confidence=conf, is_value_bet=True,
-                                ))
+                                _vb = {"ev": ev, "bookmaker": co.get("over_bk", "?"),
+                                       "market": "corners_h1_totals", "outcome": f"Over {line}", "odds": co["over_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_h1_totals:Over {line} @ {co['over_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={co.get('over_bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_h1_totals",
+                                        outcome=f"Over {line}", model_probability=o_prob,
+                                        best_odds=co["over_price"], best_bookmaker=co.get("over_bk", "?"),
+                                        expected_value=ev, confidence=conf, is_value_bet=True,
+                                    ))
                     if co.get("under_price") and u_prob > 0:
                         ev = u_prob * co["under_price"] - 1
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, u_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_h1_totals",
-                                    outcome=f"Under {line}", model_probability=u_prob,
-                                    best_odds=co["under_price"], best_bookmaker=co.get("under_bk", "?"),
-                                    expected_value=ev, confidence=conf, is_value_bet=True,
-                                ))
+                                _vb = {"ev": ev, "bookmaker": co.get("under_bk", "?"),
+                                       "market": "corners_h1_totals", "outcome": f"Under {line}", "odds": co["under_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_h1_totals:Under {line} @ {co['under_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={co.get('under_bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_h1_totals",
+                                        outcome=f"Under {line}", model_probability=u_prob,
+                                        best_odds=co["under_price"], best_bookmaker=co.get("under_bk", "?"),
+                                        expected_value=ev, confidence=conf, is_value_bet=True,
+                                    ))
 
                 # H1 corner AH value bets — main line only
                 if h1c_spreads:
@@ -428,25 +536,51 @@ def run_analysis_pipeline() -> list[str]:
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, h_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_h1_spreads",
-                                    outcome=f"{cs.get('home_name', 'Home')} {hp:+g}",
-                                    model_probability=h_prob, best_odds=cs["home_price"],
-                                    best_bookmaker=cs.get("bk", "?"), expected_value=ev,
-                                    confidence=conf, is_value_bet=True,
-                                ))
+                                _out = f"{cs.get('home_name', 'Home')} {hp:+g}"
+                                _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
+                                       "market": "corners_h1_spreads", "outcome": _out, "odds": cs["home_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_h1_spreads:{_out} @ {cs['home_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={cs.get('bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_h1_spreads",
+                                        outcome=_out,
+                                        model_probability=h_prob, best_odds=cs["home_price"],
+                                        best_bookmaker=cs.get("bk", "?"), expected_value=ev,
+                                        confidence=conf, is_value_bet=True,
+                                    ))
                     if a_prob > 0 and cs.get("away_price"):
                         ev = a_prob * cs["away_price"] - 1
                         if ev > 0.01:
                             conf = get_confidence_tier(ev, a_prob)
                             if conf != "SKIP":
-                                session.add(Prediction(
-                                    match_id=match["match_id"], market="corners_h1_spreads",
-                                    outcome=f"{cs.get('away_name', 'Away')} {ap:+g}",
-                                    model_probability=a_prob, best_odds=cs["away_price"],
-                                    best_bookmaker=cs.get("bk", "?"), expected_value=ev,
-                                    confidence=conf, is_value_bet=True,
-                                ))
+                                _out = f"{cs.get('away_name', 'Away')} {ap:+g}"
+                                _vb = {"ev": ev, "bookmaker": cs.get("bk", "?"),
+                                       "market": "corners_h1_spreads", "outcome": _out, "odds": cs["away_price"]}
+                                _susp, _r = _is_ev_suspicious(_vb)
+                                if _susp:
+                                    filtered_suspicious += 1
+                                    logger.warning(
+                                        f"[Pipeline] FILTERED suspicious VB — "
+                                        f"{match['home_team']} vs {match['away_team']} | "
+                                        f"corners_h1_spreads:{_out} @ {cs['away_price']} "
+                                        f"(EV {ev*100:+.1f}%, bk={cs.get('bk', '?')}) — {_r}"
+                                    )
+                                else:
+                                    session.add(Prediction(
+                                        match_id=match["match_id"], market="corners_h1_spreads",
+                                        outcome=_out,
+                                        model_probability=a_prob, best_odds=cs["away_price"],
+                                        best_bookmaker=cs.get("bk", "?"), expected_value=ev,
+                                        confidence=conf, is_value_bet=True,
+                                    ))
 
             session.commit()
             logger.info(f"[Pipeline] {league_name} done. Found {len(alerts)} value bets total.")
@@ -457,6 +591,10 @@ def run_analysis_pipeline() -> list[str]:
     finally:
         session.close()
 
+    logger.info(
+        f"[Pipeline] Cycle summary — {len(alerts)} alerts, "
+        f"{filtered_suspicious} VB bị filter (EV ảo / Pinnacle / corner)."
+    )
     return alerts
 
 

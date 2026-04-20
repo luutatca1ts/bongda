@@ -53,6 +53,13 @@ def format_value_bet_alert(match: dict, bet: dict, prediction: dict,
             f"{steam_info.get('avg_drift_pct', 0):+.1f}%)\n"
         )
 
+    # EV cao bất thường — cảnh báo (nhưng không block — đã qua _is_ev_suspicious)
+    if bet.get("ev", 0) > 0.10:
+        msg += (
+            f"  \u26a0\ufe0f EV cao b\u1ea5t th\u01b0\u1eddng ({bet['ev']*100:.1f}%) "
+            f"\u2014 ki\u1ec3m tra odds + line tr\u01b0\u1edbc khi bet\n"
+        )
+
     # Add xG info
     if prediction:
         msg += (
