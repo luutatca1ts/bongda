@@ -424,7 +424,7 @@ USE_DIXON_COLES = True
 # correlation via shared latent component Y3 → better 1-1/2-2 cells and
 # +2-4% draw probability vs DC. Safe default False: shipping it on requires
 # validation on live league data first.
-USE_BIVARIATE_POISSON = False
+USE_BIVARIATE_POISSON = True
 
 # Leagues eligible for BivariatePoisson when USE_BIVARIATE_POISSON is on.
 # Restricted to top-5 European → they consistently have enough historical
