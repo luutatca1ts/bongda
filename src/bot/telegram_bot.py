@@ -221,6 +221,12 @@ def _build_picker_keyboard(command: str, selected: set, live_data: dict, page: i
     from src.config import LEAGUES, LEAGUES_SHORT
     keyboard = []
 
+    # Shortcut: run across ALL leagues (bypasses selection).
+    keyboard.append([InlineKeyboardButton(
+        "\U0001f310 T\u1ea4T C\u1ea2 GI\u1ea2I",
+        callback_data=f"allleagues:{command}",
+    )])
+
     pages = _picker_pages()
     total_pages = max(1, len(pages))
     page = max(0, min(page, total_pages - 1))
@@ -2086,6 +2092,110 @@ def _analyze_live(hs: dict, as_: dict, minute: int, home_score: int, away_score:
 _ALL_LIVE_PAGE_SIZE = 10
 
 
+async def _send_chunked(update: Update, text: str, max_len: int = 3900):
+    """Split `text` on line boundaries, reply sequentially with 1s gap."""
+    import asyncio
+    if len(text) <= max_len:
+        await update.message.reply_text(text)
+        return
+    parts: list[str] = []
+    current = ""
+    for line in text.splitlines(keepends=True):
+        if current and len(current) + len(line) > max_len:
+            parts.append(current)
+            current = line
+        else:
+            current += line
+    if current:
+        parts.append(current)
+    for i, part in enumerate(parts):
+        await update.message.reply_text(part)
+        if i < len(parts) - 1:
+            await asyncio.sleep(1)
+
+
+async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Run /phantich across every league in LEAGUES, with quota guard + summary.
+
+    Quota-conscious: refuses if Odds API remaining < 10000. Reuses
+    `_run_full_analysis(league_codes=None, collect_only=True)` — engine already
+    loops by scheduled matches, caches per-league odds/corners, and applies
+    `_is_ev_suspicious`.
+    """
+    import time
+    from src.collectors.odds_api import get_quota
+    from src.config import LEAGUES
+
+    q = get_quota()
+    remaining = q.get("remaining")
+    if remaining is not None and remaining < 10000:
+        await update.message.reply_text(
+            f"\u26a0\ufe0f Quota th\u1ea5p ({remaining} c\u00f2n). "
+            f"Ph\u00e2n t\u00edch t\u1ea5t c\u1ea3 gi\u1ea3i c\u00f3 th\u1ec3 ti\u00eau 200-500 calls.\n"
+            f"G\u00f5 /phantich r\u1ed3i ch\u1ecdn gi\u1ea3i c\u1ee5 th\u1ec3."
+        )
+        return
+
+    user_id = update.effective_user.id if update.effective_user else "?"
+    t_start = time.time()
+    logger.info(
+        f"[phantich-ALL] user={user_id} start leagues={len(LEAGUES)} "
+        f"remaining_quota={remaining}"
+    )
+
+    await update.message.reply_text(
+        f"\u23f3 \u0110ang ph\u00e2n t\u00edch t\u1ea5t c\u1ea3 {len(LEAGUES)} gi\u1ea3i, "
+        f"vui l\u00f2ng ch\u1edd 2-5 ph\u00fat..."
+    )
+
+    picks = await _run_full_analysis(update, league_codes=None, collect_only=True)
+    picks = picks or []
+    picks_sorted = sorted(picks, key=lambda p: p.get("ev", 0), reverse=True)
+    top20 = picks_sorted[:20]
+
+    elapsed = time.time() - t_start
+    q2 = get_quota()
+    remaining2 = q2.get("remaining")
+    used_calls = (
+        remaining - remaining2
+        if (remaining is not None and remaining2 is not None)
+        else None
+    )
+
+    logger.info(
+        f"[phantich-ALL] user={user_id} done elapsed={elapsed:.1f}s "
+        f"picks_after_filter={len(picks)} top20={len(top20)} "
+        f"odds_api_calls={used_calls}"
+    )
+
+    calls_str = str(used_calls) if used_calls is not None else "?"
+    msg = (
+        f"\U0001f310 PH\u00c2N T\u00cdCH T\u1ea4T C\u1ea2 {len(LEAGUES)} GI\u1ea2I\n"
+        f"{'\u2501' * 17}\n"
+        f"\u23f1 {elapsed:.0f}s | \U0001f4c8 {len(picks)} k\u00e8o gi\u00e1 tr\u1ecb "
+        f"| \U0001f4ca {calls_str} Odds API calls\n"
+    )
+
+    if not top20:
+        msg += "\n\u26a0\ufe0f Kh\u00f4ng c\u00f3 k\u00e8o gi\u00e1 tr\u1ecb n\u00e0o (sau filter)."
+        await update.message.reply_text(msg)
+        return
+
+    msg += f"\n\U0001f3c6 TOP {len(top20)} K\u00c8O EV CAO NH\u1ea4T\n"
+    msg += f"{'\u2500' * 17}\n"
+    for i, p in enumerate(top20, 1):
+        msg += (
+            f"\n#{i} {p.get('home', '?')} vs {p.get('away', '?')}\n"
+            f"  \U0001f552 {p.get('time', '?')} | {p.get('league', '?')}\n"
+            f"  \u279c {p.get('outcome', '?')} ({p.get('market', '?')}) "
+            f"@ {p.get('odds', 0):.2f}\n"
+            f"    Prob: {p.get('prob', 0)*100:.0f}% | "
+            f"EV: {p.get('ev', 0)*100:+.1f}% | {p.get('bk', '?')}\n"
+        )
+
+    await _send_chunked(update, msg)
+
+
 async def _run_all_live_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show simplified summary of ALL live matches across Pinnacle-covered leagues.
 
@@ -3307,6 +3417,39 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
 
     parts = data.split(":", 2)
     action = parts[0]
+
+    # --- Run across ALL leagues (bypass selection) ---
+    if action == "allleagues" and len(parts) >= 2:
+        command = parts[1]
+        user_id = update.effective_user.id if update.effective_user else "?"
+        logger.info(f"[picker] user={user_id} ALL-LEAGUES requested for /{command}")
+
+        await query.answer(f"\u26a1 Ch\u1ea1y t\u1ea5t c\u1ea3 gi\u1ea3i...")
+        await query.edit_message_text(
+            f"\U0001f310 \u0110ang ch\u1ea1y /{command} tr\u00ean T\u1ea4T C\u1ea2 gi\u1ea3i..."
+        )
+        _picker_state.pop(chat_id, None)
+
+        class _FakeUpdate:
+            def __init__(self, real_update):
+                self.message = real_update.callback_query.message
+                self.effective_chat = real_update.effective_chat
+                self.effective_user = real_update.effective_user
+                self.callback_query = None
+
+        fake = _FakeUpdate(update)
+        try:
+            if command == "phantich":
+                await _run_all_leagues_phantich(fake, context)
+            elif command == "live":
+                await _run_all_live_summary(fake, context)
+        except Exception as e:
+            logger.error(f"[picker] ALL-LEAGUES /{command} failed: {e}", exc_info=True)
+            try:
+                await fake.message.reply_text(f"\u274c L\u1ed7i: {e}")
+            except Exception:
+                pass
+        return
 
     # --- All-live pagination ---
     if action == "alllivep" and len(parts) >= 2:
