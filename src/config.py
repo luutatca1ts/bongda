@@ -413,6 +413,11 @@ CONFIDENCE = {
     "LOW": {"min_ev": 0.01, "min_agreement": 0.50},
 }
 
+# Model selection. True → DixonColesModel (τ correction for low scores,
+# time-decay weights, optional xG input). False → plain PoissonModel.
+# Both implement the same predict() shape so the pipeline is model-agnostic.
+USE_DIXON_COLES = True
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================

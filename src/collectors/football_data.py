@@ -103,3 +103,19 @@ def _today() -> str:
 def _date_offset(days: int) -> str:
     from datetime import date, timedelta
     return (date.today() + timedelta(days=days)).isoformat()
+
+
+def get_xg_history(league_code: str, days: int = 90) -> list[dict]:
+    """Fetch historical xG aligned 1:1 with get_recent_results(league_code, days).
+
+    Returns list[{home_team, away_team, home_xg, away_xg, utc_date}] or [].
+
+    Football-Data.org (free tier) does NOT expose xG. This is a stub for when
+    we integrate an xG source (API-Football, Understat scrape, Opta). When it
+    returns [], DixonColesModel.fit() falls back to integer goals.
+
+    TODO: wire up API-Football /fixtures?league=...&season=... which includes
+    `statistics[].expected_goals` for most top leagues (paid plans only), OR
+    scrape Understat for the big-5 + UEFA.
+    """
+    return []

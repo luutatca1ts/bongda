@@ -1059,10 +1059,13 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
     try:
         from datetime import datetime, timedelta
         from src.models.poisson import PoissonModel, calculate_expected_value, get_confidence_tier
+        from src.models.dixon_coles import DixonColesModel
         from src.collectors.football_data import get_recent_results
         from src.collectors.odds_api import get_odds, get_best_odds, get_spread_pairs, get_corner_odds
-        from src.config import LEAGUES, ODDS_SPORTS
+        from src.config import LEAGUES, ODDS_SPORTS, USE_DIXON_COLES
         import asyncio
+
+        _ModelCls = DixonColesModel if USE_DIXON_COLES else PoissonModel
 
         now = datetime.utcnow()
         next_24h = now + timedelta(hours=24)
@@ -1144,12 +1147,13 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             )
             results_data = [
                 {"home_team": h.home_team, "away_team": h.away_team,
-                 "home_goals": h.home_goals, "away_goals": h.away_goals}
+                 "home_goals": h.home_goals, "away_goals": h.away_goals,
+                 "utc_date": h.utc_date.isoformat() if h.utc_date else None}
                 for h in hist if h.home_goals is not None
             ]
             total_hist += len(results_data)
 
-            model = PoissonModel()
+            model = _ModelCls()
             model.fit(results_data)
 
             # Use pre-fetched odds
@@ -2487,10 +2491,13 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show live in-play matches with odds and value analysis."""
     if not await _require_auth(update): return
     import asyncio
-    from src.config import LEAGUES, ODDS_SPORTS, API_FOOTBALL_KEY
+    from src.config import LEAGUES, ODDS_SPORTS, API_FOOTBALL_KEY, USE_DIXON_COLES
     from src.collectors.odds_api import get_live_odds, get_live_scores, get_best_odds, get_spread_pairs, get_corner_odds
     from src.collectors.api_football import get_live_stats_batch
     from src.models.poisson import PoissonModel, get_confidence_tier
+    from src.models.dixon_coles import DixonColesModel
+
+    _ModelCls = DixonColesModel if USE_DIXON_COLES else PoissonModel
 
     args = context.args or []
     league_filter = args[0].upper() if args else None
@@ -2628,10 +2635,11 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             results_data = [
                 {"home_team": h.home_team, "away_team": h.away_team,
-                 "home_goals": h.home_goals, "away_goals": h.away_goals}
+                 "home_goals": h.home_goals, "away_goals": h.away_goals,
+                 "utc_date": h.utc_date.isoformat() if h.utc_date else None}
                 for h in hist if h.home_goals is not None
             ]
-            model = PoissonModel()
+            model = _ModelCls()
             model.fit(results_data)
 
             # Build score lookup

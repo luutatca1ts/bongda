@@ -38,8 +38,12 @@ from src.collectors.odds_api import (
     get_live_scores,
     get_quota,
 )
+from src.config import USE_DIXON_COLES
 from src.models.poisson import PoissonModel
+from src.models.dixon_coles import DixonColesModel
 from src.models.live_poisson import LivePoissonModel
+
+ModelClass = DixonColesModel if USE_DIXON_COLES else PoissonModel
 from src.db.models import (
     LiveMatchState,
     LivePrediction,
@@ -129,7 +133,7 @@ def _build_pregame_lambdas(
             results = []
 
     if results:
-        model = PoissonModel()
+        model = ModelClass()
         model.fit(results)
         if model._fitted:
             pred = model.predict(home_team, away_team)
@@ -158,10 +162,11 @@ def _build_pregame_lambdas(
                         "away_team": r.away_team,
                         "home_goals": r.home_goals,
                         "away_goals": r.away_goals,
+                        "utc_date": r.utc_date.isoformat() if r.utc_date else None,
                     }
                     for r in rows
                 ]
-                model = PoissonModel()
+                model = ModelClass()
                 model.fit(hist)
                 if model._fitted:
                     pred = model.predict(home_team, away_team)

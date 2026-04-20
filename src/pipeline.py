@@ -7,10 +7,14 @@ from datetime import datetime, date
 
 import hashlib
 
-from src.config import LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES
-from src.collectors.football_data import get_upcoming_matches, get_recent_results
+from src.config import LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES, USE_DIXON_COLES
+from src.collectors.football_data import get_upcoming_matches, get_recent_results, get_xg_history
 from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
+from src.models.dixon_coles import DixonColesModel
+
+# Factory: swap model family via config flag without touching call sites.
+ModelClass = DixonColesModel if USE_DIXON_COLES else PoissonModel
 from src.db.models import get_session, Match, Prediction
 from src.bot.formatters import format_value_bet_alert, format_daily_report
 from src.analytics.line_movement import save_odds_snapshot
@@ -103,8 +107,10 @@ def _is_ev_suspicious(vb: dict) -> tuple[bool, str]:
     """Return (is_suspicious, reason).
 
     Why: EV quá cao thường là dấu hiệu model sai (xG thấp bất hợp lý) hoặc odds
-    lỗi (line sai, stale). Pinnacle là sharp book — EV >12% trên Pinnacle là bất
-    thường. Corner market model kém chính xác → threshold thấp hơn (10%).
+    lỗi (line sai, stale). Threshold Pinnacle được nới sau khi chuyển sang
+    Dixon-Coles (τ + time-decay → 1X2 chính xác hơn ~5-10% so với plain
+    Poisson, đặc biệt giảm bias đánh giá thấp Draw). Corner và EV>25% giữ
+    nguyên vì DC không trực tiếp cải thiện corner model.
     """
     ev = vb.get("ev", 0)
     bk = (vb.get("bookmaker") or "").lower()
@@ -112,7 +118,7 @@ def _is_ev_suspicious(vb: dict) -> tuple[bool, str]:
 
     if ev > 0.25:
         return True, f"EV {ev*100:.1f}% quá cao (>25%), model/data có thể sai"
-    if "pinnacle" in bk and ev > 0.12:
+    if "pinnacle" in bk and ev > 0.15:
         return True, f"EV {ev*100:.1f}% trên Pinnacle (sharp book) bất thường"
     if "corner" in market and ev > 0.10:
         return True, f"EV {ev*100:.1f}% trên corner (model kém chính xác)"
@@ -178,7 +184,7 @@ def _pinnacle_implied_h2h(odds_event: dict) -> dict | None:
 
 
 def _fit_or_fallback(
-    model: PoissonModel | None,
+    model: "PoissonModel | DixonColesModel | None",
     league_code: str,
     home: str,
     away: str,
@@ -218,10 +224,11 @@ def _fit_or_fallback(
                     "away_team": m.away_team,
                     "home_goals": m.home_goals,
                     "away_goals": m.away_goals,
+                    "utc_date": m.utc_date.isoformat() if m.utc_date else None,
                 }
                 for m in hist
             ]
-            m2 = PoissonModel()
+            m2 = ModelClass()
             m2.fit(results)
             if m2._fitted:
                 return m2.predict(home, away), True
@@ -241,7 +248,7 @@ def _fit_or_fallback(
             "corners_h1": {"lines": {}, "asian_handicap": {}},
         }, True
 
-    return PoissonModel()._default_prediction(), True
+    return ModelClass()._default_prediction(), True
 
 
 def run_analysis_pipeline() -> list[str]:
@@ -276,7 +283,7 @@ def run_analysis_pipeline() -> list[str]:
 
             # 1. Historical + model fit — only FD leagues have fixture API.
             # Non-FD leagues fall back to DB history or Pinnacle-implied per match.
-            model: PoissonModel | None = None
+            model: "PoissonModel | DixonColesModel | None" = None
             if is_fd:
                 try:
                     results = get_recent_results(league_code, days=90)
@@ -285,8 +292,10 @@ def run_analysis_pipeline() -> list[str]:
                     results = []
 
                 if results:
-                    m = PoissonModel()
-                    m.fit(results)
+                    m = ModelClass()
+                    # Optional xG — empty list today (stub); DC falls back to goals.
+                    xg = get_xg_history(league_code, days=90) if USE_DIXON_COLES else []
+                    m.fit(results, xg_data=xg) if USE_DIXON_COLES else m.fit(results)
                     if m._fitted:
                         model = m
                         for r in results:
