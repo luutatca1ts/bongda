@@ -425,7 +425,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """K\u00e8o d\u1ec5 th\u1eafng \u2014 prob \u2265 60%, \u0111\u00e3 l\u1ecdc \u1ea3o.
+    """K\u00e8o d\u1ec5 th\u1eafng \u2014 prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o.
 
     Query Prediction trong 24h g\u1ea7n nh\u1ea5t, match ch\u01b0a kickoff; \u00e1p
     `_is_ev_suspicious` + 3 rule b\u1ed5 sung (Draw prob>40%, odds<1.25, corner
@@ -462,7 +462,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             .join(Match, Prediction.match_id == Match.match_id)
             .filter(
                 Prediction.is_value_bet == True,
-                Prediction.model_probability >= 0.60,
+                Prediction.model_probability >= 0.58,
                 Match.utc_date >= now,
                 Match.utc_date <= window_end,
             )
@@ -472,7 +472,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not rows:
             await update.message.reply_text(
-                "\u26d4 Kh\u00f4ng c\u00f3 k\u00e8o prob \u2265 60% trong 24h t\u1edbi.\n"
+                "\u26d4 Kh\u00f4ng c\u00f3 k\u00e8o prob \u2265 58% trong 24h t\u1edbi.\n"
                 "Th\u1eed /phantich \u0111\u1ec3 ch\u1ea1y ph\u00e2n t\u00edch tr\u01b0\u1edbc."
             )
             return
@@ -511,7 +511,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         header = (
-            f"\U0001f3af K\u00c8O D\u1ec4 TH\u1eaeNG (Prob \u2265 60%)\n"
+            f"\U0001f3af K\u00c8O D\u1ec4 TH\u1eaeNG (Prob \u2265 58%)\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
             f"\u2705 Top {len(top)} k\u00e8o prob cao trong 24h t\u1edbi\n"
             f"\U0001f6ab \u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
@@ -2288,6 +2288,7 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
     `_is_ev_suspicious`.
     """
     import time
+    from datetime import datetime, timedelta
     from src.collectors.odds_api import get_quota
     from src.config import LEAGUES
 
@@ -2303,6 +2304,7 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
 
     user_id = update.effective_user.id if update.effective_user else "?"
     t_start = time.time()
+    session_started_at = datetime.utcnow()
     logger.info(
         f"[phantich-ALL] user={user_id} start leagues={len(LEAGUES)} "
         f"remaining_quota={remaining}"
@@ -2315,8 +2317,6 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
 
     picks = await _run_full_analysis(update, league_codes=None, collect_only=True)
     picks = picks or []
-    picks_sorted = sorted(picks, key=lambda p: p.get("ev", 0), reverse=True)
-    top20 = picks_sorted[:20]
 
     elapsed = time.time() - t_start
     q2 = get_quota()
@@ -2326,21 +2326,29 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
         if (remaining is not None and remaining2 is not None)
         else None
     )
-
-    logger.info(
-        f"[phantich-ALL] user={user_id} done elapsed={elapsed:.1f}s "
-        f"picks_after_filter={len(picks)} top20={len(top20)} "
-        f"odds_api_calls={used_calls}"
-    )
-
     calls_str = str(used_calls) if used_calls is not None else "?"
 
-    # Count matches + leagues actually scheduled in the 24h window
-    from datetime import datetime, timedelta
+    # Re-query predictions just written in this session — apply identical
+    # filtering pipeline as /ancan (prob ≥ 58%, 4 anti-ảo rules, sort prob desc)
+    CORNER_MARKETS = {
+        "corners_totals", "corners_spreads",
+        "corners_h1_totals", "corners_h1_spreads",
+    }
+    MKT_NAMES = {
+        "h2h": "1X2",
+        "totals": "T\u00e0i/X\u1ec9u",
+        "spreads": "Ch\u00e2u \u00c1",
+        "corners_totals": "G\u00f3c T/X",
+        "corners_spreads": "G\u00f3c Ch\u00e2u \u00c1",
+        "corners_h1_totals": "G\u00f3c H1 T/X",
+        "corners_h1_spreads": "G\u00f3c H1 Ch\u00e2u \u00c1",
+    }
+
     _now = datetime.utcnow()
     _win_end = _now + timedelta(hours=24)
     _s = get_session()
     try:
+        # Count analyzed matches + leagues in 24h window
         scheduled_rows = (
             _s.query(Match.competition_code)
             .filter(
@@ -2350,35 +2358,99 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
             )
             .all()
         )
+        n_matches = len(scheduled_rows)
+        m_leagues = len({r[0] for r in scheduled_rows if r[0]})
+
+        # Fresh predictions from THIS session only
+        rows = (
+            _s.query(Prediction, Match)
+            .join(Match, Prediction.match_id == Match.match_id)
+            .filter(
+                Prediction.is_value_bet == True,
+                Prediction.model_probability >= 0.58,
+                Prediction.created_at >= session_started_at,
+                Match.utc_date >= _now,
+                Match.utc_date <= _win_end,
+            )
+            .order_by(Prediction.model_probability.desc())
+            .all()
+        )
+
+        kept: list[tuple] = []
+        filtered = 0
+        for p, m in rows:
+            mkt_for_check = "corner" if p.market in CORNER_MARKETS else p.market
+            vb = {
+                "ev": p.expected_value or 0,
+                "bookmaker": p.best_bookmaker or "",
+                "market": mkt_for_check,
+                "outcome": p.outcome or "",
+            }
+            susp, _ = _is_ev_suspicious(vb)
+            if susp:
+                filtered += 1
+                continue
+            if p.market == "h2h" and p.outcome == "Draw" and (p.model_probability or 0) > 0.40:
+                filtered += 1
+                continue
+            if (p.best_odds or 0) < 1.25:
+                filtered += 1
+                continue
+            if p.market in CORNER_MARKETS and (p.model_probability or 0) > 0.75:
+                filtered += 1
+                continue
+            kept.append((p, m))
+
+        top = kept[:30]
+
+        logger.info(
+            f"[phantich-ALL] user={user_id} done elapsed={elapsed:.1f}s "
+            f"picks_raw={len(picks)} rows_fetched={len(rows)} kept={len(kept)} "
+            f"top={len(top)} filtered_ao={filtered} odds_api_calls={used_calls}"
+        )
+
+        msg = (
+            f"\U0001f310 PH\u00c2N T\u00cdCH 24H T\u1edaI\n"
+            f"{'\u2501' * 17}\n"
+            f"\u0110\u00e3 ph\u00e2n t\u00edch: {n_matches} tr\u1eadn trong {m_leagues} gi\u1ea3i\n"
+            f"T\u00ecm \u0111\u01b0\u1ee3c: {len(kept)} k\u00e8o c\u00f3 Prob \u2265 58%\n"
+            f"\u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
+            f"\u23f1 {elapsed:.0f}s | \U0001f4ca {calls_str} Odds API calls\n"
+        )
+
+        if not top:
+            msg += (
+                "\n\u26a0\ufe0f Kh\u00f4ng c\u00f3 k\u00e8o Prob \u2265 58% "
+                "sau khi l\u1ecdc \u1ea3o."
+            )
+            await update.message.reply_text(msg)
+            return
+
+        msg += (
+            f"\n\U0001f3af TOP {len(top)} K\u00c8O PROB CAO "
+            f"(Prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
+            f"{'\u2500' * 17}\n"
+        )
+        for i, (p, m) in enumerate(top, 1):
+            league = LEAGUES.get(
+                m.competition_code or "",
+                m.competition_code or m.competition or "?",
+            )
+            when = m.utc_date.strftime("%d/%m %H:%M") if m.utc_date else "?"
+            mkt = MKT_NAMES.get(p.market, p.market)
+            prob = (p.model_probability or 0) * 100
+            ev = (p.expected_value or 0) * 100
+            odds = p.best_odds or 0
+            msg += (
+                f"\n#{i} {m.home_team} vs {m.away_team}\n"
+                f"\u23f0 {when} | \U0001f3c6 {league}\n"
+                f"\u279c {p.outcome} ({mkt}) @ {odds:.2f}\n"
+                f"\u2705 X\u00e1c su\u1ea5t th\u1eafng: {prob:.0f}%\n"
+                f"\U0001f4b0 Odds: {odds:.2f} | EV: {ev:+.1f}%\n"
+                f"\U0001f4ca {p.best_bookmaker or '?'}\n"
+            )
     finally:
         _s.close()
-    n_matches = len(scheduled_rows)
-    m_leagues = len({r[0] for r in scheduled_rows if r[0]})
-
-    msg = (
-        f"\U0001f310 PH\u00c2N T\u00cdCH 24H T\u1edaI\n"
-        f"{'\u2501' * 17}\n"
-        f"\u0110\u00e3 ph\u00e2n t\u00edch: {n_matches} tr\u1eadn trong {m_leagues} gi\u1ea3i\n"
-        f"T\u00ecm \u0111\u01b0\u1ee3c: {len(picks)} k\u00e8o gi\u00e1 tr\u1ecb\n"
-        f"\u23f1 {elapsed:.0f}s | \U0001f4ca {calls_str} Odds API calls\n"
-    )
-
-    if not top20:
-        msg += "\n\u26a0\ufe0f Kh\u00f4ng c\u00f3 k\u00e8o gi\u00e1 tr\u1ecb n\u00e0o (sau filter)."
-        await update.message.reply_text(msg)
-        return
-
-    msg += f"\n\U0001f3c6 TOP {len(top20)} K\u00c8O EV CAO NH\u1ea4T\n"
-    msg += f"{'\u2500' * 17}\n"
-    for i, p in enumerate(top20, 1):
-        msg += (
-            f"\n#{i} {p.get('home', '?')} vs {p.get('away', '?')}\n"
-            f"  \U0001f552 {p.get('time', '?')} | {p.get('league', '?')}\n"
-            f"  \u279c {p.get('outcome', '?')} ({p.get('market', '?')}) "
-            f"@ {p.get('odds', 0):.2f}\n"
-            f"    Prob: {p.get('prob', 0)*100:.0f}% | "
-            f"EV: {p.get('ev', 0)*100:+.1f}% | {p.get('bk', '?')}\n"
-        )
 
     await _send_chunked(update, msg)
 
