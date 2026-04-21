@@ -607,6 +607,11 @@ def run_analysis_pipeline() -> list[str]:
                     if USE_MATCH_CONTEXT == "on":
                         model_ctx = match_ctx
 
+                # Serialize once for every Prediction() save in this match
+                # (h2h + corners). match_ctx is truthy for every classified
+                # match — even no-flag matches store their tournament_stage.
+                match_ctx_json = json.dumps(match_ctx) if match_ctx else None
+
                 # Predict — fallback chain: fitted FD model → DB history → Pinnacle devig
                 prediction, match_low_conf = _fit_or_fallback(
                     model, league_code, match["home_team"], match["away_team"], odds_event, session,
@@ -683,7 +688,7 @@ def run_analysis_pipeline() -> list[str]:
                         weather_description=(weather_adj or {}).get("description") if weather_adj else None,
                         home_xg_estimate=prediction.get("home_xg"),
                         away_xg_estimate=prediction.get("away_xg"),
-                        match_context=json.dumps(match_ctx) if match_ctx else None,
+                        match_context=match_ctx_json,
                     )
                     session.add(pred)
 
@@ -774,6 +779,7 @@ def run_analysis_pipeline() -> list[str]:
                                         outcome=f"Over {line}", model_probability=o_prob,
                                         best_odds=co["over_price"], best_bookmaker=co.get("over_bk", "?"),
                                         expected_value=ev, confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
                     if co.get("under_price") and u_prob > 0:
                         ev = u_prob * co["under_price"] - 1
@@ -798,6 +804,7 @@ def run_analysis_pipeline() -> list[str]:
                                         outcome=f"Under {line}", model_probability=u_prob,
                                         best_odds=co["under_price"], best_bookmaker=co.get("under_bk", "?"),
                                         expected_value=ev, confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
 
                 # Corner AH value bets — main line only (matches what bookmaker displays)
@@ -834,6 +841,7 @@ def run_analysis_pipeline() -> list[str]:
                                         model_probability=h_prob, best_odds=cs["home_price"],
                                         best_bookmaker=cs.get("bk", "?"), expected_value=ev,
                                         confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
                     if a_prob > 0 and cs.get("away_price"):
                         ev = a_prob * cs["away_price"] - 1
@@ -860,6 +868,7 @@ def run_analysis_pipeline() -> list[str]:
                                         model_probability=a_prob, best_odds=cs["away_price"],
                                         best_bookmaker=cs.get("bk", "?"), expected_value=ev,
                                         confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
 
                 # === FIRST HALF CORNER VALUE BETS ===
@@ -899,6 +908,7 @@ def run_analysis_pipeline() -> list[str]:
                                         outcome=f"Over {line}", model_probability=o_prob,
                                         best_odds=co["over_price"], best_bookmaker=co.get("over_bk", "?"),
                                         expected_value=ev, confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
                     if co.get("under_price") and u_prob > 0:
                         ev = u_prob * co["under_price"] - 1
@@ -923,6 +933,7 @@ def run_analysis_pipeline() -> list[str]:
                                         outcome=f"Under {line}", model_probability=u_prob,
                                         best_odds=co["under_price"], best_bookmaker=co.get("under_bk", "?"),
                                         expected_value=ev, confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
 
                 # H1 corner AH value bets — main line only
@@ -959,6 +970,7 @@ def run_analysis_pipeline() -> list[str]:
                                         model_probability=h_prob, best_odds=cs["home_price"],
                                         best_bookmaker=cs.get("bk", "?"), expected_value=ev,
                                         confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
                     if a_prob > 0 and cs.get("away_price"):
                         ev = a_prob * cs["away_price"] - 1
@@ -985,6 +997,7 @@ def run_analysis_pipeline() -> list[str]:
                                         model_probability=a_prob, best_odds=cs["away_price"],
                                         best_bookmaker=cs.get("bk", "?"), expected_value=ev,
                                         confidence=conf, is_value_bet=True,
+                                        match_context=match_ctx_json,
                                     ))
 
             session.commit()
