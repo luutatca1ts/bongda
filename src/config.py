@@ -446,6 +446,16 @@ API_FOOTBALL_QUOTA_FLOOR = 20000
 # that DERBY_PAIRS isn't over/under-tagging before we let it steer probabilities.
 USE_MATCH_CONTEXT = "log_only"
 
+# Phase B2 — canonical team mapping gate.
+#   "off":      fetch xG by team name only (legacy path, no mapping lookup).
+#   "log_only": also fetch by api_id, log side-by-side comparison, but the
+#               model consumes the name-based result. Default — lets us see
+#               how often id-match vs name-match disagree before trusting it.
+#   "on":       prefer api_id lookup; fall back to name when api_id is NULL
+#               or the id-keyed bucket misses.
+# Populated by migrate_team_mapping.py + artifacts/team_mapping.json (Phase B1).
+USE_TEAM_MAPPING = "log_only"
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================

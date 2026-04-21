@@ -11,7 +11,7 @@ import hashlib
 from src.config import (
     LEAGUES, ODDS_SPORTS, FOOTBALL_DATA_LEAGUES, LOW_CONFIDENCE_LEAGUES,
     USE_DIXON_COLES, USE_BIVARIATE_POISSON, BIVARIATE_POISSON_LEAGUES,
-    API_FOOTBALL_QUOTA_FLOOR, USE_MATCH_CONTEXT,
+    API_FOOTBALL_QUOTA_FLOOR, USE_MATCH_CONTEXT, USE_TEAM_MAPPING,
 )
 from src.collectors.football_data import get_upcoming_matches, get_recent_results, get_xg_history
 from src.collectors.odds_api import get_odds, get_best_odds, get_corner_odds
@@ -21,6 +21,7 @@ from src.collectors.api_football import get_af_quota
 from src.analytics.injury_impact import summarize_injuries, count_key_players_out
 from src.analytics.weather_impact import calculate_weather_adjustment
 from src.analytics.match_context import classify_match, context_summary
+from src.analytics.team_mapping import lookup_api_id
 from src.models.poisson import PoissonModel, find_value_bets, get_confidence_tier
 from src.models.dixon_coles import DixonColesModel
 from src.models.bivariate_poisson import BivariatePoissonModel
@@ -245,35 +246,110 @@ def _align_xg_to_results(results: list[dict], xg_history: list[dict]) -> tuple[l
     differ by a few minutes. First name match wins; unmatched rows become
     None so DixonColesModel.fit() falls back to integer goals for them.
 
+    Phase B2 (USE_TEAM_MAPPING):
+      - "off":      name match only (legacy).
+      - "log_only": also build an id-keyed bucket, compare per row, log
+                    disagreements. Return value stays the name-match result.
+      - "on":       prefer id match, fall back to name match.
+
     Returns (aligned_list, coverage_fraction).
     """
     if not xg_history:
         return [None] * len(results), 0.0
 
-    buckets: dict[tuple[str, str], dict] = {}
+    # Name bucket (legacy)
+    name_bucket: dict[tuple[str, str], dict] = {}
     for x in xg_history:
         h = _normalize(x.get("home_team", ""))
         a = _normalize(x.get("away_team", ""))
         if h and a:
-            buckets[(h, a)] = x
+            name_bucket[(h, a)] = x
+
+    # Id bucket — only populated when team ids are present in xg_history
+    id_bucket: dict[tuple[int, int], dict] = {}
+    if USE_TEAM_MAPPING != "off":
+        for x in xg_history:
+            hi = x.get("home_team_id")
+            ai = x.get("away_team_id")
+            if hi and ai:
+                id_bucket[(int(hi), int(ai))] = x
+
+    def _name_match(r: dict) -> dict | None:
+        rh = _normalize(r.get("home_team", ""))
+        ra = _normalize(r.get("away_team", ""))
+        hit = name_bucket.get((rh, ra))
+        if hit:
+            return hit
+        for (xh, xa), xv in name_bucket.items():
+            if (rh in xh or xh in rh) and (ra in xa or xa in ra):
+                return xv
+        return None
+
+    def _id_match(r: dict) -> dict | None:
+        if not id_bucket:
+            return None
+        hi = r.get("home_api_id") or lookup_api_id(r.get("home_team", ""))
+        ai = r.get("away_api_id") or lookup_api_id(r.get("away_team", ""))
+        if hi and ai:
+            return id_bucket.get((int(hi), int(ai)))
+        return None
 
     aligned: list = []
     matched = 0
+
+    # log_only comparison counters (per-league summary at the end)
+    n_both_match = n_only_name = n_only_id = n_disagree = 0
+
     for r in results:
-        rh = _normalize(r.get("home_team", ""))
-        ra = _normalize(r.get("away_team", ""))
-        hit = buckets.get((rh, ra))
-        if not hit:
-            # Second pass: partial-token match
-            for (xh, xa), xv in buckets.items():
-                if (rh in xh or xh in rh) and (ra in xa or xa in ra):
-                    hit = xv
-                    break
+        name_hit = _name_match(r)
+        id_hit = _id_match(r) if USE_TEAM_MAPPING != "off" else None
+
+        if USE_TEAM_MAPPING != "off":
+            if name_hit and id_hit:
+                # Compare by (fixture_id if both have it) or (xg values)
+                same = (
+                    name_hit.get("utc_date") == id_hit.get("utc_date")
+                    and name_hit.get("home_xg") == id_hit.get("home_xg")
+                    and name_hit.get("away_xg") == id_hit.get("away_xg")
+                )
+                if same:
+                    n_both_match += 1
+                else:
+                    n_disagree += 1
+                    logger.info(
+                        "[MAPPING] %s vs %s: name/id disagree — "
+                        "by_name=(%s,%s xg=%.2f/%.2f) by_id=(%s,%s xg=%.2f/%.2f)",
+                        r.get("home_team"), r.get("away_team"),
+                        name_hit.get("home_team"), name_hit.get("away_team"),
+                        float(name_hit.get("home_xg") or 0),
+                        float(name_hit.get("away_xg") or 0),
+                        id_hit.get("home_team"), id_hit.get("away_team"),
+                        float(id_hit.get("home_xg") or 0),
+                        float(id_hit.get("away_xg") or 0),
+                    )
+            elif id_hit and not name_hit:
+                n_only_id += 1
+            elif name_hit and not id_hit:
+                n_only_name += 1
+
+        if USE_TEAM_MAPPING == "on":
+            hit = id_hit or name_hit
+        else:
+            # "off" and "log_only" both return the legacy name-match result
+            hit = name_hit
+
         if hit:
             aligned.append({"home_xg": hit["home_xg"], "away_xg": hit["away_xg"]})
             matched += 1
         else:
             aligned.append(None)
+
+    if USE_TEAM_MAPPING != "off" and results:
+        logger.info(
+            "[MAPPING] xG align summary mode=%s: both=%d name_only=%d id_only=%d disagree=%d of %d",
+            USE_TEAM_MAPPING, n_both_match, n_only_name, n_only_id, n_disagree, len(results),
+        )
+
     coverage = matched / len(results) if results else 0.0
     return aligned, coverage
 

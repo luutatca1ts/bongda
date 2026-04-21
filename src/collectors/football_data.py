@@ -172,8 +172,10 @@ def get_xg_history(league_code: str, days: int = 90) -> list[dict]:
         if not fid:
             continue
         teams = fix.get("teams", {}) or {}
-        home = (teams.get("home") or {}).get("name", "")
-        away = (teams.get("away") or {}).get("name", "")
+        home_blk = teams.get("home") or {}
+        away_blk = teams.get("away") or {}
+        home = home_blk.get("name", "")
+        away = away_blk.get("name", "")
         date_str = fix.get("fixture", {}).get("date")
         xg = get_xg_for_fixture(fid)
         if not xg:
@@ -181,6 +183,10 @@ def get_xg_history(league_code: str, days: int = 90) -> list[dict]:
         out.append({
             "home_team": home,
             "away_team": away,
+            # API-Football team ids — passed through so Phase B2 alignment
+            # can key on id instead of fuzzy name match.
+            "home_team_id": home_blk.get("id"),
+            "away_team_id": away_blk.get("id"),
             "home_xg": float(xg["home_xg"]),
             "away_xg": float(xg["away_xg"]),
             "utc_date": date_str,
