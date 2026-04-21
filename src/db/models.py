@@ -25,6 +25,16 @@ class Match(Base):
     away_goals = Column(Integer, nullable=True)
     status = Column(String, default="SCHEDULED")  # SCHEDULED, FINISHED
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Phase B2.1: canonical (API-Football) name + id per team for each side.
+    # Populated by migrate_team_mapping.py from artifacts/team_mapping.json.
+    # Nullable — a row may not have a mapping entry yet, and the pipeline
+    # must gracefully fall back to raw team name in that case.
+    home_canonical = Column(String, nullable=True)
+    away_canonical = Column(String, nullable=True)
+    home_api_id = Column(Integer, nullable=True)
+    away_api_id = Column(Integer, nullable=True)
+    home_league_id = Column(Integer, nullable=True)
+    away_league_id = Column(Integer, nullable=True)
 
 
 class Prediction(Base):
