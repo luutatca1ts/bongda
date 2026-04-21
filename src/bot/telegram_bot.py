@@ -466,6 +466,26 @@ _MKT_NAMES = {
     "corners_h1_spreads": "G\u00f3c H1 Ch\u00e2u \u00c1",
 }
 
+# Common club-name suffixes stripped when deduping fixtures that got ingested
+# under two different Match rows (e.g. "Oxford United" vs "Oxford United FC").
+_TEAM_SUFFIXES = (" fc", " afc", " cf", " sc", " ac", " fk", " sk", " ck",
+                  " hc", " bk", " if", " ff", " kf")
+
+
+def _canonical_team_key(name: str) -> str:
+    """Lowercase + strip common club suffixes so name variants collapse."""
+    if not name:
+        return ""
+    s = name.strip().lower()
+    changed = True
+    while changed:
+        changed = False
+        for suf in _TEAM_SUFFIXES:
+            if s.endswith(suf):
+                s = s[: -len(suf)].rstrip()
+                changed = True
+    return s
+
 
 def get_top_prob_picks(session, limit: int = 30) -> dict:
     """Shared query for /ancan and /phantich PH\u00c2N T\u00cdCH T\u1ea4T C\u1ea2 GI\u1ea2I.
@@ -534,10 +554,30 @@ def get_top_prob_picks(session, limit: int = 30) -> dict:
             continue
         kept.append((p, m))
 
+    # Dedup same fixture ingested under two Match rows (different competition_code
+    # or team-name variants like "Oxford United" vs "Oxford United FC"). Rows are
+    # already sorted by model_probability desc — first occurrence wins; subsequent
+    # duplicates on the same pick are dropped silently.
+    seen: set[tuple] = set()
+    deduped_rows: list[tuple] = []
+    dup_dropped = 0
+    for p, m in kept:
+        h = _canonical_team_key(m.home_team or "")
+        a = _canonical_team_key(m.away_team or "")
+        # Kickoff rounded to the minute — same real fixture should match.
+        ko = m.utc_date.replace(second=0, microsecond=0).isoformat() if m.utc_date else ""
+        key = (h, a, ko, p.market, p.outcome or "")
+        if key in seen:
+            dup_dropped += 1
+            continue
+        seen.add(key)
+        deduped_rows.append((p, m))
+
     return {
-        "top": kept[:limit],
-        "kept_total": len(kept),
+        "top": deduped_rows[:limit],
+        "kept_total": len(deduped_rows),
         "filtered": filtered,
+        "deduped": dup_dropped,
         "raw_total": len(rows),
         "total_matches_24h": total_matches_24h,
     }
@@ -617,7 +657,8 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(
             f"[ancan] query returned {raw_total} raw predictions, "
             f"after filter {result['kept_total']} survived, top {len(top)} displayed "
-            f"(filtered {filtered} ảo, total_matches_24h={total_matches_24h})"
+            f"(filtered {filtered} ảo, deduped {result.get('deduped', 0)}, "
+            f"total_matches_24h={total_matches_24h})"
         )
         await _send_chunked(update, header + body)
     finally:
@@ -2446,7 +2487,8 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
             f"[phantich_all] query returned {raw_total} raw predictions, "
             f"after filter {kept_total} survived, top {len(top)} displayed "
             f"(user={user_id} elapsed={elapsed:.1f}s picks_raw={len(picks)} "
-            f"filtered_ao={filtered} odds_api_calls={used_calls})"
+            f"filtered_ao={filtered} deduped={result.get('deduped', 0)} "
+            f"odds_api_calls={used_calls})"
         )
 
         has_negative_ev = any((p.expected_value or 0) < 0 for p, _ in top)
