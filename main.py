@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.db.models import init_db
-from src.bot.telegram_bot import create_bot_app, send_alert, check_quota_alert
+from src.bot.telegram_bot import create_bot_app, send_alert, check_quota_alert, initialize_subscribers
 from src.pipeline import run_analysis_pipeline, update_results, generate_daily_report
 from src.analytics.steam_detector import detect_steam_moves, format_steam_alert
 from src.analytics.clv import capture_closing_lines
@@ -128,6 +128,9 @@ def main():
 
     app = create_bot_app()
     logger.info("Telegram bot created.")
+
+    n_auth, n_sub = initialize_subscribers()
+    logger.info(f"[Startup] Loaded {n_auth} authenticated, {n_sub} subscribed from DB")
 
     async def run():
         async with app:

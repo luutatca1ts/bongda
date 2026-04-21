@@ -335,6 +335,24 @@ def _save_authenticated():
 _authenticated: set[int] = _load_authenticated()
 
 
+def initialize_subscribers() -> tuple[int, int]:
+    """Merge persisted (authenticated, subscribed) chat IDs from DB into
+    the in-memory sets. Called once at startup from main.py.
+
+    Returns (authenticated_count, subscribed_count) after merge. Safe to
+    call even if the DB/table is missing — falls back to the file-based
+    `.authenticated_chats` + empty subscribers that are already loaded.
+    """
+    try:
+        from src.db.subscribers import load_all_subscribers
+        authed_db, subbed_db = load_all_subscribers()
+        _authenticated.update(authed_db)
+        _subscribers.update(subbed_db)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[subscribers] initialize_subscribers failed: %s", e)
+    return len(_authenticated), len(_subscribers)
+
+
 def _is_authenticated(chat_id: int) -> bool:
     """Check if a chat is authenticated."""
     from src.config import BOT_PASSWORD
@@ -388,6 +406,11 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _authenticated.add(chat_id)
         _subscribers.add(chat_id)
         _save_authenticated()
+        try:
+            from src.db.subscribers import save_subscriber
+            save_subscriber(chat_id, True, True)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[subscribers] persist on /login failed: %s", e)
         await context.bot.send_message(
             chat_id,
             "\u2705 \u0110\u0103ng nh\u1eadp th\u00e0nh c\u00f4ng!\n\n"
@@ -402,6 +425,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _require_auth(update):
         return
     _subscribers.add(chat_id)
+    try:
+        from src.db.subscribers import save_subscriber
+        save_subscriber(chat_id, chat_id in _authenticated, True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[subscribers] persist on /start failed: %s", e)
     await update.message.reply_text(
         "\u26bd Football Analytics Bot\n"
         "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
