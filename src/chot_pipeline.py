@@ -72,11 +72,17 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
     """Best-effort fetch of context signals for a re-check. Display-only —
     never raises, never adjusts EV.
 
-    Returns a dict with three optional sub-blocks:
+    Returns a dict with four optional sub-blocks:
       * `injuries`: {"home_key_out": int, "away_key_out": int} or None
       * `lineup`:   {"has_lineup": bool, "home_formation": str,
                      "away_formation": str} or None
       * `xg`:       {"home": float, "away": float} or None
+      * `steam`:    {"market", "outcome", "direction", "bookmakers_count",
+                     "avg_drift_pct", "detected_at"} or None — only populated
+                     when detect_steam_moves() finds a "shortening" move that
+                     matches this pick's market+outcome (sharp money agrees
+                     with the pick). "drifting" direction is intentionally
+                     ignored to match pipeline.py semantics.
 
     Injuries + lineup need the API-Football fixture_id, which the Match
     model does NOT currently persist. We attempt to resolve it from the
@@ -84,7 +90,7 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
     signal if no id is available. xG comes from Prediction.home_xg_estimate
     / away_xg_estimate populated at Poisson time.
     """
-    out: dict = {"injuries": None, "lineup": None, "xg": None}
+    out: dict = {"injuries": None, "lineup": None, "xg": None, "steam": None}
 
     # --- xG form (from saved prediction λ) ---
     try:
@@ -195,6 +201,29 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
         except Exception as e:  # noqa: BLE001
             logger.debug(f"[chot] injuries signal skipped fixture={fixture_id}: {e}")
 
+    # --- Steam Move (Phase 3): match-scoped, same market+outcome, "shortening" only ---
+    # Mirrors pipeline.py:786 — sharp-money agreement with the pick. "drifting"
+    # is ignored here because a drifting pick is the opposite signal. First
+    # matching entry wins (detector already orders by drift magnitude).
+    try:
+        from src.analytics.steam_detector import detect_steam_moves
+        steams = detect_steam_moves(match_id_filter=match.match_id)
+        for s in steams or []:
+            if (s.get("market") == pred.market
+                    and s.get("outcome") == pred.outcome
+                    and s.get("direction") == "shortening"):
+                out["steam"] = {
+                    "market": s.get("market"),
+                    "outcome": s.get("outcome"),
+                    "direction": s.get("direction"),
+                    "bookmakers_count": s.get("bookmakers_count", 0),
+                    "avg_drift_pct": s.get("avg_drift_pct"),
+                    "detected_at": s.get("detected_at"),
+                }
+                break
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[chot] steam signal skipped match_id={match.match_id}: {e}")
+
     return out
 
 
@@ -231,6 +260,13 @@ def _format_signals_block(signals: dict) -> str:
             f"{emoji} Injuries: {inj['home_key_out']} nhà / "
             f"{inj['away_key_out']} khách (key out)"
         )
+
+    sm = signals.get("steam")
+    if sm:
+        bk = sm.get("bookmakers_count", 0)
+        drift = sm.get("avg_drift_pct")
+        drift_str = f"{drift:+.1f}%" if isinstance(drift, (int, float)) else "n/a"
+        lines.append(f"🔥 Steam Move: {bk} BK cùng hướng ({drift_str}) — ủng hộ pick")
     return "\n".join(lines)
 
 
