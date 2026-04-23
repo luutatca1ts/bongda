@@ -1,6 +1,10 @@
 """Collector for API-Football (api-sports.io) — live match statistics."""
 
 import logging
+import time
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
 import requests
 from src.config import API_FOOTBALL_KEY, API_FOOTBALL_LEAGUES
 
@@ -82,6 +86,130 @@ def get_live_fixtures(league_code: str = None) -> list[dict]:
     except Exception as e:
         logger.error(f"[API-Football] Live fixtures failed: {e}")
         return []
+
+
+# ------------------------------------------------------------------
+# Pre-match fixture_id resolver (Phase 2.1)
+# ------------------------------------------------------------------
+# In-memory cache keyed by (home_api_id, away_api_id, kickoff_date_iso).
+# Both hits and misses are cached — negative caching prevents quota waste
+# when the same /chot cycle re-checks a pick we already know is unresolvable.
+_PREMATCH_FIXTURE_CACHE: dict[tuple[int, int, str], tuple[Optional[int], float]] = {}
+_PREMATCH_CACHE_TTL_SEC = 3600  # 1 hour
+
+
+def resolve_fixture_id_prematch(
+    home_api_id: int,
+    away_api_id: int,
+    kickoff_utc: datetime,
+    league_api_id: Optional[int] = None,
+) -> Optional[int]:
+    """Resolve API-Football fixture_id for a scheduled (pre-match) fixture.
+
+    Queries `/fixtures?date=YYYY-MM-DD[&league=X]&season=Y` and matches on
+    the home/away API-Football team IDs. Tries the kickoff's UTC date, then
+    ±1 day to cover timezone-drift edge cases (a 23:00 UTC kickoff can be
+    the "next day" in API-Football's local time).
+
+    Season rolls over on 1 July: month ≥ 7 uses the current year, otherwise
+    year - 1 (matches the typical Aug→May European season convention).
+    Leagues with a calendar-year season may miss — acceptable; resolver
+    returns None and caller falls back to skipping lineup/injury signals.
+
+    Caching:
+        Results (including None) are cached for 1 hour by
+        (home_api_id, away_api_id, kickoff_date).
+
+    Args:
+        home_api_id: API-Football team ID (Match.home_api_id).
+        away_api_id: API-Football team ID (Match.away_api_id).
+        kickoff_utc: scheduled kickoff (Match.utc_date). Naive datetimes
+            are assumed to already be UTC.
+        league_api_id: API-Football league ID (Match.home_league_id).
+            Optional but strongly recommended — narrows the query and
+            saves quota.
+
+    Returns:
+        int fixture_id on match, None on miss / API error / missing key.
+    """
+    if not API_FOOTBALL_KEY:
+        return None
+    if not home_api_id or not away_api_id:
+        return None
+
+    # Normalise kickoff → UTC date.
+    if kickoff_utc.tzinfo is None:
+        kickoff_utc = kickoff_utc.replace(tzinfo=timezone.utc)
+    kickoff_date = kickoff_utc.astimezone(timezone.utc).date()
+    date_iso = kickoff_date.isoformat()
+
+    cache_key = (int(home_api_id), int(away_api_id), date_iso)
+    now = time.time()
+    cached = _PREMATCH_FIXTURE_CACHE.get(cache_key)
+    if cached is not None:
+        fid, cached_at = cached
+        if now - cached_at < _PREMATCH_CACHE_TTL_SEC:
+            logger.debug(
+                f"[prematch_resolver] cache HIT {cache_key} → {fid}"
+            )
+            return fid
+
+    dates_to_try = [
+        date_iso,
+        (kickoff_date - timedelta(days=1)).isoformat(),
+        (kickoff_date + timedelta(days=1)).isoformat(),
+    ]
+    season = kickoff_date.year if kickoff_date.month >= 7 else kickoff_date.year - 1
+
+    found_fid: Optional[int] = None
+    for d in dates_to_try:
+        try:
+            params: dict = {"date": d, "season": season}
+            if league_api_id:
+                params["league"] = int(league_api_id)
+            resp = _session.get(
+                f"{BASE_URL}/fixtures",
+                params=params,
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    f"[prematch_resolver] /fixtures HTTP {resp.status_code} "
+                    f"for date={d} league={league_api_id}"
+                )
+                continue
+            _update_af_quota(resp)
+            data = resp.json()
+            for item in data.get("response", []) or []:
+                teams = item.get("teams", {}) or {}
+                h_id = (teams.get("home") or {}).get("id")
+                a_id = (teams.get("away") or {}).get("id")
+                if h_id == int(home_api_id) and a_id == int(away_api_id):
+                    fid = (item.get("fixture") or {}).get("id")
+                    if fid:
+                        found_fid = int(fid)
+                        logger.info(
+                            f"[prematch_resolver] HIT home={home_api_id} "
+                            f"away={away_api_id} date={d} "
+                            f"→ fixture_id={found_fid}"
+                        )
+                        break
+            if found_fid:
+                break
+        except Exception as e:  # noqa: BLE001
+            logger.debug(
+                f"[prematch_resolver] error for date={d}: {e}"
+            )
+            continue
+
+    if found_fid is None:
+        logger.debug(
+            f"[prematch_resolver] MISS home={home_api_id} "
+            f"away={away_api_id} date={date_iso} league={league_api_id}"
+        )
+
+    _PREMATCH_FIXTURE_CACHE[cache_key] = (found_fid, now)
+    return found_fid
 
 
 def get_fixture_stats(fixture_id: int) -> dict:

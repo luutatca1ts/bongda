@@ -95,7 +95,7 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
     except Exception as e:  # noqa: BLE001
         logger.debug(f"[chot] xg signal skipped pred_id={pred.id}: {e}")
 
-    # --- Try to resolve API-Football fixture_id from LiveMatchState ---
+    # --- Tier 1: LiveMatchState (authoritative for live, populated by live pipeline) ---
     fixture_id: Optional[int] = None
     try:
         from src.db.models import LiveMatchState, get_session as _gs
@@ -114,6 +114,44 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
             s.close()
     except Exception as e:  # noqa: BLE001
         logger.debug(f"[chot] fixture_id lookup failed for match_id={match.match_id}: {e}")
+
+    # --- Tier 2 (Phase 2.1): pre-match resolver via API-Football /fixtures ---
+    # Only runs when LiveMatchState missed (pre-match scenario). Gated by flag:
+    #   log_only = call resolver + log result, but DON'T assign fixture_id.
+    #   on       = call resolver + assign fixture_id → lineup/injuries fire.
+    if fixture_id is None:
+        try:
+            from src.config import USE_PREMATCH_FIXTURE_RESOLVER
+            flag = USE_PREMATCH_FIXTURE_RESOLVER
+        except Exception:
+            flag = "off"
+        if flag in ("log_only", "on") and match.home_api_id and match.away_api_id and match.utc_date:
+            try:
+                from src.collectors.api_football import resolve_fixture_id_prematch
+                resolved = resolve_fixture_id_prematch(
+                    home_api_id=int(match.home_api_id),
+                    away_api_id=int(match.away_api_id),
+                    kickoff_utc=match.utc_date,
+                    league_api_id=int(match.home_league_id) if match.home_league_id else None,
+                )
+                if flag == "log_only":
+                    logger.info(
+                        f"[chot][prematch_resolver][LOG_ONLY] "
+                        f"match_id={match.match_id} "
+                        f"{match.home_team} vs {match.away_team} "
+                        f"→ resolved={resolved} (NOT assigned)"
+                    )
+                elif flag == "on" and resolved:
+                    fixture_id = resolved
+                    logger.info(
+                        f"[chot][prematch_resolver][ON] "
+                        f"match_id={match.match_id} "
+                        f"fixture_id={resolved} assigned"
+                    )
+            except Exception as e:  # noqa: BLE001
+                logger.debug(
+                    f"[chot][prematch_resolver] error match_id={match.match_id}: {e}"
+                )
 
     # --- Lineup (needs fixture_id) ---
     if fixture_id:

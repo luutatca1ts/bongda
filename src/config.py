@@ -456,6 +456,15 @@ USE_MATCH_CONTEXT = "log_only"
 # Populated by migrate_team_mapping.py + artifacts/team_mapping.json (Phase B1).
 USE_TEAM_MAPPING = "log_only"
 
+# Phase 2.1 — pre-match fixture_id resolver for /chot lineup + injuries.
+#   "off":      resolver never called, /chot only uses LiveMatchState (legacy).
+#   "log_only": resolver called, hit rate + quota logged, but fixture_id NOT
+#               assigned to the signals collector. Safe observation mode.
+#   "on":       resolver called, fixture_id assigned → lineup + injuries actually
+#               fire pre-match.
+# Flip to "on" only after measuring hit rate + quota delta from log_only logs.
+USE_PREMATCH_FIXTURE_RESOLVER = "log_only"
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================
