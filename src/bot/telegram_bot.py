@@ -3,7 +3,7 @@
 import logging
 import math
 from pathlib import Path
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, MenuButtonCommands
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -4091,6 +4091,7 @@ async def _post_init(app: Application) -> None:
         await app.bot.set_my_commands(
             [BotCommand(name, desc) for name, desc in _BOT_MENU_COMMANDS]
         )
+        await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
         logger.info(f"[startup] set_my_commands published {len(_BOT_MENU_COMMANDS)} commands")
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[startup] set_my_commands failed: {e}")
