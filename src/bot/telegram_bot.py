@@ -934,6 +934,25 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Stats
             total_preds = len(preds)
             value_bets = [p for p in preds if p.is_value_bet]
+
+            # Apply anti-ảo filter — mirror /ancan rules so /history only counts
+            # picks /ancan would actually have surfaced. Rule 3 matches "corner"
+            # substring against raw ORM market values ("corners_totals" etc.)
+            # so no VN-label mapping is needed here.
+            picks_for_filter = [{
+                "ev": p.expected_value or 0.0,
+                "bk": p.best_bookmaker or "",
+                "market": p.market or "",
+                "outcome": p.outcome or "",
+                "odds": p.best_odds or 0.0,
+                "home": "?",
+                "away": "?",
+                "_pred": p,
+            } for p in value_bets]
+            kept_dicts, n_filtered = _filter_suspicious_picks(picks_for_filter, label="history")
+            value_bets = [d["_pred"] for d in kept_dicts]
+            kept_pred_ids = {p.id for p in value_bets}
+
             n_value = len(value_bets)
             n_win = sum(1 for p in value_bets if p.result == "WIN")
             n_lose = sum(1 for p in value_bets if p.result == "LOSE")
@@ -968,6 +987,8 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += f"  Trận phân tích: {len(match_map)}\n"
             msg += f"  Tổng dự đoán: {total_preds}\n"
             msg += f"  Value bets: {n_value}\n"
+            if n_filtered > 0:
+                msg += f"  Đã lọc anti-ảo: {n_filtered}\n"
             if n_win + n_lose > 0:
                 msg += f"  Tỉ lệ thắng: {win_rate:.1f}% ({n_win}W / {n_lose}L"
                 if n_push:
@@ -1036,7 +1057,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     score = ""
                     league = ""
 
-                vb = [p for p in match_preds if p.is_value_bet]
+                vb = [p for p in match_preds if p.is_value_bet and p.id in kept_pred_ids]
                 if not vb:
                     continue
 
