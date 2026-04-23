@@ -83,6 +83,10 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
                      matches this pick's market+outcome (sharp money agrees
                      with the pick). "drifting" direction is intentionally
                      ignored to match pipeline.py semantics.
+      * `weather`:  {"description": str, "total_goals_adjust": float} or None —
+                     only populated when venue coords resolve AND the forecast
+                     produces a meaningful adjustment. Silent on miss (no
+                     N/A line) because venue coverage is partial by design.
 
     Injuries + lineup need the API-Football fixture_id, which the Match
     model does NOT currently persist. We attempt to resolve it from the
@@ -90,7 +94,8 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
     signal if no id is available. xG comes from Prediction.home_xg_estimate
     / away_xg_estimate populated at Poisson time.
     """
-    out: dict = {"injuries": None, "lineup": None, "xg": None, "steam": None}
+    out: dict = {"injuries": None, "lineup": None, "xg": None,
+                 "steam": None, "weather": None}
 
     # --- xG form (from saved prediction λ) ---
     try:
@@ -224,6 +229,34 @@ def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
     except Exception as e:  # noqa: BLE001
         logger.debug(f"[chot] steam signal skipped match_id={match.match_id}: {e}")
 
+    # --- Weather (Phase 3.1): silent on missing venue coords or negligible adjust ---
+    # Same triple-gate pattern as pipeline.py:397-410. Note import split:
+    # get_venue_coords/get_weather_forecast/is_weather_enabled live in
+    # src.collectors.weather, but calculate_weather_adjustment lives in
+    # src.analytics.weather_impact (pipeline.py:19+22).
+    try:
+        from src.collectors.weather import (
+            get_venue_coords,
+            get_weather_forecast,
+            is_weather_enabled,
+        )
+        from src.analytics.weather_impact import calculate_weather_adjustment
+        if is_weather_enabled():
+            lat, lon = get_venue_coords(match.home_team or "")
+            if lat is not None and lon is not None:
+                weather_raw = get_weather_forecast(lat, lon, match.utc_date)
+                if weather_raw:
+                    weather_adj = calculate_weather_adjustment(weather_raw)
+                    if weather_adj:
+                        out["weather"] = {
+                            "description": (weather_adj or {}).get("description", "") or "",
+                            "total_goals_adjust": float(
+                                (weather_adj or {}).get("total_goals_adjust", 0.0) or 0.0
+                            ),
+                        }
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[chot] weather signal skipped match_id={match.match_id}: {e}")
+
     return out
 
 
@@ -267,6 +300,31 @@ def _format_signals_block(signals: dict) -> str:
         drift = sm.get("avg_drift_pct")
         drift_str = f"{drift:+.1f}%" if isinstance(drift, (int, float)) else "n/a"
         lines.append(f"🔥 Steam Move: {bk} BK cùng hướng ({drift_str}) — ủng hộ pick")
+
+    # --- Weather display (Phase 3.1): silent when no venue / no meaningful shift ---
+    # adj ≤ -0.1 → 🌧 (suppresses goals), adj ≥ +0.1 → 🌤 (rare, boosts goals),
+    # otherwise 🌦 when description is worth showing. 0.05 noise floor on adj
+    # (description-only lines still pass).
+    wx = signals.get("weather")
+    if wx:
+        desc = (wx.get("description") or "").strip()
+        adj = wx.get("total_goals_adjust", 0.0) or 0.0
+        if desc or abs(adj) >= 0.05:
+            if adj <= -0.1:
+                emoji = "🌧"
+                arrow = f"({adj:+.2f} goals)"
+            elif adj >= 0.1:
+                emoji = "🌤"
+                arrow = f"({adj:+.2f} goals)"
+            else:
+                emoji = "🌦"
+                arrow = ""
+            if desc and arrow:
+                lines.append(f"{emoji} Weather: {desc} {arrow}")
+            elif desc:
+                lines.append(f"{emoji} Weather: {desc}")
+            elif arrow:
+                lines.append(f"{emoji} Weather: shift {arrow}")
     return "\n".join(lines)
 
 
