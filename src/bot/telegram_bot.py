@@ -924,6 +924,21 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có phân tích\n")
                 continue
 
+            # Keep only preds that /chot actually pushed (≥1 row in chot_reanalysis).
+            # Feedback loop: /history becomes a scoreboard of pre-match /chot picks,
+            # not of every value-bet the pipeline ever emitted. One pred can have
+            # several reanalyses — distinct() collapses them to an id set.
+            chot_pred_ids = {
+                r[0] for r in session.query(ChotReanalysis.prediction_id)
+                .filter(ChotReanalysis.prediction_id.in_([p.id for p in preds]))
+                .distinct()
+                .all()
+            }
+            preds = [p for p in preds if p.id in chot_pred_ids]
+            if not preds:
+                all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có kèo /chot\n")
+                continue
+
             # Group by match
             match_map = {}
             for p in preds:
