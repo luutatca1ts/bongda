@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 
 from src.config import TELEGRAM_BOT_TOKEN
-from src.db.models import get_session, Bookmaker, Prediction, Match, DailyReport
+from src.db.models import get_session, Bookmaker, Prediction, Match, DailyReport, ChotReanalysis
 from src.pipeline import _match_teams, _match_event, _is_ev_suspicious
 from src.bot.formatters import (
     format_bookmaker_list,
@@ -660,6 +660,68 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"(filtered {filtered} ảo, deduped {result.get('deduped', 0)}, "
             f"total_matches_24h={total_matches_24h})"
         )
+        await _send_chunked(update, header + body)
+    finally:
+        session.close()
+
+
+async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hiển thị 30 lượt re-check kèo gần nhất (24h qua) từ scheduler /chot."""
+    if not await _require_auth(update):
+        return
+    from datetime import datetime, timedelta
+
+    DECISION_ICON = {
+        "keep": "✅",
+        "better": "\U0001f7e2",
+        "worse": "⚠️",
+        "drop": "❌",
+    }
+    DECISION_LABEL = {
+        "keep": "GIỮ",
+        "better": "ODDS TỐT HƠN",
+        "worse": "ODDS XẤU ĐI",
+        "drop": "BỎ KÈO",
+    }
+
+    session = get_session()
+    try:
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        rows = (
+            session.query(ChotReanalysis, Prediction, Match)
+            .join(Prediction, Prediction.id == ChotReanalysis.prediction_id)
+            .join(Match, Match.match_id == ChotReanalysis.match_id)
+            .filter(ChotReanalysis.reanalyzed_at >= cutoff)
+            .order_by(ChotReanalysis.reanalyzed_at.desc())
+            .limit(30)
+            .all()
+        )
+        if not rows:
+            await update.message.reply_text(
+                "\U0001f4ed Chưa có kèo nào được re-check trong 24h qua."
+            )
+            return
+
+        header = (
+            f"\U0001f3af RE-CHECK KÈO (24h qua, {len(rows)} lượt)\n"
+            f"━━━━━━━━━━━━━━━\n"
+        )
+        body = ""
+        for i, (chot, p, m) in enumerate(rows, 1):
+            icon = DECISION_ICON.get(chot.decision, "•")
+            label = DECISION_LABEL.get(chot.decision, chot.decision or "?")
+            mkt = _MKT_NAMES.get(p.market, p.market)
+            old_ev = (chot.old_ev or 0) * 100
+            new_ev = (chot.new_ev or 0) * 100
+            when = chot.reanalyzed_at.strftime("%d/%m %H:%M") if chot.reanalyzed_at else "?"
+            body += (
+                f"\n#{i} {icon} {label}\n"
+                f"⚽ {m.home_team} vs {m.away_team}\n"
+                f"➜ {p.outcome} ({mkt})\n"
+                f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
+                f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%\n"
+                f"⏱ {when}\n"
+            )
         await _send_chunked(update, header + body)
     finally:
         session.close()
@@ -4024,6 +4086,7 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("live", cmd_live))
     app.add_handler(CommandHandler("ancan", cmd_ancan))
     app.add_handler(CommandHandler("dethang", cmd_ancan))
+    app.add_handler(CommandHandler("chot", cmd_chot))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CallbackQueryHandler(callback_league_picker))
 

@@ -122,6 +122,16 @@ async def scheduled_daily_report(app):
         logger.error(f"[Scheduler] Daily report failed: {e}", exc_info=True)
 
 
+async def scheduled_chot_reanalysis(app):
+    """Pre-match odds re-check — runs every 5 min, picks with kickoff in 30-90 min."""
+    logger.info("[Scheduler] Running chot re-analysis...")
+    try:
+        from src.chot_pipeline import run_chot_cycle
+        await run_chot_cycle(app)
+    except Exception as e:
+        logger.error(f"[Scheduler] Chot re-analysis failed: {e}", exc_info=True)
+
+
 def main():
     init_db()
     logger.info("Database initialized.")
@@ -209,10 +219,19 @@ def main():
                 id="daily_report",
                 name="Daily Report",
             )
+            scheduler.add_job(
+                scheduled_chot_reanalysis,
+                "interval",
+                minutes=5,
+                args=[app],
+                id="chot_reanalysis",
+                name="Chot Pre-Match Re-analysis",
+            )
             scheduler.start()
             logger.info(
                 "Scheduler started: analysis/30min, results/2h, steam/15min, "
-                "clv/15min, cleanup/03:30, live/2min (18-06h), report/23:00"
+                "clv/15min, cleanup/03:30, live/2min (18-06h), report/23:00, "
+                "chot/5min"
             )
 
             # Keep running

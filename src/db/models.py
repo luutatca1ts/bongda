@@ -164,6 +164,29 @@ class OddsHistory(Base):
     )
 
 
+class ChotReanalysis(Base):
+    """Pre-match odds re-check for a Prediction (kickoff in 30-90 min).
+
+    Written by src/chot_pipeline.py once per (prediction_id, cycle). The bot
+    re-fetches latest odds from The Odds API, recomputes EV against the saved
+    model_probability, and stores the decision (keep / better / worse / drop).
+    Each row also drives a Telegram broadcast.
+    """
+    __tablename__ = "chot_reanalysis"
+
+    id = Column(Integer, primary_key=True)
+    prediction_id = Column(Integer, index=True)
+    match_id = Column(Integer, index=True)
+    old_odds = Column(Float)
+    new_odds = Column(Float)
+    old_ev = Column(Float)
+    new_ev = Column(Float)
+    old_bookmaker = Column(String, nullable=True)
+    new_bookmaker = Column(String, nullable=True)
+    decision = Column(String)  # 'keep' | 'better' | 'worse' | 'drop'
+    reanalyzed_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 # Engine & Session
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
