@@ -54,6 +54,11 @@ _ALIASES = {
     "paris saint-germain": "psg",
     "real sociedad de futbol": "real sociedad",
     "real betis balompie": "real betis",
+    "rcd espanyol": "espanyol",
+    "espanyol de barcelona": "espanyol",
+    "real club deportivo espanyol": "espanyol",
+    "athletic club": "athletic bilbao",
+    "athletic club de bilbao": "athletic bilbao",
 }
 
 
