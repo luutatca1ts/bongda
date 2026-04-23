@@ -9,9 +9,9 @@ Phase 1 scope (kept narrow on purpose):
   * Decide keep / better / worse / drop, broadcast to subscribers,
     persist a ChotReanalysis row.
 
-Markets supported in Phase 1: `h2h`, `totals`. Other markets (spreads,
-asian_handicap, corners_*) are skipped — line/handicap re-matching needs
-the corner pipeline + spread-pair logic and is deferred to Phase 2.
+Phase 2.2: Now supports h2h, totals, spreads, asian_handicap,
+corners_totals, corners_spreads. Line drift handled: if the original
+line is unavailable, picks the nearest line and flags in decision_note.
 """
 
 from __future__ import annotations
@@ -31,8 +31,19 @@ from src.db.models import (
 logger = logging.getLogger(__name__)
 
 
-# Phase 1: only these markets are re-checked. Others are logged + skipped.
-_SUPPORTED_MARKETS = {"h2h", "totals"}
+# Markets re-checked by /chot. Goals AH has two legacy keys (`spreads` and
+# `asian_handicap`) produced by different code paths — both map onto
+# get_spread_pairs(). H1 corners (`corners_h1_*`) are NOT included: The Odds
+# API plan does not expose a separate H1-corner endpoint, so we'd have no
+# fresh odds to re-check against.
+_SUPPORTED_MARKETS = {
+    "h2h", "totals",
+    "spreads", "asian_handicap",
+    "corners_totals", "corners_spreads",
+}
+
+_AH_MARKETS = {"spreads", "asian_handicap"}
+_CORNER_MARKETS = {"corners_totals", "corners_spreads"}
 
 # Decision thresholds (absolute EV diff in fraction units, e.g. 0.02 = 2%).
 _EV_BAND = 0.02
@@ -198,15 +209,22 @@ def _decide(old_ev: float, new_ev: float) -> tuple[str, str]:
     return "worse", "⚠️ ODDS XẤU ĐI"
 
 
-def _decision_note(decision: str, old_ev: float, new_ev: float) -> str:
+def _decision_note(decision: str, old_ev: float, new_ev: float,
+                   drift: Optional[dict] = None) -> str:
     diff_pct = (new_ev - old_ev) * 100
     if decision == "drop":
-        return f"EV mới {new_ev*100:+.1f}% ≤ 0"
-    if decision == "better":
-        return f"EV tăng {diff_pct:+.1f} điểm"
-    if decision == "worse":
-        return f"EV giảm {diff_pct:+.1f} điểm"
-    return "EV gần như không đổi"
+        base = f"EV mới {new_ev*100:+.1f}% ≤ 0"
+    elif decision == "better":
+        base = f"EV tăng {diff_pct:+.1f} điểm"
+    elif decision == "worse":
+        base = f"EV giảm {diff_pct:+.1f} điểm"
+    else:
+        base = "EV gần như không đổi"
+    if drift:
+        old_ln = drift.get("old_line")
+        new_ln = drift.get("new_line")
+        base += f" | line {old_ln:+g} → {new_ln:+g}"
+    return base
 
 
 def _find_event(events: list[dict], home: str, away: str,
@@ -237,22 +255,212 @@ def _find_event(events: list[dict], home: str, away: str,
     return None
 
 
-def _extract_new_odds(event: dict, market: str, outcome: str) -> tuple[Optional[float], Optional[str]]:
-    """Phase 1: only h2h + totals. Returns (price, bookmaker_name) or (None, None)."""
-    from src.collectors.odds_api import get_best_odds
+import re as _re
+
+# Accept "Home +0.5", "Away -0.25", "Oviedo +0.5", "Rayo -0.25", and the
+# fallback "AH +0.5 Oviedo" format emitted by find_value_bets when the
+# bookmaker outcome can't be mapped to Home/Away.
+_AH_RE_SUFFIX = _re.compile(r"^(.*?)[\s]+([+-]?\d+(?:\.\d+)?)\s*$")
+_AH_RE_PREFIX = _re.compile(r"^\s*AH\s+([+-]?\d+(?:\.\d+)?)\s+(.+?)\s*$", _re.IGNORECASE)
+_TOTALS_RE = _re.compile(r"^\s*(over|under)\s+([+-]?\d+(?:\.\d+)?)\s*$", _re.IGNORECASE)
+
+
+def _parse_ah_outcome(outcome: str) -> Optional[tuple[str, float]]:
+    """Parse an Asian-Handicap outcome string.
+
+    Accepts:
+      * "Home +0.5" / "Away -0.25"            → ("Home", 0.5) / ("Away", -0.25)
+      * "Oviedo +0.5" / "Rayo -0.25"          → ("Oviedo", 0.5) / ("Rayo", -0.25)
+      * "AH +0.5 Oviedo"  (legacy fallback)   → ("Oviedo", 0.5)
+    Returns None if the string doesn't parse.
+    """
+    if not outcome:
+        return None
+    m = _AH_RE_PREFIX.match(outcome)
+    if m:
+        try:
+            return m.group(2).strip(), float(m.group(1))
+        except ValueError:
+            return None
+    m = _AH_RE_SUFFIX.match(outcome)
+    if m:
+        try:
+            return m.group(1).strip(), float(m.group(2))
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_totals_outcome(outcome: str) -> Optional[tuple[str, float]]:
+    """Parse an Over/Under outcome string: "Over 9.5" → ("over", 9.5)."""
+    if not outcome:
+        return None
+    m = _TOTALS_RE.match(outcome)
+    if not m:
+        return None
+    try:
+        return m.group(1).lower(), float(m.group(2))
+    except ValueError:
+        return None
+
+
+def _nearest(lines: list[float], target: float) -> Optional[float]:
+    """Return the element of `lines` with the smallest |x - target|, or None."""
+    if not lines:
+        return None
+    return min(lines, key=lambda x: abs(x - target))
+
+
+def _extract_new_odds(event: dict, market: str, outcome: str
+                      ) -> tuple[Optional[float], Optional[str], Optional[dict]]:
+    """Return (price, bookmaker_name, drift_info) or (None, None, None).
+
+    `drift_info` (when present) describes a line/point swap when the
+    original pick's line is no longer quoted and the nearest-line
+    fallback is used. Shape:
+        {"old_line": 0.5, "new_line": 0.25, "side": "Home"}
+    `drift_info` is None when the line matched exactly (or when the
+    market has no notion of a line — h2h).
+
+    Markets handled:
+      * h2h, totals        → get_best_odds
+      * spreads / asian_handicap → get_spread_pairs (Pinnacle pair)
+      * corners_totals     → event["_corners"]["totals"]  (set by caller)
+      * corners_spreads    → event["_corners"]["spreads"] (set by caller)
+
+    Returns (None, None, None) on any failure — caller treats it as "no
+    fresh odds, skip this pick".
+    """
+    from src.collectors.odds_api import get_best_odds, get_spread_pairs
 
     if market not in _SUPPORTED_MARKETS:
-        return None, None
-    book_dict = get_best_odds(event, market)
-    if not book_dict:
-        return None, None
-    info = book_dict.get(outcome)
-    if not info:
-        return None, None
-    price = info.get("price")
-    if not price:
-        return None, None
-    return float(price), info.get("bookmaker")
+        return None, None, None
+
+    # --- h2h + totals: direct best-odds lookup ---
+    if market in ("h2h", "totals"):
+        book_dict = get_best_odds(event, market) or {}
+        info = book_dict.get(outcome)
+        if not info:
+            return None, None, None
+        price = info.get("price")
+        if not price:
+            return None, None, None
+        return float(price), info.get("bookmaker"), None
+
+    # --- Goals AH: Pinnacle pair ---
+    if market in _AH_MARKETS:
+        parsed = _parse_ah_outcome(outcome)
+        if not parsed:
+            return None, None, None
+        side_hint, pick_line = parsed
+        pairs = get_spread_pairs(event) or []
+        if not pairs:
+            return None, None, None
+        pair = pairs[0]
+        # Decide which side of the pair matches the original pick.
+        side_label_lc = side_hint.lower()
+        home_name = (pair.get("home_name") or "").lower()
+        away_name = (pair.get("away_name") or "").lower()
+        home_ev_team = (event.get("home_team") or "").lower()
+        away_ev_team = (event.get("away_team") or "").lower()
+
+        chosen_side = None  # "home" | "away"
+        if side_label_lc in ("home",) or side_label_lc == home_ev_team or side_label_lc == home_name:
+            chosen_side = "home"
+        elif side_label_lc in ("away",) or side_label_lc == away_ev_team or side_label_lc == away_name:
+            chosen_side = "away"
+        else:
+            # Fall back to point-sign: favourite (negative point) is typically home
+            # when points aren't symmetric. Use abs-point match as a secondary
+            # tiebreaker: the side whose point is closer to pick_line wins.
+            if abs(pair.get("home_point", 0) - pick_line) <= abs(pair.get("away_point", 0) - pick_line):
+                chosen_side = "home"
+            else:
+                chosen_side = "away"
+
+        new_point = pair.get(f"{chosen_side}_point")
+        new_price = pair.get(f"{chosen_side}_price")
+        if new_price is None or new_point is None:
+            return None, None, None
+        drift = None
+        if abs(new_point - pick_line) >= 0.01:
+            drift = {
+                "old_line": pick_line,
+                "new_line": float(new_point),
+                "side": side_hint,
+            }
+        return float(new_price), pair.get("bookmaker"), drift
+
+    # --- Corner totals: nearest line ---
+    if market == "corners_totals":
+        parsed = _parse_totals_outcome(outcome)
+        if not parsed:
+            return None, None, None
+        ou, pick_line = parsed
+        corners = (event.get("_corners") or {}).get("totals") or {}
+        if not corners:
+            return None, None, None
+        if pick_line in corners:
+            new_line = pick_line
+        else:
+            new_line = _nearest(list(corners.keys()), pick_line)
+            if new_line is None:
+                return None, None, None
+        info = corners.get(new_line) or {}
+        if ou == "over":
+            price = info.get("over_price")
+            bk = info.get("over_bk")
+        else:
+            price = info.get("under_price")
+            bk = info.get("under_bk")
+        if not price:
+            return None, None, None
+        drift = None
+        if abs(new_line - pick_line) >= 0.01:
+            drift = {
+                "old_line": pick_line,
+                "new_line": float(new_line),
+                "side": ou.capitalize(),
+            }
+        return float(price), bk, drift
+
+    # --- Corner AH: single pair (bookmaker-fallback picker) ---
+    if market == "corners_spreads":
+        parsed = _parse_ah_outcome(outcome)
+        if not parsed:
+            return None, None, None
+        side_hint, pick_line = parsed
+        spreads = (event.get("_corners") or {}).get("spreads") or []
+        if not spreads:
+            return None, None, None
+        pair = spreads[0]
+        home_name = (pair.get("home_name") or "").lower()
+        away_name = (pair.get("away_name") or "").lower()
+        side_lc = side_hint.lower()
+        if side_lc == home_name or side_lc == "home":
+            chosen = "home"
+        elif side_lc == away_name or side_lc == "away":
+            chosen = "away"
+        else:
+            # Fallback on nearest point.
+            if abs(pair.get("home_point", 0) - pick_line) <= abs(pair.get("away_point", 0) - pick_line):
+                chosen = "home"
+            else:
+                chosen = "away"
+        new_point = pair.get(f"{chosen}_point")
+        new_price = pair.get(f"{chosen}_price")
+        if new_price is None or new_point is None:
+            return None, None, None
+        drift = None
+        if abs(new_point - pick_line) >= 0.01:
+            drift = {
+                "old_line": pick_line,
+                "new_line": float(new_point),
+                "side": side_hint,
+            }
+        return float(new_price), pair.get("bk") or pair.get("bookmaker"), drift
+
+    return None, None, None
 
 
 def _get_candidates(session, now: datetime) -> list[tuple[Prediction, Match]]:
@@ -283,18 +491,28 @@ def _format_message(match: Match, pred: Prediction, new_odds: float,
                     new_bookmaker: Optional[str], new_ev: float,
                     decision: str, decision_label: str, decision_note: str,
                     minutes_to_kickoff: int,
-                    signals: Optional[dict] = None) -> str:
+                    signals: Optional[dict] = None,
+                    drift: Optional[dict] = None) -> str:
     from src.bot.telegram_bot import _MKT_NAMES  # local import to avoid cycle
     mkt = _MKT_NAMES.get(pred.market, pred.market)
     league = match.competition_code or "?"
     old_ev = float(pred.expected_value or 0)
     old_odds = float(pred.best_odds or 0)
+    drift_line = ""
+    if drift:
+        drift_line = (
+            f"⚠️ LINE DRIFT: pick gốc {drift.get('side', '?')} "
+            f"{drift.get('old_line', 0):+g}, odds mới "
+            f"{drift.get('side', '?')} {drift.get('new_line', 0):+g} (gần nhất)\n"
+            f"EV tính trên line mới: {new_ev*100:+.1f}%\n"
+        )
     msg = (
         f"\U0001f3af RE-CHECK KÈO\n"
         f"⚽ {match.home_team} vs {match.away_team}\n"
         f"⏰ Còn {minutes_to_kickoff} phút | \U0001f3c6 {league}\n"
         f"➜ {pred.outcome} ({mkt}) @ {new_odds:.2f} "
         f"(trước: @{old_odds:.2f})\n"
+        f"{drift_line}"
         f"\U0001f4ca EV: {new_ev*100:+.1f}% (trước: {old_ev*100:+.1f}%)\n"
         f"\U0001f4cd {new_bookmaker or pred.best_bookmaker or '?'}\n"
         f"{decision_label} — {decision_note}"
@@ -309,7 +527,9 @@ def _format_message(match: Match, pred: Prediction, new_odds: float,
 async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
                           event: dict, now: datetime) -> bool:
     """Returns True if a ChotReanalysis row was written."""
-    new_odds, new_bookmaker = _extract_new_odds(event, pred.market, pred.outcome or "")
+    new_odds, new_bookmaker, drift = _extract_new_odds(
+        event, pred.market, pred.outcome or ""
+    )
     if new_odds is None:
         logger.info(
             f"[chot] no fresh odds for pred_id={pred.id} "
@@ -322,7 +542,7 @@ async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
     old_ev = float(pred.expected_value or 0)
     old_odds = float(pred.best_odds or 0)
     decision, label = _decide(old_ev, new_ev)
-    note = _decision_note(decision, old_ev, new_ev)
+    note = _decision_note(decision, old_ev, new_ev, drift=drift)
 
     # Persist BEFORE pushing — even if Telegram fails, DB stays consistent so
     # the next cycle won't re-check the same pred.
@@ -349,7 +569,7 @@ async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
 
     msg = _format_message(match, pred, new_odds, new_bookmaker, new_ev,
                           decision, label, note, minutes_to_kickoff,
-                          signals=signals)
+                          signals=signals, drift=drift)
     try:
         from src.bot.telegram_bot import send_alert
         await send_alert(app, msg)
@@ -367,7 +587,7 @@ async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
 
 async def run_chot_cycle(app) -> None:
     """Entry point — called every 5 min from main.py scheduler."""
-    from src.collectors.odds_api import get_odds
+    from src.collectors.odds_api import get_odds, get_corner_odds
     from src.config import ODDS_SPORTS
 
     now = datetime.utcnow()
@@ -411,6 +631,25 @@ async def run_chot_cycle(app) -> None:
                 skipped += len(items)
                 continue
 
+            # Only fetch corner odds (separate endpoint, rate-limited) if this
+            # league has any corner pick in the current window. Best-effort —
+            # corner picks still get skipped cleanly if the call fails.
+            needs_corners = any(
+                (pred.market in _CORNER_MARKETS) for pred, _ in items
+            )
+            corner_data: dict = {}
+            if needs_corners:
+                try:
+                    corner_data = await asyncio.wait_for(
+                        asyncio.to_thread(get_corner_odds, lc, None),
+                        timeout=60,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(
+                        f"[chot] get_corner_odds failed for {lc}: {e}"
+                    )
+                    corner_data = {}
+
             # Dedup candidates that point to the same fixture (same canonical
             # teams + kickoff + market + outcome) — mirror /ancan dedup so we
             # don't push two notifications for one bet.
@@ -438,6 +677,13 @@ async def run_chot_cycle(app) -> None:
                         f"{match.home_team} vs {match.away_team} in {lc}"
                     )
                     continue
+
+                # Attach corner payload (if any) for this event so
+                # _extract_new_odds can read event["_corners"] directly.
+                if corner_data and pred.market in _CORNER_MARKETS:
+                    ckey = f"{event.get('home_team', '')}__{event.get('away_team', '')}"
+                    event["_corners"] = corner_data.get(ckey) or {}
+
                 try:
                     ok = await _reanalyze_pick(session, app, pred, match, event, now)
                     if ok:
