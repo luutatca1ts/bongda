@@ -3,7 +3,7 @@
 import logging
 import math
 from pathlib import Path
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -440,7 +440,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/phantich \u2014 Ph\u00e2n t\u00edch tr\u1eadn trong 24h\n"
         "/live \u2014 C\u00e1 c\u01b0\u1ee3c tr\u1ef1c ti\u1ebfp (in-play)\n"
         "/today \u2014 Ph\u00e2n t\u00edch to\u00e0n b\u1ed9 h\u00f4m nay\n"
-        "\U0001f3af /ancan \u2014 K\u00e8o d\u1ec5 th\u1eafng (Prob \u2265 60%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
+        "\U0001f3af /ancan \u2014 K\u00e8o d\u1ec5 th\u1eafng (Prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
+        "\U0001f3af /chot \u2014 Re-check k\u00e8o tr\u01b0\u1edbc gi\u1edd \u0111\u00e1 (auto)\n"
         "/keoxien \u2014 K\u00e8o xi\u00ean 2\u201310\n"
         "/stats \u2014 Th\u1ed1ng k\u00ea hi\u1ec7u su\u1ea5t\n"
         "/history \u2014 L\u1ecbch s\u1eed d\u1ef1 \u0111o\u00e1n\n"
@@ -3748,7 +3749,8 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "\U0001f525 /live_vb \u2014 Qu\u00e9t live value bet ngay (LivePoisson)\n"
         "\U0001f440 /theodoi <match_id> \u2014 Timeline state + live VB c\u1ee7a 1 tr\u1eadn\n"
         "/today \u2014 Ph\u00e2n t\u00edch to\u00e0n b\u1ed9 h\u00f4m nay\n"
-        "\U0001f3af /ancan \u2014 K\u00e8o d\u1ec5 th\u1eafng (Prob \u2265 60%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
+        "\U0001f3af /ancan \u2014 K\u00e8o d\u1ec5 th\u1eafng (Prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
+        "\U0001f3af /chot \u2014 Re-check k\u00e8o tr\u01b0\u1edbc gi\u1edd \u0111\u00e1 (auto)\n"
         "\U0001f4ca /dongtien <match_id> \u2014 Ph\u00e2n t\u00edch d\u00f2ng ti\u1ec1n (line movement)\n"
         "\U0001f4c8 /clv [days] \u2014 B\u00e1o c\u00e1o Closing Line Value\n"
         "/keoxien \u2014 K\u00e8o xi\u00ean 2\u201310 (parlay)\n"
@@ -4061,11 +4063,50 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
         await query.answer()
 
 
+# Commands published to Telegram's "/" suggestion menu via setMyCommands.
+# Descriptions kept short — Telegram caps at 256 chars but the popup truncates
+# anything over ~40 chars on mobile.
+_BOT_MENU_COMMANDS: list[tuple[str, str]] = [
+    ("start", "Đăng ký nhận thông báo"),
+    ("login", "Đăng nhập (cần password)"),
+    ("tatca", "Tất cả trận sắp diễn ra"),
+    ("phantich", "Phân tích chi tiết trận trong 24h"),
+    ("today", "Phân tích toàn bộ hôm nay"),
+    ("ancan", "Kèo dễ thắng (Prob ≥ 58%)"),
+    ("chot", "Re-check kèo trước giờ đá (auto)"),
+    ("keoxien", "Kèo xiên 2–10 (parlay)"),
+    ("live", "Cá cược trực tiếp (in-play)"),
+    ("stats", "Thống kê hiệu suất model"),
+    ("history", "20 dự đoán gần nhất"),
+    ("clv", "Báo cáo Closing Line Value"),
+    ("leagues", "Danh sách giải đấu"),
+    ("giahan", "Kiểm tra quota API"),
+    ("help", "Trợ giúp"),
+]
+
+
+async def _post_init(app: Application) -> None:
+    """Publish the slash-command menu to Telegram so it shows up under '/'."""
+    try:
+        await app.bot.set_my_commands(
+            [BotCommand(name, desc) for name, desc in _BOT_MENU_COMMANDS]
+        )
+        logger.info(f"[startup] set_my_commands published {len(_BOT_MENU_COMMANDS)} commands")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[startup] set_my_commands failed: {e}")
+
+
 def create_bot_app() -> Application:
     """Create and configure the Telegram bot application."""
     from telegram.request import HTTPXRequest
     request = HTTPXRequest(connect_timeout=20, read_timeout=60, write_timeout=60)
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).request(request).build()
+    app = (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .request(request)
+        .post_init(_post_init)
+        .build()
+    )
 
     app.add_handler(CommandHandler("login", cmd_login))
     app.add_handler(CommandHandler("start", cmd_start))
