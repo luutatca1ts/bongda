@@ -57,6 +57,134 @@ def _norm_team(name: str) -> str:
     return s
 
 
+def _collect_phase2_signals(match: Match, pred: Prediction) -> dict:
+    """Best-effort fetch of context signals for a re-check. Display-only —
+    never raises, never adjusts EV.
+
+    Returns a dict with three optional sub-blocks:
+      * `injuries`: {"home_key_out": int, "away_key_out": int} or None
+      * `lineup`:   {"has_lineup": bool, "home_formation": str,
+                     "away_formation": str} or None
+      * `xg`:       {"home": float, "away": float} or None
+
+    Injuries + lineup need the API-Football fixture_id, which the Match
+    model does NOT currently persist. We attempt to resolve it from the
+    LiveMatchState table (live collector may have seen it), and skip the
+    signal if no id is available. xG comes from Prediction.home_xg_estimate
+    / away_xg_estimate populated at Poisson time.
+    """
+    out: dict = {"injuries": None, "lineup": None, "xg": None}
+
+    # --- xG form (from saved prediction λ) ---
+    try:
+        h_xg = pred.home_xg_estimate
+        a_xg = pred.away_xg_estimate
+        if h_xg is not None and a_xg is not None and (h_xg > 0 or a_xg > 0):
+            out["xg"] = {"home": float(h_xg), "away": float(a_xg)}
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[chot] xg signal skipped pred_id={pred.id}: {e}")
+
+    # --- Try to resolve API-Football fixture_id from LiveMatchState ---
+    fixture_id: Optional[int] = None
+    try:
+        from src.db.models import LiveMatchState, get_session as _gs
+        s = _gs()
+        try:
+            row = (
+                s.query(LiveMatchState)
+                .filter(LiveMatchState.match_id == match.match_id)
+                .filter(LiveMatchState.fixture_id.isnot(None))
+                .order_by(LiveMatchState.captured_at.desc())
+                .first()
+            )
+            if row and row.fixture_id:
+                fixture_id = int(row.fixture_id)
+        finally:
+            s.close()
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[chot] fixture_id lookup failed for match_id={match.match_id}: {e}")
+
+    # --- Lineup (needs fixture_id) ---
+    if fixture_id:
+        try:
+            from src.collectors.lineup import get_lineup
+            lu = get_lineup(fixture_id)
+            if lu:
+                home_tid = match.home_api_id
+                away_tid = match.away_api_id
+                # Remap home/away if explicit team_ids are known and differ
+                # from the first-row heuristic used by the collector.
+                h_block = lu.get("home") or {}
+                a_block = lu.get("away") or {}
+                if home_tid and away_tid:
+                    if (h_block.get("team_id") == away_tid and
+                            a_block.get("team_id") == home_tid):
+                        h_block, a_block = a_block, h_block
+                out["lineup"] = {
+                    "has_lineup": bool(lu.get("has_lineup")),
+                    "home_formation": h_block.get("formation") or "N/A",
+                    "away_formation": a_block.get("formation") or "N/A",
+                }
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[chot] lineup signal skipped fixture={fixture_id}: {e}")
+
+    # --- Injuries (needs fixture_id + team_ids) ---
+    if fixture_id and match.home_api_id and match.away_api_id:
+        try:
+            from src.collectors.injuries import get_injuries_by_team
+            inj = get_injuries_by_team(fixture_id,
+                                        int(match.home_api_id),
+                                        int(match.away_api_id))
+            # "key out" = players with status "Missing Fixture"
+            def _key_out(bucket: list[dict]) -> int:
+                return sum(1 for p in (bucket or [])
+                           if (p.get("status") or "") == "Missing Fixture")
+            out["injuries"] = {
+                "home_key_out": _key_out(inj.get("home", [])),
+                "away_key_out": _key_out(inj.get("away", [])),
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[chot] injuries signal skipped fixture={fixture_id}: {e}")
+
+    return out
+
+
+def _format_signals_block(signals: dict) -> str:
+    """Render the 'SIGNALS TỔNG HỢP' block. Empty string if all sub-signals None."""
+    if not signals or all(v is None for v in signals.values()):
+        return ""
+    lines = ["", "📊 SIGNALS TỔNG HỢP"]
+
+    lu = signals.get("lineup")
+    if lu is None:
+        lines.append("⚠️ Lineup: chưa có fixture mapping")
+    elif lu.get("has_lineup"):
+        lines.append(
+            f"✅ Lineup: {lu.get('home_formation', 'N/A')} vs "
+            f"{lu.get('away_formation', 'N/A')}"
+        )
+    else:
+        lines.append("⚠️ Lineup: chưa công bố")
+
+    xg = signals.get("xg")
+    if xg is None:
+        lines.append("⚠️ xG form: N/A")
+    else:
+        lines.append(f"✅ xG form: {xg['home']:.2f} - {xg['away']:.2f}")
+
+    inj = signals.get("injuries")
+    if inj is None:
+        lines.append("⚠️ Injuries: N/A")
+    else:
+        total = inj["home_key_out"] + inj["away_key_out"]
+        emoji = "✅" if total <= 1 else "⚠️"
+        lines.append(
+            f"{emoji} Injuries: {inj['home_key_out']} nhà / "
+            f"{inj['away_key_out']} khách (key out)"
+        )
+    return "\n".join(lines)
+
+
 def _decide(old_ev: float, new_ev: float) -> tuple[str, str]:
     """Return (decision_code, vietnamese_label). See module docstring for rules."""
     if new_ev <= 0:
@@ -154,13 +282,14 @@ def _get_candidates(session, now: datetime) -> list[tuple[Prediction, Match]]:
 def _format_message(match: Match, pred: Prediction, new_odds: float,
                     new_bookmaker: Optional[str], new_ev: float,
                     decision: str, decision_label: str, decision_note: str,
-                    minutes_to_kickoff: int) -> str:
+                    minutes_to_kickoff: int,
+                    signals: Optional[dict] = None) -> str:
     from src.bot.telegram_bot import _MKT_NAMES  # local import to avoid cycle
     mkt = _MKT_NAMES.get(pred.market, pred.market)
     league = match.competition_code or "?"
     old_ev = float(pred.expected_value or 0)
     old_odds = float(pred.best_odds or 0)
-    return (
+    msg = (
         f"\U0001f3af RE-CHECK KÈO\n"
         f"⚽ {match.home_team} vs {match.away_team}\n"
         f"⏰ Còn {minutes_to_kickoff} phút | \U0001f3c6 {league}\n"
@@ -170,6 +299,11 @@ def _format_message(match: Match, pred: Prediction, new_odds: float,
         f"\U0001f4cd {new_bookmaker or pred.best_bookmaker or '?'}\n"
         f"{decision_label} — {decision_note}"
     )
+    if signals:
+        block = _format_signals_block(signals)
+        if block:
+            msg += "\n" + block
+    return msg
 
 
 async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
@@ -209,8 +343,13 @@ async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
 
     minutes_to_kickoff = max(0, int((match.utc_date - now).total_seconds() // 60)) \
         if match.utc_date else 0
+
+    # Phase 2 signals (display-only — never affects decide/EV).
+    signals = _collect_phase2_signals(match, pred)
+
     msg = _format_message(match, pred, new_odds, new_bookmaker, new_ev,
-                          decision, label, note, minutes_to_kickoff)
+                          decision, label, note, minutes_to_kickoff,
+                          signals=signals)
     try:
         from src.bot.telegram_bot import send_alert
         await send_alert(app, msg)
