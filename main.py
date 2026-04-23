@@ -9,6 +9,7 @@ from src.db.models import init_db
 from src.bot.telegram_bot import create_bot_app, send_alert, check_quota_alert, initialize_subscribers
 from src.pipeline import run_analysis_pipeline, update_results, generate_daily_report
 from src.analytics.steam_detector import detect_steam_moves, format_steam_alert
+from src.config import USE_STEAM_MOVE_ALERTS
 from src.analytics.clv import capture_closing_lines
 from src.analytics.line_movement import cleanup_old_history
 from src.live_pipeline import run_live_pipeline
@@ -60,9 +61,23 @@ async def scheduled_steam_check(app):
         loop = asyncio.get_event_loop()
         steams = await loop.run_in_executor(None, detect_steam_moves)
         if steams:
-            logger.info(f"[Scheduler] Sending {len(steams)} steam alerts...")
+            if USE_STEAM_MOVE_ALERTS:
+                logger.info(f"[Scheduler] Sending {len(steams)} steam alerts...")
+            else:
+                logger.info(
+                    f"[Scheduler] Detected {len(steams)} steam moves — "
+                    "standalone alerts suppressed (USE_STEAM_MOVE_ALERTS=False); "
+                    "/chot card will still surface them."
+                )
             for s in steams:
-                await send_alert(app, format_steam_alert(s))
+                if USE_STEAM_MOVE_ALERTS:
+                    await send_alert(app, format_steam_alert(s))
+                else:
+                    logger.debug(
+                        "[Scheduler] Steam alert suppressed "
+                        f"market={s.get('market')} outcome={s.get('outcome')} "
+                        f"direction={s.get('direction')}"
+                    )
         else:
             logger.info("[Scheduler] No steam moves this cycle.")
     except Exception as e:

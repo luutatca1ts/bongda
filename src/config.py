@@ -465,6 +465,14 @@ USE_TEAM_MAPPING = "log_only"
 # Flip to "on" only after measuring hit rate + quota delta from log_only logs.
 USE_PREMATCH_FIXTURE_RESOLVER = "log_only"
 
+# Standalone Steam Move Telegram alerts (scheduled_steam_check).
+#   True  = push one alert per detected steam (legacy behavior).
+#   False = detection still runs, DB still persists, /chot card (Phase 3) still
+#           surfaces the steam signal inline — only the standalone notification
+#           is suppressed. Use when inline display is enough and per-steam pings
+#           are noisy.
+USE_STEAM_MOVE_ALERTS = False
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================
