@@ -4,7 +4,7 @@ import json
 import logging
 import unicodedata
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import hashlib
 
@@ -1165,6 +1165,149 @@ def update_results() -> list[str]:
     return updated
 
 
+def _compute_lesson_learned(session, day_start_utc, day_end_utc) -> str:
+    """Produce a Vietnamese 'rút kinh nghiệm' section for settled predictions
+    in [day_start_utc, day_end_utc). Returns "" on empty window or any error —
+    the daily report must never crash over this optional section.
+
+    Tags are computed from existing Prediction fields only (no NLG):
+      * line_drift_ngược:   closing_odds drifted >5% from best_odds
+      * CLV_âm:             clv < -2.0
+      * chấn_thương_nặng:   injury_impact_home/away >= 0.2 goals
+      * thời_tiết_xấu:      |weather_adjust| >= 0.2 goals
+
+    Thresholds are intentionally conservative — false positives erode trust.
+    """
+    try:
+        from collections import defaultdict
+
+        settled = (
+            session.query(Prediction)
+            .filter(
+                Prediction.created_at >= day_start_utc,
+                Prediction.created_at < day_end_utc,
+                Prediction.result.isnot(None),
+                Prediction.result.in_(["WIN", "LOSE", "PUSH"]),
+            )
+            .all()
+        )
+
+        if not settled:
+            return ""
+
+        losses = [p for p in settled if p.result == "LOSE"]
+
+        lines = []
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━")
+        lines.append("⚠️ RÚT KINH NGHIỆM HÔM NAY:")
+
+        # --- 1. Auto-tag each LOSS with reasons ---
+        loss_tags: dict[str, int] = {}
+        for p in losses:
+            if p.closing_odds and p.best_odds and p.best_odds > 0:
+                drift = (p.closing_odds - p.best_odds) / p.best_odds
+                if drift > 0.05:
+                    loss_tags["line_drift_ngược"] = loss_tags.get("line_drift_ngược", 0) + 1
+
+            if p.clv is not None and p.clv < -2.0:
+                loss_tags["CLV_âm"] = loss_tags.get("CLV_âm", 0) + 1
+
+            if (p.injury_impact_home or 0) >= 0.2 or (p.injury_impact_away or 0) >= 0.2:
+                loss_tags["chấn_thương_nặng"] = loss_tags.get("chấn_thương_nặng", 0) + 1
+
+            if abs(p.weather_adjust or 0) >= 0.2:
+                loss_tags["thời_tiết_xấu"] = loss_tags.get("thời_tiết_xấu", 0) + 1
+
+        # --- 2. Market-level breakdown ---
+        market_stats: dict = defaultdict(lambda: {"win": 0, "lose": 0, "push": 0})
+        for p in settled:
+            if p.result == "WIN":
+                market_stats[p.market]["win"] += 1
+            elif p.result == "LOSE":
+                market_stats[p.market]["lose"] += 1
+            elif p.result == "PUSH":
+                market_stats[p.market]["push"] += 1
+
+        bad_markets = []
+        good_markets = []
+        for market, st in market_stats.items():
+            total = st["win"] + st["lose"]
+            if total < 2:
+                continue
+            loss_rate = st["lose"] / total
+            win_rate = st["win"] / total
+            if st["lose"] >= 2 and loss_rate >= 0.6:
+                bad_markets.append((market, st["win"], st["lose"], loss_rate))
+            if st["win"] >= 3 and win_rate >= 0.7:
+                good_markets.append((market, st["win"], st["lose"], win_rate))
+
+        # --- 3. Confidence breakdown ---
+        conf_stats: dict = defaultdict(lambda: {"win": 0, "lose": 0})
+        for p in settled:
+            if p.result == "WIN":
+                conf_stats[p.confidence]["win"] += 1
+            elif p.result == "LOSE":
+                conf_stats[p.confidence]["lose"] += 1
+
+        # --- 4. Compose output ---
+        if loss_tags:
+            lines.append("")
+            lines.append("🔍 Lý do thua phổ biến:")
+            top_tags = sorted(loss_tags.items(), key=lambda x: -x[1])[:3]
+            for tag, count in top_tags:
+                pct = count / len(losses) * 100 if losses else 0
+                lines.append(f"   • {tag}: {count}/{len(losses)} kèo thua ({pct:.0f}%)")
+
+        if bad_markets:
+            lines.append("")
+            lines.append("📉 Market cần thận trọng:")
+            for market, w, l, lr in sorted(bad_markets, key=lambda x: -x[3])[:3]:
+                lines.append(f"   • {market}: {w}W / {l}L (thua {lr*100:.0f}%)")
+
+        if good_markets:
+            lines.append("")
+            lines.append("📈 Market đang tốt:")
+            for market, w, l, wr in sorted(good_markets, key=lambda x: -x[3])[:3]:
+                lines.append(f"   • {market}: {w}W / {l}L (thắng {wr*100:.0f}%)")
+
+        conf_line_parts = []
+        for conf_level in ["HIGH", "MEDIUM", "LOW"]:
+            st = conf_stats.get(conf_level, {"win": 0, "lose": 0})
+            total = st["win"] + st["lose"]
+            if total >= 2:
+                wr = st["win"] / total * 100
+                conf_line_parts.append(f"{conf_level} {wr:.0f}%")
+        if conf_line_parts:
+            lines.append("")
+            lines.append(f"🎯 Theo confidence: {' | '.join(conf_line_parts)}")
+
+        # --- 5. Suggestion for tomorrow (conservative) ---
+        suggestions = []
+        if bad_markets:
+            worst = sorted(bad_markets, key=lambda x: -x[3])[0]
+            suggestions.append(f"Cẩn trọng với {worst[0]} (track record xấu hôm nay)")
+        if good_markets:
+            best = sorted(good_markets, key=lambda x: -x[3])[0]
+            suggestions.append(f"Market {best[0]} đang có form tốt — ưu tiên cân nhắc")
+
+        if suggestions:
+            lines.append("")
+            lines.append("📌 GỢI Ý MAI:")
+            for sug in suggestions[:3]:
+                lines.append(f"   • {sug}")
+
+        # Header alone (no substantive content) → skip the section entirely.
+        if len(lines) <= 3:
+            return ""
+
+        return "\n".join(lines)
+
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"[daily_report] lesson learned compute failed: {e}")
+        return ""
+
+
 def generate_daily_report() -> str:
     """Generate daily performance report."""
     session = get_session()
@@ -1199,6 +1342,19 @@ def generate_daily_report() -> str:
             msg += "\n\n" + format_clv_report(clv_stats)
         except Exception as e:
             logger.warning(f"[Report] CLV append failed: {e}")
+
+        # Append "Rút kinh nghiệm" section. Reuses the existing day boundary —
+        # the stats block above compares `created_at >= today` (server-local
+        # midnight); we bound the window at +1 day for a clean range on the
+        # helper's side. Same timezone convention, no drift.
+        try:
+            day_start = datetime.combine(date.today(), datetime.min.time())
+            day_end = day_start + timedelta(days=1)
+            lesson_section = _compute_lesson_learned(session, day_start, day_end)
+            if lesson_section:
+                msg += lesson_section + "\n"
+        except Exception as e:
+            logger.debug(f"[daily_report] could not append lesson learned: {e}")
 
         return msg
     finally:
