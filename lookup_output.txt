@@ -1,0 +1,43 @@
+Loaded 53 leagues
+
+=== Searching: 'Paris Saint' (league=61) ===
+  league=61 id=85 name='Paris Saint Germain'
+
+=== Searching: 'Espanyol' (league=140) ===
+  league=140 id=540 name='Espanyol'
+
+=== Searching: 'Lens' (league=61) ===
+  league=61 id=116 name='Lens'
+
+=== Searching: 'Santos Laguna' ===
+  league=262 id=2285 name='Santos Laguna'
+
+=== Searching: 'Queens Park Rangers' ===
+  NO MATCH
+
+=== Searching: 'Independiente Medell' ===
+  NO MATCH
+
+=== Searching: 'Independiente Rivadavia' ===
+  NO MATCH
+
+=== Searching: 'Independiente Santa Fe' ===
+  NO MATCH
+
+=== Searching: 'Independiente del Valle' ===
+  league=11 id=1153 name='Independiente del Valle'
+
+=== Searching: 'Independiente Petrolero' ===
+  NO MATCH
+
+=== Searching: 'Barcelona SC' ===
+  league=13 id=1152 name='Barcelona SC'
+
+=== Searching: 'Everton' ===
+  league=11 id=2325 name='Everton de Vina'
+  league=39 id=45 name='Everton'
+
+=== Searching: 'Athletic Club' ===
+  league=2 id=531 name='Athletic Club'
+  league=72 id=13975 name='Athletic Club'
+

@@ -5,7 +5,8 @@
   "stats": {
     "auto": 771,
     "review": 2,
-    "unmatched": 169
+    "unmatched": 169,
+    "manual_fix": 15
   },
   "mappings": {
     "1. FC Heidenheim": {
@@ -401,11 +402,11 @@
       "reason": "Exact match"
     },
     "Athletic Club (MG)": {
-      "api_id": 531,
+      "api_id": 13975,
       "api_name": "Athletic Club",
-      "league_id": 2,
+      "league_id": 72,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Atlanta United FC": {
       "api_id": 1608,
@@ -534,11 +535,11 @@
       "reason": "Exact match"
     },
     "Barcelona SC": {
-      "api_id": 529,
-      "api_name": "Barcelona",
-      "league_id": 2,
+      "api_id": 1152,
+      "api_name": "Barcelona SC",
+      "league_id": 13,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Bari": {
       "api_id": 508,
@@ -1128,13 +1129,6 @@
       "score": 100.0,
       "reason": "Exact match"
     },
-    "Club Independiente Petrolero": {
-      "api_id": 453,
-      "api_name": "Independiente",
-      "league_id": 11,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
     "Club Universitario de Deportes": {
       "api_id": 2540,
       "api_name": "Universitario",
@@ -1478,13 +1472,6 @@
       "score": 100.0,
       "reason": "Exact match"
     },
-    "England": {
-      "api_id": 1609,
-      "api_name": "New England Revolution",
-      "league_id": 253,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
     "Erzgebirge Aue": {
       "api_id": 190,
       "api_name": "Erzgebirge Aue",
@@ -1528,11 +1515,11 @@
       "reason": "Exact match"
     },
     "Everton de Viña del Mar": {
-      "api_id": 45,
-      "api_name": "Everton",
-      "league_id": 39,
+      "api_id": 2325,
+      "api_name": "Everton de Vina",
+      "league_id": 11,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Excelsior": {
       "api_id": 196,
@@ -2360,33 +2347,12 @@
       "score": 100.0,
       "reason": "Exact match"
     },
-    "Independiente Medellín": {
-      "api_id": 453,
-      "api_name": "Independiente",
-      "league_id": 11,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
-    "Independiente Rivadavia": {
-      "api_id": 453,
-      "api_name": "Independiente",
-      "league_id": 11,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
-    "Independiente Santa Fe": {
-      "api_id": 453,
-      "api_name": "Independiente",
-      "league_id": 11,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
     "Independiente del Valle": {
-      "api_id": 453,
-      "api_name": "Independiente",
+      "api_id": 1153,
+      "api_name": "Independiente del Valle",
       "league_id": 11,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Inter Miami CF": {
       "api_id": 505,
@@ -3404,11 +3370,11 @@
       "reason": "Exact match"
     },
     "Paris Saint-Germain FC": {
-      "api_id": 114,
-      "api_name": "Paris FC",
+      "api_id": 85,
+      "api_name": "Paris Saint Germain",
       "league_id": 61,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Parma": {
       "api_id": 523,
@@ -3543,20 +3509,6 @@
       "score": 100.0,
       "reason": "Exact match"
     },
-    "Queens Park Rangers": {
-      "api_id": 257,
-      "api_name": "Rangers",
-      "league_id": 2,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
-    "Queens Park Rangers FC": {
-      "api_id": 257,
-      "api_name": "Rangers",
-      "league_id": 2,
-      "score": 100.0,
-      "reason": "Exact match"
-    },
     "RAAL La Louvière": {
       "api_id": 5902,
       "api_name": "RAAL La Louvière",
@@ -3600,11 +3552,11 @@
       "reason": "Exact match"
     },
     "RCD Espanyol de Barcelona": {
-      "api_id": 529,
-      "api_name": "Barcelona",
-      "league_id": 2,
+      "api_id": 540,
+      "api_name": "Espanyol",
+      "league_id": 140,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "RCD Mallorca": {
       "api_id": 798,
@@ -3621,11 +3573,11 @@
       "reason": "Exact match"
     },
     "Racing Club de Lens": {
-      "api_id": 436,
-      "api_name": "Racing Club",
-      "league_id": 13,
+      "api_id": 116,
+      "api_name": "Lens",
+      "league_id": 61,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Radomiak Radom": {
       "api_id": 4248,
@@ -4069,11 +4021,11 @@
       "reason": "Exact match"
     },
     "Santos Laguna": {
-      "api_id": 128,
-      "api_name": "Santos",
-      "league_id": 71,
+      "api_id": 2285,
+      "api_name": "Santos Laguna",
+      "league_id": 262,
       "score": 100.0,
-      "reason": "Exact match"
+      "reason": "Manual fix 2026-04-22"
     },
     "Sao Paulo": {
       "api_id": 126,
@@ -5412,5 +5364,6 @@
       "score": 100.0,
       "reason": "Manual override - corrected from Hoffenheim II (reserve team, id=9364)"
     }
-  }
+  },
+  "last_manual_fix": "2026-04-21T23:04:21.138014Z"
 }

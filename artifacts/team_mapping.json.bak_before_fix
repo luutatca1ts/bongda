@@ -1,0 +1,5416 @@
+{
+  "version": 1,
+  "generated_at": "2026-04-20T17:38:26.581219+00:00",
+  "total_db_teams": 942,
+  "stats": {
+    "auto": 771,
+    "review": 2,
+    "unmatched": 169
+  },
+  "mappings": {
+    "1. FC Heidenheim": {
+      "api_id": 180,
+      "api_name": "1. FC Heidenheim",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Heidenheim 1846": {
+      "api_id": 180,
+      "api_name": "1. FC Heidenheim",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Kaiserslautern": {
+      "api_id": 745,
+      "api_name": "1. FC Kaiserslautern",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Köln": {
+      "api_id": 192,
+      "api_name": "1. FC Köln",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Magdeburg": {
+      "api_id": 179,
+      "api_name": "1. FC Magdeburg",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Nürnberg": {
+      "api_id": 171,
+      "api_name": "1. FC Nürnberg",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Saarbrücken": {
+      "api_id": 1639,
+      "api_name": "FC Saarbrücken",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FC Union Berlin": {
+      "api_id": 182,
+      "api_name": "Union Berlin",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "1. FSV Mainz 05": {
+      "api_id": 164,
+      "api_name": "FSV Mainz 05",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AC Milan": {
+      "api_id": 489,
+      "api_name": "AC Milan",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AC Oulu": {
+      "api_id": 2077,
+      "api_name": "AC Oulu",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AC Pisa 1909": {
+      "api_id": 801,
+      "api_name": "Pisa",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "ACF Fiorentina": {
+      "api_id": 502,
+      "api_name": "Fiorentina",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AD Ceuta FC": {
+      "api_id": 10139,
+      "api_name": "AD Ceuta FC",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AE Kifisia FC": {
+      "api_id": 5050,
+      "api_name": "Kifisia",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AEK Athens": {
+      "api_id": 575,
+      "api_name": "AEK Athens FC",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AFC Ajax": {
+      "api_id": 194,
+      "api_name": "Ajax",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AFC Bournemouth": {
+      "api_id": 35,
+      "api_name": "Bournemouth",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AGF Aarhus": {
+      "api_id": 406,
+      "api_name": "Aarhus",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AIK": {
+      "api_id": 377,
+      "api_name": "AIK Stockholm",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AJ Auxerre": {
+      "api_id": 108,
+      "api_name": "Auxerre",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AS Monaco": {
+      "api_id": 91,
+      "api_name": "Monaco",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AS Monaco FC": {
+      "api_id": 91,
+      "api_name": "Monaco",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AS Roma": {
+      "api_id": 497,
+      "api_name": "AS Roma",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AVS": {
+      "api_id": 21595,
+      "api_name": "AVS",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AVS Futebol SAD": {
+      "api_id": 21595,
+      "api_name": "AVS",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AZ": {
+      "api_id": 201,
+      "api_name": "AZ Alkmaar",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "AZ Alkmaar": {
+      "api_id": 201,
+      "api_name": "AZ Alkmaar",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Aalesund": {
+      "api_id": 757,
+      "api_name": "Aalesund",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Aberdeen": {
+      "api_id": 252,
+      "api_name": "Aberdeen",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Adelaide United": {
+      "api_id": 948,
+      "api_name": "Adelaide United",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ajax": {
+      "api_id": 194,
+      "api_name": "Ajax",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Al-Fateh": {
+      "api_id": 2931,
+      "api_name": "Al-Fateh",
+      "league_id": 307,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Alanyaspor": {
+      "api_id": 996,
+      "api_name": "Alanyaspor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Albacete": {
+      "api_id": 722,
+      "api_name": "Albacete",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Aldosivi Mar del Plata": {
+      "api_id": 463,
+      "api_name": "Aldosivi",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Alemannia Aachen": {
+      "api_id": 4259,
+      "api_name": "Alemannia Aachen",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Algeria": {
+      "api_id": 1532,
+      "api_name": "Algeria",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Alverca": {
+      "api_id": 4724,
+      "api_name": "Alverca",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Amiens": {
+      "api_id": 87,
+      "api_name": "Amiens",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Anderlecht": {
+      "api_id": 554,
+      "api_name": "Anderlecht",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Angers": {
+      "api_id": 77,
+      "api_name": "Angers",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Angers SCO": {
+      "api_id": 77,
+      "api_name": "Angers",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Annecy FC": {
+      "api_id": 3012,
+      "api_name": "Annecy",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Antalyaspor": {
+      "api_id": 1005,
+      "api_name": "Antalyaspor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Aris Thessaloniki": {
+      "api_id": 3408,
+      "api_name": "Aris",
+      "league_id": 848,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Arka Gdynia": {
+      "api_id": 344,
+      "api_name": "Arka Gdynia",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Arminia Bielefeld": {
+      "api_id": 188,
+      "api_name": "Arminia Bielefeld",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Arouca": {
+      "api_id": 240,
+      "api_name": "Arouca",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Arsenal": {
+      "api_id": 42,
+      "api_name": "Arsenal",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Arsenal FC": {
+      "api_id": 42,
+      "api_name": "Arsenal",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Asteras Tripolis": {
+      "api_id": 955,
+      "api_name": "Asteras Tripolis",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Aston Villa": {
+      "api_id": 66,
+      "api_name": "Aston Villa",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Aston Villa FC": {
+      "api_id": 66,
+      "api_name": "Aston Villa",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Atalanta BC": {
+      "api_id": 499,
+      "api_name": "Atalanta",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Athletic Club": {
+      "api_id": 531,
+      "api_name": "Athletic Club",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Athletic Club (MG)": {
+      "api_id": 531,
+      "api_name": "Athletic Club",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Atlanta United FC": {
+      "api_id": 1608,
+      "api_name": "Atlanta United FC",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Atlas": {
+      "api_id": 27016,
+      "api_name": "Atlas Paillade",
+      "league_id": 66,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Atletico Goianiense": {
+      "api_id": 144,
+      "api_name": "Atletico Goianiense",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Atletico Paranaense": {
+      "api_id": 134,
+      "api_name": "Atletico Paranaense",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Atromitos Athens": {
+      "api_id": 12260,
+      "api_name": "Atromitos",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Auckland FC": {
+      "api_id": 24608,
+      "api_name": "Auckland",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Augsburg": {
+      "api_id": 170,
+      "api_name": "FC Augsburg",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Austin FC": {
+      "api_id": 16489,
+      "api_name": "Austin",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Austria": {
+      "api_id": 601,
+      "api_name": "Austria Vienna",
+      "league_id": 218,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Auxerre": {
+      "api_id": 108,
+      "api_name": "Auxerre",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Avai": {
+      "api_id": 145,
+      "api_name": "Avai",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Avellino": {
+      "api_id": 528,
+      "api_name": "Avellino",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Avispa Fukuoka": {
+      "api_id": 316,
+      "api_name": "Avispa Fukuoka",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "BK Hacken": {
+      "api_id": 367,
+      "api_name": "BK Hacken",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "BSC Young Boys": {
+      "api_id": 565,
+      "api_name": "BSC Young Boys",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bahia": {
+      "api_id": 118,
+      "api_name": "Bahia",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Banfield": {
+      "api_id": 449,
+      "api_name": "Banfield",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Barcelona": {
+      "api_id": 529,
+      "api_name": "Barcelona",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Barcelona SC": {
+      "api_id": 529,
+      "api_name": "Barcelona",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bari": {
+      "api_id": 508,
+      "api_name": "Bari",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Barnet": {
+      "api_id": 1369,
+      "api_name": "Barnet",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Barnsley": {
+      "api_id": 747,
+      "api_name": "Barnsley",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Barracas Central": {
+      "api_id": 2432,
+      "api_name": "Barracas Central",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Barrow": {
+      "api_id": 1819,
+      "api_name": "Barrow",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bayer 04 Leverkusen": {
+      "api_id": 168,
+      "api_name": "Bayer Leverkusen",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bayer Leverkusen": {
+      "api_id": 168,
+      "api_name": "Bayer Leverkusen",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Belgrano de Cordoba": {
+      "api_id": 440,
+      "api_name": "Belgrano Cordoba",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Benfica": {
+      "api_id": 211,
+      "api_name": "Benfica",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Birmingham City": {
+      "api_id": 54,
+      "api_name": "Birmingham",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Birmingham City FC": {
+      "api_id": 54,
+      "api_name": "Birmingham",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Blackburn Rovers": {
+      "api_id": 67,
+      "api_name": "Blackburn",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Blackburn Rovers FC": {
+      "api_id": 67,
+      "api_name": "Blackburn",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Blackpool": {
+      "api_id": 1356,
+      "api_name": "Blackpool",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Blooming": {
+      "api_id": 3701,
+      "api_name": "Blooming",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Boca Juniors": {
+      "api_id": 451,
+      "api_name": "Boca Juniors",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bohemians": {
+      "api_id": 3840,
+      "api_name": "Bohemians",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bologna": {
+      "api_id": 500,
+      "api_name": "Bologna",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bologna FC 1909": {
+      "api_id": 500,
+      "api_name": "Bologna",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Borussia Dortmund": {
+      "api_id": 165,
+      "api_name": "Borussia Dortmund",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Borussia Monchengladbach": {
+      "api_id": 163,
+      "api_name": "Borussia Mönchengladbach",
+      "league_id": 78,
+      "score": 95.8,
+      "reason": "token_set_ratio=96"
+    },
+    "Borussia Mönchengladbach": {
+      "api_id": 163,
+      "api_name": "Borussia Mönchengladbach",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Botafogo": {
+      "api_id": 120,
+      "api_name": "Botafogo",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Botafogo FR": {
+      "api_id": 120,
+      "api_name": "Botafogo",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Boulogne": {
+      "api_id": 1299,
+      "api_name": "Boulogne",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bournemouth": {
+      "api_id": 35,
+      "api_name": "Bournemouth",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bradford City": {
+      "api_id": 1343,
+      "api_name": "Bradford",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Braga": {
+      "api_id": 217,
+      "api_name": "SC Braga",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brentford": {
+      "api_id": 55,
+      "api_name": "Brentford",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brentford FC": {
+      "api_id": 55,
+      "api_name": "Brentford",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brest": {
+      "api_id": 386,
+      "api_name": "Dinamo Brest",
+      "league_id": 848,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brighton & Hove Albion FC": {
+      "api_id": 51,
+      "api_name": "Brighton",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brighton and Hove Albion": {
+      "api_id": 51,
+      "api_name": "Brighton",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brisbane Roar": {
+      "api_id": 947,
+      "api_name": "Brisbane Roar",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bristol City": {
+      "api_id": 56,
+      "api_name": "Bristol City",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bristol City FC": {
+      "api_id": 56,
+      "api_name": "Bristol City",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bristol Rovers": {
+      "api_id": 1334,
+      "api_name": "Bristol Rovers",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Bromley FC": {
+      "api_id": 1832,
+      "api_name": "Bromley",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Brondby IF": {
+      "api_id": 407,
+      "api_name": "Brondby",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Burgos CF": {
+      "api_id": 9580,
+      "api_name": "Burgos",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Burnley": {
+      "api_id": 44,
+      "api_name": "Burnley",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Burnley FC": {
+      "api_id": 44,
+      "api_name": "Burnley",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Burton Albion": {
+      "api_id": 748,
+      "api_name": "Burton Albion",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CA Boston River": {
+      "api_id": 2361,
+      "api_name": "Boston River",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CA Osasuna": {
+      "api_id": 727,
+      "api_name": "Osasuna",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CA Tigre BA": {
+      "api_id": 452,
+      "api_name": "Tigre",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CD Castellón": {
+      "api_id": 5254,
+      "api_name": "Castellón",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CD Nacional": {
+      "api_id": 225,
+      "api_name": "Nacional",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CD Santa Clara": {
+      "api_id": 227,
+      "api_name": "Santa Clara",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CD Tondela": {
+      "api_id": 218,
+      "api_name": "Tondela",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CF Estrela": {
+      "api_id": 15130,
+      "api_name": "Estrela",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CF Estrela da Amadora": {
+      "api_id": 15130,
+      "api_name": "Estrela",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CF Montreal": {
+      "api_id": 1614,
+      "api_name": "CF Montreal",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CR Flamengo": {
+      "api_id": 127,
+      "api_name": "Flamengo",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "CSKA Moscow": {
+      "api_id": 555,
+      "api_name": "CSKA Moscow",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cagliari": {
+      "api_id": 490,
+      "api_name": "Cagliari",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cagliari Calcio": {
+      "api_id": 490,
+      "api_name": "Cagliari",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cambridge United": {
+      "api_id": 1370,
+      "api_name": "Cambridge United",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Carabobo FC": {
+      "api_id": 2810,
+      "api_name": "Carabobo FC",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Caracas FC": {
+      "api_id": 2808,
+      "api_name": "Caracas FC",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cardiff City": {
+      "api_id": 43,
+      "api_name": "Cardiff",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Carrarese": {
+      "api_id": 1581,
+      "api_name": "Carrarese",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Casa Pia": {
+      "api_id": 4716,
+      "api_name": "Casa Pia",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Casa Pia AC": {
+      "api_id": 4716,
+      "api_name": "Casa Pia",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Celta Vigo": {
+      "api_id": 538,
+      "api_name": "Celta Vigo",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Celtic": {
+      "api_id": 247,
+      "api_name": "Celtic",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Central Coast Mariners": {
+      "api_id": 941,
+      "api_name": "Central Coast Mariners",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cercle Brugge KSV": {
+      "api_id": 741,
+      "api_name": "Cercle Brugge",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cerezo Osaka": {
+      "api_id": 291,
+      "api_name": "Cerezo Osaka",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cesena FC": {
+      "api_id": 509,
+      "api_name": "Cesena",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Charleroi": {
+      "api_id": 736,
+      "api_name": "Charleroi",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Charlotte FC": {
+      "api_id": 18310,
+      "api_name": "Charlotte",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Charlton Athletic": {
+      "api_id": 1335,
+      "api_name": "Charlton",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Charlton Athletic FC": {
+      "api_id": 1335,
+      "api_name": "Charlton",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Chelsea": {
+      "api_id": 49,
+      "api_name": "Chelsea",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Chelsea FC": {
+      "api_id": 49,
+      "api_name": "Chelsea",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cheltenham Town": {
+      "api_id": 1372,
+      "api_name": "Cheltenham",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Chesterfield FC": {
+      "api_id": 1345,
+      "api_name": "Chesterfield",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Chicago Fire": {
+      "api_id": 1607,
+      "api_name": "Chicago Fire",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Clermont": {
+      "api_id": 99,
+      "api_name": "Clermont Foot",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Club Bolívar": {
+      "api_id": 3702,
+      "api_name": "Bolívar",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Club Brugge": {
+      "api_id": 569,
+      "api_name": "Club Brugge KV",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Club Brugge KV": {
+      "api_id": 569,
+      "api_name": "Club Brugge KV",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Club Cienciano": {
+      "api_id": 2562,
+      "api_name": "Cienciano",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Club Independiente Petrolero": {
+      "api_id": 453,
+      "api_name": "Independiente",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Club Universitario de Deportes": {
+      "api_id": 2540,
+      "api_name": "Universitario",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Clube do Remo": {
+      "api_id": 1198,
+      "api_name": "Remo",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cobresal": {
+      "api_id": 2331,
+      "api_name": "Cobresal",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Colchester United": {
+      "api_id": 1361,
+      "api_name": "Colchester",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Colo Colo": {
+      "api_id": 2315,
+      "api_name": "Colo Colo",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Colorado Rapids": {
+      "api_id": 1610,
+      "api_name": "Colorado Rapids",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Columbus Crew SC": {
+      "api_id": 1613,
+      "api_name": "Columbus Crew",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Como": {
+      "api_id": 895,
+      "api_name": "Como",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Como 1907": {
+      "api_id": 895,
+      "api_name": "Como",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Coquimbo Unido": {
+      "api_id": 2330,
+      "api_name": "Coquimbo Unido",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Corinthians": {
+      "api_id": 131,
+      "api_name": "Corinthians",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Coritiba": {
+      "api_id": 147,
+      "api_name": "Coritiba",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Coritiba FBC": {
+      "api_id": 147,
+      "api_name": "Coritiba",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Coventry City": {
+      "api_id": 1346,
+      "api_name": "Coventry",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Coventry City FC": {
+      "api_id": 1346,
+      "api_name": "Coventry",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Crawley Town": {
+      "api_id": 1362,
+      "api_name": "Crawley Town",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cremonese": {
+      "api_id": 520,
+      "api_name": "Cremonese",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Crewe Alexandra": {
+      "api_id": 1363,
+      "api_name": "Crewe",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Criciuma": {
+      "api_id": 140,
+      "api_name": "Criciuma",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cruz Azul": {
+      "api_id": 2295,
+      "api_name": "Cruz Azul",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cruzeiro": {
+      "api_id": 135,
+      "api_name": "Cruzeiro",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cruzeiro EC": {
+      "api_id": 135,
+      "api_name": "Cruzeiro",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Crystal Palace": {
+      "api_id": 52,
+      "api_name": "Crystal Palace",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Crystal Palace FC": {
+      "api_id": 52,
+      "api_name": "Crystal Palace",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cultural Leonesa": {
+      "api_id": 725,
+      "api_name": "Cultural Leonesa",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Cusco FC": {
+      "api_id": 10013,
+      "api_name": "Cusco",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "DR Congo": {
+      "api_id": 1508,
+      "api_name": "Congo DR",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Daejeon Citizen": {
+      "api_id": 2750,
+      "api_name": "Daejeon Citizen",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Damac": {
+      "api_id": 2956,
+      "api_name": "Damac",
+      "league_id": 307,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Degerfors IF": {
+      "api_id": 2172,
+      "api_name": "Degerfors IF",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Dender": {
+      "api_id": 6215,
+      "api_name": "Dender",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Deportes Limache": {
+      "api_id": 16730,
+      "api_name": "Deportes Limache",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Deportes Tolima": {
+      "api_id": 1142,
+      "api_name": "Deportes Tolima",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Deportivo La Guaira": {
+      "api_id": 2813,
+      "api_name": "Deportivo La Guaira",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Deportivo Riestra": {
+      "api_id": 476,
+      "api_name": "Deportivo Riestra",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Derby County": {
+      "api_id": 69,
+      "api_name": "Derby",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Derby County FC": {
+      "api_id": 69,
+      "api_name": "Derby",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Derry City": {
+      "api_id": 670,
+      "api_name": "Derry City",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Djurgardens IF": {
+      "api_id": 364,
+      "api_name": "Djurgardens IF",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Doncaster Rovers": {
+      "api_id": 1354,
+      "api_name": "Doncaster",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Drogheda United": {
+      "api_id": 3850,
+      "api_name": "Drogheda United",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Dynamo Dresden": {
+      "api_id": 183,
+      "api_name": "Dynamo Dresden",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "EC Bahia": {
+      "api_id": 118,
+      "api_name": "Bahia",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Egypt": {
+      "api_id": 32,
+      "api_name": "Egypt",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Eintracht Braunschweig": {
+      "api_id": 744,
+      "api_name": "Eintracht Braunschweig",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Eintracht Frankfurt": {
+      "api_id": 169,
+      "api_name": "Eintracht Frankfurt",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Elche CF": {
+      "api_id": 797,
+      "api_name": "Elche",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Elversberg": {
+      "api_id": 1660,
+      "api_name": "SV Elversberg",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Empoli": {
+      "api_id": 511,
+      "api_name": "Empoli",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "England": {
+      "api_id": 1609,
+      "api_name": "New England Revolution",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Erzgebirge Aue": {
+      "api_id": 190,
+      "api_name": "Erzgebirge Aue",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Espanyol": {
+      "api_id": 540,
+      "api_name": "Espanyol",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Estoril": {
+      "api_id": 230,
+      "api_name": "Estoril",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Estudiantes": {
+      "api_id": 450,
+      "api_name": "Estudiantes L.P.",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Everton": {
+      "api_id": 2325,
+      "api_name": "Everton de Vina",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Everton FC": {
+      "api_id": 45,
+      "api_name": "Everton",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Everton de Viña del Mar": {
+      "api_id": 45,
+      "api_name": "Everton",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Excelsior": {
+      "api_id": 196,
+      "api_name": "Excelsior",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Exeter City": {
+      "api_id": 1364,
+      "api_name": "Exeter City",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Eyüpspor": {
+      "api_id": 3588,
+      "api_name": "Eyüpspor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Akhmat Grozny": {
+      "api_id": 1085,
+      "api_name": "Akhmat",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Akron Tolyatti": {
+      "api_id": 6786,
+      "api_name": "Akron",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Alverca": {
+      "api_id": 4724,
+      "api_name": "Alverca",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Anyang": {
+      "api_id": 2748,
+      "api_name": "FC Anyang",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Arouca": {
+      "api_id": 240,
+      "api_name": "Arouca",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Augsburg": {
+      "api_id": 170,
+      "api_name": "FC Augsburg",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Baltika Kaliningrad": {
+      "api_id": 2006,
+      "api_name": "Baltika",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Barcelona": {
+      "api_id": 529,
+      "api_name": "Barcelona",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Basel": {
+      "api_id": 551,
+      "api_name": "FC Basel 1893",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Bayern München": {
+      "api_id": 157,
+      "api_name": "Bayern München",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Cincinnati": {
+      "api_id": 2242,
+      "api_name": "FC Cincinnati",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Copenhagen": {
+      "api_id": 400,
+      "api_name": "FC Copenhagen",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Dallas": {
+      "api_id": 1597,
+      "api_name": "FC Dallas",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Dynamo Makhachkala": {
+      "api_id": 1088,
+      "api_name": "Dynamo",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Energie Cottbus": {
+      "api_id": 1320,
+      "api_name": "Energie Cottbus",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Fredericia": {
+      "api_id": 2061,
+      "api_name": "FC Fredericia",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Groningen": {
+      "api_id": 202,
+      "api_name": "Groningen",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Ingolstadt 04": {
+      "api_id": 184,
+      "api_name": "FC Ingolstadt 04",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Inter Turku": {
+      "api_id": 505,
+      "api_name": "Inter",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Krasnodar": {
+      "api_id": 621,
+      "api_name": "FC Krasnodar",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Lorient": {
+      "api_id": 97,
+      "api_name": "Lorient",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Lugano": {
+      "api_id": 606,
+      "api_name": "FC Lugano",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Luzern": {
+      "api_id": 644,
+      "api_name": "FC Luzern",
+      "league_id": 207,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Metz": {
+      "api_id": 112,
+      "api_name": "Metz",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Midtjylland": {
+      "api_id": 397,
+      "api_name": "FC Midtjylland",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Nantes": {
+      "api_id": 83,
+      "api_name": "Nantes",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Nizhny Novgorod": {
+      "api_id": 2011,
+      "api_name": "Nizhny Novgorod",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Nordsjaelland": {
+      "api_id": 398,
+      "api_name": "FC Nordsjaelland",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Porto": {
+      "api_id": 212,
+      "api_name": "FC Porto",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Schalke 04": {
+      "api_id": 174,
+      "api_name": "FC Schalke 04",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Seoul": {
+      "api_id": 2766,
+      "api_name": "FC Seoul",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Sion": {
+      "api_id": 630,
+      "api_name": "FC Sion",
+      "league_id": 207,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC St. Pauli": {
+      "api_id": 186,
+      "api_name": "FC St. Pauli",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC St. Pauli 1910": {
+      "api_id": 186,
+      "api_name": "FC St. Pauli",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Thun": {
+      "api_id": 1012,
+      "api_name": "FC Thun",
+      "league_id": 207,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Tokyo": {
+      "api_id": 292,
+      "api_name": "FC Tokyo",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Twente '65": {
+      "api_id": 415,
+      "api_name": "Twente",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Twente Enschede": {
+      "api_id": 415,
+      "api_name": "Twente",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Utrecht": {
+      "api_id": 207,
+      "api_name": "Utrecht",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Viktoria Köln 1904": {
+      "api_id": 1620,
+      "api_name": "FC Viktoria Köln",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Volendam": {
+      "api_id": 416,
+      "api_name": "FC Volendam",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Winterthur": {
+      "api_id": 2180,
+      "api_name": "FC Winterthur",
+      "league_id": 207,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FC Zurich": {
+      "api_id": 783,
+      "api_name": "FC Zurich",
+      "league_id": 207,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "FSV Mainz 05": {
+      "api_id": 164,
+      "api_name": "FSV Mainz 05",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Falkenbergs FF": {
+      "api_id": 812,
+      "api_name": "Falkenbergs FF",
+      "league_id": 114,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fatih Karagümrük": {
+      "api_id": 3589,
+      "api_name": "Fatih Karagümrük",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Feyenoord": {
+      "api_id": 209,
+      "api_name": "Feyenoord",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Feyenoord Rotterdam": {
+      "api_id": 209,
+      "api_name": "Feyenoord",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fiorentina": {
+      "api_id": 502,
+      "api_name": "Fiorentina",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Flamengo": {
+      "api_id": 127,
+      "api_name": "Flamengo",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fleetwood Town": {
+      "api_id": 1336,
+      "api_name": "Fleetwood Town",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fluminense": {
+      "api_id": 124,
+      "api_name": "Fluminense",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fluminense FC": {
+      "api_id": 124,
+      "api_name": "Fluminense",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fortaleza": {
+      "api_id": 154,
+      "api_name": "Fortaleza EC",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fortuna Düsseldorf": {
+      "api_id": 158,
+      "api_name": "Fortuna Düsseldorf",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fortuna Sittard": {
+      "api_id": 205,
+      "api_name": "Fortuna Sittard",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "France": {
+      "api_id": 22735,
+      "api_name": "France Aizenay",
+      "league_id": 66,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fredrikstad FK": {
+      "api_id": 2149,
+      "api_name": "Fredrikstad",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Frosinone": {
+      "api_id": 512,
+      "api_name": "Frosinone",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fulham": {
+      "api_id": 36,
+      "api_name": "Fulham",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Fulham FC": {
+      "api_id": 36,
+      "api_name": "Fulham",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "GD Estoril Praia": {
+      "api_id": 230,
+      "api_name": "Estoril",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "GIF Sundsvall": {
+      "api_id": 373,
+      "api_name": "GIF Sundsvall",
+      "league_id": 114,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "GKS Katowice": {
+      "api_id": 3484,
+      "api_name": "GKS Katowice",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Galatasaray": {
+      "api_id": 645,
+      "api_name": "Galatasaray",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Galatasaray SK": {
+      "api_id": 645,
+      "api_name": "Galatasaray",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Galway United": {
+      "api_id": 3851,
+      "api_name": "Galway United",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Gamba Osaka": {
+      "api_id": 293,
+      "api_name": "Gamba Osaka",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Gangwon FC": {
+      "api_id": 2746,
+      "api_name": "Gangwon FC",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Genk": {
+      "api_id": 742,
+      "api_name": "Genk",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Genoa": {
+      "api_id": 495,
+      "api_name": "Genoa",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Genoa CFC": {
+      "api_id": 495,
+      "api_name": "Genoa",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Gent": {
+      "api_id": 631,
+      "api_name": "Gent",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Getafe": {
+      "api_id": 546,
+      "api_name": "Getafe",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Getafe CF": {
+      "api_id": 546,
+      "api_name": "Getafe",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Gillingham": {
+      "api_id": 1347,
+      "api_name": "Gillingham",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Girona": {
+      "api_id": 547,
+      "api_name": "Girona",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Girona FC": {
+      "api_id": 547,
+      "api_name": "Girona",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Granada CF": {
+      "api_id": 715,
+      "api_name": "Granada CF",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Grazer AK": {
+      "api_id": 4256,
+      "api_name": "Grazer AK",
+      "league_id": 218,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Grenoble": {
+      "api_id": 101,
+      "api_name": "Grenoble",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Greuther Fürth": {
+      "api_id": 178,
+      "api_name": "SpVgg Greuther Fürth",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Grimsby Town": {
+      "api_id": 1365,
+      "api_name": "Grimsby",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Groningen": {
+      "api_id": 202,
+      "api_name": "Groningen",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Grêmio Novorizontino": {
+      "api_id": 7834,
+      "api_name": "Novorizontino",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Guadalajara": {
+      "api_id": 9900,
+      "api_name": "Guadalajara",
+      "league_id": 143,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Guingamp": {
+      "api_id": 90,
+      "api_name": "Guingamp",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Gwangju FC": {
+      "api_id": 2759,
+      "api_name": "Gwangju FC",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "HJK Helsinki": {
+      "api_id": 649,
+      "api_name": "HJK Helsinki",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hamburger SV": {
+      "api_id": 175,
+      "api_name": "Hamburger SV",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hannover 96": {
+      "api_id": 166,
+      "api_name": "Hannover 96",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hansa Rostock": {
+      "api_id": 1321,
+      "api_name": "Hansa Rostock",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Harrogate Town": {
+      "api_id": 1842,
+      "api_name": "Harrogate Town",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hartberg": {
+      "api_id": 1072,
+      "api_name": "TSV Hartberg",
+      "league_id": 218,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Heerenveen": {
+      "api_id": 210,
+      "api_name": "Heerenveen",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hellas Verona": {
+      "api_id": 504,
+      "api_name": "Hellas Verona",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hellas Verona FC": {
+      "api_id": 504,
+      "api_name": "Hellas Verona",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Heracles Almelo": {
+      "api_id": 206,
+      "api_name": "Heracles",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hibernian": {
+      "api_id": 249,
+      "api_name": "Hibernian",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hiroshima Sanfrecce FC": {
+      "api_id": 282,
+      "api_name": "Sanfrecce Hiroshima",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Holstein Kiel": {
+      "api_id": 191,
+      "api_name": "Holstein Kiel",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Houston Dynamo": {
+      "api_id": 1088,
+      "api_name": "Dynamo",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Huachipato": {
+      "api_id": 2328,
+      "api_name": "Huachipato",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hull City": {
+      "api_id": 64,
+      "api_name": "Hull City",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Hull City AFC": {
+      "api_id": 64,
+      "api_name": "Hull City",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IF Brommapojkarna": {
+      "api_id": 371,
+      "api_name": "IF Brommapojkarna",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IF Elfsborg": {
+      "api_id": 372,
+      "api_name": "IF Elfsborg",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IF Gnistan": {
+      "api_id": 2082,
+      "api_name": "Gnistan",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IFK Goteborg": {
+      "api_id": 366,
+      "api_name": "IFK Goteborg",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IFK Mariehamn": {
+      "api_id": 587,
+      "api_name": "Mariehamn",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IFK Norrkoping": {
+      "api_id": 378,
+      "api_name": "IFK Norrkoping",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IK Oddevold": {
+      "api_id": 11674,
+      "api_name": "Oddevold",
+      "league_id": 114,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "IK Sirius": {
+      "api_id": 370,
+      "api_name": "Sirius",
+      "league_id": 113,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ilves Tampere": {
+      "api_id": 1163,
+      "api_name": "Ilves",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Independiente": {
+      "api_id": 453,
+      "api_name": "Independiente",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Independiente Medellín": {
+      "api_id": 453,
+      "api_name": "Independiente",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Independiente Rivadavia": {
+      "api_id": 453,
+      "api_name": "Independiente",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Independiente Santa Fe": {
+      "api_id": 453,
+      "api_name": "Independiente",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Independiente del Valle": {
+      "api_id": 453,
+      "api_name": "Independiente",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Inter Miami CF": {
+      "api_id": 505,
+      "api_name": "Inter",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Inter Milan": {
+      "api_id": 505,
+      "api_name": "Inter",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Internacional": {
+      "api_id": 119,
+      "api_name": "Internacional",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ipswich Town": {
+      "api_id": 57,
+      "api_name": "Ipswich",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ipswich Town FC": {
+      "api_id": 57,
+      "api_name": "Ipswich",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ivory Coast": {
+      "api_id": 1501,
+      "api_name": "Ivory Coast",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Jagiellonia Białystok": {
+      "api_id": 336,
+      "api_name": "Jagiellonia",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Jahn Regensburg": {
+      "api_id": 177,
+      "api_name": "SSV Jahn Regensburg",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Jaro": {
+      "api_id": 2075,
+      "api_name": "FF Jaro",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Jeju United FC": {
+      "api_id": 2761,
+      "api_name": "Jeju United FC",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Jeonbuk Hyundai Motors": {
+      "api_id": 2762,
+      "api_name": "Jeonbuk Motors",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Junior FC": {
+      "api_id": 1135,
+      "api_name": "Junior",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Juve Stabia": {
+      "api_id": 863,
+      "api_name": "Juve Stabia",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Juventude": {
+      "api_id": 152,
+      "api_name": "Juventude",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Juventus": {
+      "api_id": 496,
+      "api_name": "Juventus",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Juventus FC": {
+      "api_id": 496,
+      "api_name": "Juventus",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "KFUM": {
+      "api_id": 2143,
+      "api_name": "KFUM Oslo",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "KV Mechelen": {
+      "api_id": 266,
+      "api_name": "KV Mechelen",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kalmar FF": {
+      "api_id": 374,
+      "api_name": "Kalmar FF",
+      "league_id": 114,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Karlsruher SC": {
+      "api_id": 785,
+      "api_name": "Karlsruher SC",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kashima Antlers": {
+      "api_id": 290,
+      "api_name": "Kashima",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kashiwa Reysol": {
+      "api_id": 281,
+      "api_name": "Kashiwa Reysol",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kawasaki Frontale": {
+      "api_id": 294,
+      "api_name": "Kawasaki Frontale",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kayserispor": {
+      "api_id": 1001,
+      "api_name": "Kayserispor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kocaelispor": {
+      "api_id": 7411,
+      "api_name": "Kocaelispor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Korona Kielce": {
+      "api_id": 346,
+      "api_name": "Korona Kielce",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kristiansund BK": {
+      "api_id": 320,
+      "api_name": "Kristiansund BK",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Kryliya Sovetov": {
+      "api_id": 1079,
+      "api_name": "Krylia Sovetov",
+      "league_id": 235,
+      "score": 96.6,
+      "reason": "token_set_ratio=97"
+    },
+    "KuPS Kuopio": {
+      "api_id": 1165,
+      "api_name": "KuPS",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "LDU Quito": {
+      "api_id": 1158,
+      "api_name": "LDU de Quito",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "La Serena": {
+      "api_id": 2341,
+      "api_name": "D. La Serena",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lanus": {
+      "api_id": 446,
+      "api_name": "Lanus",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Las Palmas": {
+      "api_id": 534,
+      "api_name": "Las Palmas",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lazio": {
+      "api_id": 487,
+      "api_name": "Lazio",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Le Havre": {
+      "api_id": 111,
+      "api_name": "Le Havre",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Le Havre AC": {
+      "api_id": 111,
+      "api_name": "Le Havre",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Le Mans FC": {
+      "api_id": 1298,
+      "api_name": "Le Mans",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lecce": {
+      "api_id": 867,
+      "api_name": "Lecce",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Leeds United": {
+      "api_id": 63,
+      "api_name": "Leeds",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Leeds United FC": {
+      "api_id": 63,
+      "api_name": "Leeds",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Legia Warszawa": {
+      "api_id": 339,
+      "api_name": "Legia Warszawa",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Leicester City": {
+      "api_id": 46,
+      "api_name": "Leicester",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Leicester City FC": {
+      "api_id": 46,
+      "api_name": "Leicester",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Leuven": {
+      "api_id": 260,
+      "api_name": "OH Leuven",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Levadiakos": {
+      "api_id": 957,
+      "api_name": "Levadiakos",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Levante": {
+      "api_id": 539,
+      "api_name": "Levante",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Levante UD": {
+      "api_id": 539,
+      "api_name": "Levante",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Leyton Orient": {
+      "api_id": 1373,
+      "api_name": "Leyton Orient",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Libertad Asuncion": {
+      "api_id": 1179,
+      "api_name": "Libertad Asuncion",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lille": {
+      "api_id": 79,
+      "api_name": "Lille",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lille OSC": {
+      "api_id": 79,
+      "api_name": "Lille",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lincoln City": {
+      "api_id": 1379,
+      "api_name": "Lincoln",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Liverpool": {
+      "api_id": 40,
+      "api_name": "Liverpool",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Liverpool FC": {
+      "api_id": 40,
+      "api_name": "Liverpool",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lokomotiv Moscow": {
+      "api_id": 597,
+      "api_name": "Lokomotiv",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lorient": {
+      "api_id": 97,
+      "api_name": "Lorient",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Los Angeles FC": {
+      "api_id": 1616,
+      "api_name": "Los Angeles FC",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Luton": {
+      "api_id": 1359,
+      "api_name": "Luton",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Lyon": {
+      "api_id": 80,
+      "api_name": "Lyon",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "MSV Duisburg": {
+      "api_id": 187,
+      "api_name": "MSV Duisburg",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Macarthur FC": {
+      "api_id": 15550,
+      "api_name": "Macarthur",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Mallorca": {
+      "api_id": 798,
+      "api_name": "Mallorca",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Malmo FF": {
+      "api_id": 375,
+      "api_name": "Malmo FF",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Manchester City": {
+      "api_id": 50,
+      "api_name": "Manchester City",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Manchester City FC": {
+      "api_id": 50,
+      "api_name": "Manchester City",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Manchester United": {
+      "api_id": 33,
+      "api_name": "Manchester United",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Manchester United FC": {
+      "api_id": 33,
+      "api_name": "Manchester United",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Mansfield Town": {
+      "api_id": 1374,
+      "api_name": "Mansfield Town",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Mantova": {
+      "api_id": 1693,
+      "api_name": "Mantova",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Marseille": {
+      "api_id": 81,
+      "api_name": "Marseille",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Mazatlán FC": {
+      "api_id": 14002,
+      "api_name": "Mazatlán",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Melbourne City": {
+      "api_id": 945,
+      "api_name": "Melbourne City",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Melbourne Victory": {
+      "api_id": 944,
+      "api_name": "Melbourne Victory",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Metz": {
+      "api_id": 112,
+      "api_name": "Metz",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Middlesbrough": {
+      "api_id": 70,
+      "api_name": "Middlesbrough",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Middlesbrough FC": {
+      "api_id": 70,
+      "api_name": "Middlesbrough",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Millonarios": {
+      "api_id": 1125,
+      "api_name": "Millonarios",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Millwall": {
+      "api_id": 58,
+      "api_name": "Millwall",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Millwall FC": {
+      "api_id": 58,
+      "api_name": "Millwall",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Milton Keynes Dons": {
+      "api_id": 1348,
+      "api_name": "Milton Keynes Dons",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Minnesota United FC": {
+      "api_id": 1612,
+      "api_name": "Minnesota United FC",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Mirassol": {
+      "api_id": 7848,
+      "api_name": "Mirassol",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Mirassol FC": {
+      "api_id": 7848,
+      "api_name": "Mirassol",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Modena": {
+      "api_id": 899,
+      "api_name": "Modena",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Molde": {
+      "api_id": 329,
+      "api_name": "Molde",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Monterrey": {
+      "api_id": 2282,
+      "api_name": "Monterrey",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Montpellier": {
+      "api_id": 82,
+      "api_name": "Montpellier",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Monza": {
+      "api_id": 1579,
+      "api_name": "Monza",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Moreirense FC": {
+      "api_id": 215,
+      "api_name": "Moreirense",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Morocco": {
+      "api_id": 31,
+      "api_name": "Morocco",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Motor Lublin": {
+      "api_id": 14562,
+      "api_name": "Motor Lublin",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "NAC Breda": {
+      "api_id": 203,
+      "api_name": "NAC Breda",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "NEC": {
+      "api_id": 413,
+      "api_name": "NEC Nijmegen",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "NEC Nijmegen": {
+      "api_id": 413,
+      "api_name": "NEC Nijmegen",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nacional": {
+      "api_id": 3706,
+      "api_name": "Nacional Potosí",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nacional de Montevideo": {
+      "api_id": 225,
+      "api_name": "Nacional",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nagoya Grampus": {
+      "api_id": 288,
+      "api_name": "Nagoya Grampus",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nancy": {
+      "api_id": 102,
+      "api_name": "Nancy",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nantes": {
+      "api_id": 83,
+      "api_name": "Nantes",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Napoli": {
+      "api_id": 492,
+      "api_name": "Napoli",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nashville SC": {
+      "api_id": 9569,
+      "api_name": "Nashville SC",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Necaxa": {
+      "api_id": 2288,
+      "api_name": "Necaxa",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "New England Revolution": {
+      "api_id": 1609,
+      "api_name": "New England Revolution",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "New York City FC": {
+      "api_id": 1828,
+      "api_name": "York",
+      "league_id": 45,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "New York Red Bulls": {
+      "api_id": 1828,
+      "api_name": "York",
+      "league_id": 45,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Newcastle Jets FC": {
+      "api_id": 34,
+      "api_name": "Newcastle",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Newcastle United": {
+      "api_id": 34,
+      "api_name": "Newcastle",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Newcastle United FC": {
+      "api_id": 34,
+      "api_name": "Newcastle",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Newells Old Boys": {
+      "api_id": 457,
+      "api_name": "Newells Old Boys",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Newport County": {
+      "api_id": 1367,
+      "api_name": "Newport County",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nice": {
+      "api_id": 84,
+      "api_name": "Nice",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nieciecza": {
+      "api_id": 3487,
+      "api_name": "Nieciecza",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Norrby IF": {
+      "api_id": 2173,
+      "api_name": "Norrby IF",
+      "league_id": 114,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Northampton Town": {
+      "api_id": 1337,
+      "api_name": "Northampton",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Norwich City": {
+      "api_id": 71,
+      "api_name": "Norwich",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Norwich City FC": {
+      "api_id": 71,
+      "api_name": "Norwich",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nottingham Forest": {
+      "api_id": 65,
+      "api_name": "Nottingham Forest",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Nottingham Forest FC": {
+      "api_id": 65,
+      "api_name": "Nottingham Forest",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Notts County": {
+      "api_id": 1376,
+      "api_name": "Notts County",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "O'Higgins": {
+      "api_id": 2320,
+      "api_name": "O'Higgins",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "OB Odense BK": {
+      "api_id": 405,
+      "api_name": "Odense",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "OFI Crete": {
+      "api_id": 1124,
+      "api_name": "OFI",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "OGC Nice": {
+      "api_id": 84,
+      "api_name": "Nice",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Oldham Athletic": {
+      "api_id": 1349,
+      "api_name": "Oldham",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Olimpia Asunción": {
+      "api_id": 1182,
+      "api_name": "Olimpia",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Olympiakos Piraeus": {
+      "api_id": 553,
+      "api_name": "Olympiakos Piraeus",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Olympique de Marseille": {
+      "api_id": 81,
+      "api_name": "Marseille",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Orlando City SC": {
+      "api_id": 1598,
+      "api_name": "Orlando City SC",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Oviedo": {
+      "api_id": 718,
+      "api_name": "Oviedo",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Oxford United": {
+      "api_id": 1338,
+      "api_name": "Oxford United",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Oxford United FC": {
+      "api_id": 1338,
+      "api_name": "Oxford United",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "PAOK Thessaloniki": {
+      "api_id": 619,
+      "api_name": "PAOK",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "PEC Zwolle": {
+      "api_id": 193,
+      "api_name": "PEC Zwolle",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "PSV": {
+      "api_id": 197,
+      "api_name": "PSV Eindhoven",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "PSV Eindhoven": {
+      "api_id": 197,
+      "api_name": "PSV Eindhoven",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Pachuca": {
+      "api_id": 2292,
+      "api_name": "Pachuca",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Padova": {
+      "api_id": 870,
+      "api_name": "Padova",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Palermo": {
+      "api_id": 522,
+      "api_name": "Palermo",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Palestino": {
+      "api_id": 2318,
+      "api_name": "Palestino",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Palmeiras": {
+      "api_id": 121,
+      "api_name": "Palmeiras",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Panathinaikos": {
+      "api_id": 617,
+      "api_name": "Panathinaikos",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Panetolikos Agrinio": {
+      "api_id": 949,
+      "api_name": "Panetolikos",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Panserraikos FC": {
+      "api_id": 2099,
+      "api_name": "Panserraikos",
+      "league_id": 197,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Paris FC": {
+      "api_id": 114,
+      "api_name": "Paris FC",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Paris Saint Germain": {
+      "api_id": 85,
+      "api_name": "Paris Saint Germain",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Paris Saint-Germain FC": {
+      "api_id": 114,
+      "api_name": "Paris FC",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Parma": {
+      "api_id": 523,
+      "api_name": "Parma",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Parma Calcio 1913": {
+      "api_id": 523,
+      "api_name": "Parma",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Perth Glory": {
+      "api_id": 940,
+      "api_name": "Perth Glory",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Pescara": {
+      "api_id": 525,
+      "api_name": "Pescara",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Philadelphia Union": {
+      "api_id": 1599,
+      "api_name": "Philadelphia Union",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Piast Gliwice": {
+      "api_id": 349,
+      "api_name": "Piast Gliwice",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Pisa": {
+      "api_id": 801,
+      "api_name": "Pisa",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Platense": {
+      "api_id": 1064,
+      "api_name": "Platense",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Plymouth Argyle": {
+      "api_id": 1357,
+      "api_name": "Plymouth",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Pohang Steelers": {
+      "api_id": 2764,
+      "api_name": "Pohang Steelers",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Port Vale": {
+      "api_id": 1351,
+      "api_name": "Port Vale",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Portland Timbers": {
+      "api_id": 1617,
+      "api_name": "Portland Timbers",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Portsmouth": {
+      "api_id": 1355,
+      "api_name": "Portsmouth",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Portsmouth FC": {
+      "api_id": 1355,
+      "api_name": "Portsmouth",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Preston North End": {
+      "api_id": 59,
+      "api_name": "Preston",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Preston North End FC": {
+      "api_id": 59,
+      "api_name": "Preston",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Puebla": {
+      "api_id": 2291,
+      "api_name": "Puebla",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Puerto Cabello": {
+      "api_id": 2827,
+      "api_name": "Puerto Cabello",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Pumas": {
+      "api_id": 2286,
+      "api_name": "U.N.A.M. - Pumas",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Queens Park Rangers": {
+      "api_id": 257,
+      "api_name": "Rangers",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Queens Park Rangers FC": {
+      "api_id": 257,
+      "api_name": "Rangers",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RAAL La Louvière": {
+      "api_id": 5902,
+      "api_name": "RAAL La Louvière",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RB Bragantino": {
+      "api_id": 794,
+      "api_name": "RB Bragantino",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RB Leipzig": {
+      "api_id": 173,
+      "api_name": "RB Leipzig",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RC Celta de Vigo": {
+      "api_id": 538,
+      "api_name": "Celta Vigo",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RC Lens": {
+      "api_id": 116,
+      "api_name": "Lens",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RC Strasbourg Alsace": {
+      "api_id": 95,
+      "api_name": "Strasbourg",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RCD Espanyol de Barcelona": {
+      "api_id": 529,
+      "api_name": "Barcelona",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "RCD Mallorca": {
+      "api_id": 798,
+      "api_name": "Mallorca",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Racing Club": {
+      "api_id": 436,
+      "api_name": "Racing Club",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Racing Club de Lens": {
+      "api_id": 436,
+      "api_name": "Racing Club",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Radomiak Radom": {
+      "api_id": 4248,
+      "api_name": "Radomiak Radom",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Raków Częstochowa": {
+      "api_id": 3491,
+      "api_name": "Raków Częstochowa",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Randers FC": {
+      "api_id": 401,
+      "api_name": "Randers FC",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rangers": {
+      "api_id": 257,
+      "api_name": "Rangers",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rayo Vallecano": {
+      "api_id": 728,
+      "api_name": "Rayo Vallecano",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rayo Vallecano de Madrid": {
+      "api_id": 728,
+      "api_name": "Rayo Vallecano",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Reading": {
+      "api_id": 53,
+      "api_name": "Reading",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Betis": {
+      "api_id": 543,
+      "api_name": "Real Betis",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Betis Balompié": {
+      "api_id": 543,
+      "api_name": "Real Betis",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Madrid": {
+      "api_id": 541,
+      "api_name": "Real Madrid",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Madrid CF": {
+      "api_id": 541,
+      "api_name": "Real Madrid",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Oviedo": {
+      "api_id": 718,
+      "api_name": "Oviedo",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Racing Club de Santander": {
+      "api_id": 436,
+      "api_name": "Racing Club",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Salt Lake": {
+      "api_id": 1606,
+      "api_name": "Real Salt Lake",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Sociedad": {
+      "api_id": 548,
+      "api_name": "Real Sociedad",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Sociedad B": {
+      "api_id": 548,
+      "api_name": "Real Sociedad",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Sociedad de Fútbol": {
+      "api_id": 548,
+      "api_name": "Real Sociedad",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Real Valladolid CF": {
+      "api_id": 720,
+      "api_name": "Valladolid",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Reggiana": {
+      "api_id": 880,
+      "api_name": "Reggiana",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Remo": {
+      "api_id": 1198,
+      "api_name": "Remo",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rennes": {
+      "api_id": 94,
+      "api_name": "Rennes",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ried": {
+      "api_id": 1028,
+      "api_name": "Ried",
+      "league_id": 218,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rio Ave FC": {
+      "api_id": 226,
+      "api_name": "Rio Ave",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "River Plate": {
+      "api_id": 435,
+      "api_name": "River Plate",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rodez AF": {
+      "api_id": 1301,
+      "api_name": "Rodez",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rosario Central": {
+      "api_id": 437,
+      "api_name": "Rosario Central",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rosenborg": {
+      "api_id": 331,
+      "api_name": "Rosenborg",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rotherham United": {
+      "api_id": 73,
+      "api_name": "Rotherham",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Royal Antwerp": {
+      "api_id": 740,
+      "api_name": "Antwerp",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Rubin Kazan": {
+      "api_id": 1083,
+      "api_name": "Rubin",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SBV Excelsior": {
+      "api_id": 196,
+      "api_name": "Excelsior",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Bastia": {
+      "api_id": 1305,
+      "api_name": "Bastia",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Braga": {
+      "api_id": 217,
+      "api_name": "SC Braga",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Corinthians Paulista": {
+      "api_id": 131,
+      "api_name": "Corinthians",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Freiburg": {
+      "api_id": 160,
+      "api_name": "SC Freiburg",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Heerenveen": {
+      "api_id": 210,
+      "api_name": "Heerenveen",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Internacional": {
+      "api_id": 119,
+      "api_name": "Internacional",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Paderborn": {
+      "api_id": 185,
+      "api_name": "SC Paderborn 07",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Preußen Münster": {
+      "api_id": 1313,
+      "api_name": "Preußen Münster",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Telstar": {
+      "api_id": 427,
+      "api_name": "Telstar",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SC Verl": {
+      "api_id": 4265,
+      "api_name": "Verl",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SD Eibar": {
+      "api_id": 545,
+      "api_name": "Eibar",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SD Huesca": {
+      "api_id": 726,
+      "api_name": "Huesca",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SE Palmeiras": {
+      "api_id": 121,
+      "api_name": "Palmeiras",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SJK Seinäjoki": {
+      "api_id": 689,
+      "api_name": "SJK",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SK Brann": {
+      "api_id": 319,
+      "api_name": "Brann",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SK Slavia Praha": {
+      "api_id": 560,
+      "api_name": "Slavia Praha",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SS Lazio": {
+      "api_id": 487,
+      "api_name": "Lazio",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SSC Napoli": {
+      "api_id": 492,
+      "api_name": "Napoli",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SSV Ulm 1846": {
+      "api_id": 1652,
+      "api_name": "SSV Ulm 1846",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SV Darmstadt 98": {
+      "api_id": 181,
+      "api_name": "SV Darmstadt 98",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "SV Werder Bremen": {
+      "api_id": 162,
+      "api_name": "Werder Bremen",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Saint Etienne": {
+      "api_id": 1063,
+      "api_name": "Saint Etienne",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Salford City": {
+      "api_id": 1844,
+      "api_name": "Salford City",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sampdoria": {
+      "api_id": 498,
+      "api_name": "Sampdoria",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Samsunspor": {
+      "api_id": 3603,
+      "api_name": "Samsunspor",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "San Diego FC": {
+      "api_id": 25484,
+      "api_name": "San Diego",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "San Jose Earthquakes": {
+      "api_id": 1596,
+      "api_name": "San Jose Earthquakes",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "San Lorenzo": {
+      "api_id": 460,
+      "api_name": "San Lorenzo",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sandefjord": {
+      "api_id": 332,
+      "api_name": "Sandefjord",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Santa Clara": {
+      "api_id": 227,
+      "api_name": "Santa Clara",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Santos": {
+      "api_id": 128,
+      "api_name": "Santos",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Santos FC": {
+      "api_id": 128,
+      "api_name": "Santos",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Santos Laguna": {
+      "api_id": 128,
+      "api_name": "Santos",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sao Paulo": {
+      "api_id": 126,
+      "api_name": "Sao Paulo",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sarmiento de Junin": {
+      "api_id": 474,
+      "api_name": "Sarmiento Junin",
+      "league_id": 128,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sassuolo": {
+      "api_id": 488,
+      "api_name": "Sassuolo",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Schweinfurt": {
+      "api_id": 1635,
+      "api_name": "FC Schweinfurt 05",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Seattle Sounders FC": {
+      "api_id": 1595,
+      "api_name": "Seattle Sounders",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Senegal": {
+      "api_id": 13,
+      "api_name": "Senegal",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Servette": {
+      "api_id": 2184,
+      "api_name": "Servette FC",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sevilla": {
+      "api_id": 536,
+      "api_name": "Sevilla",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sevilla FC": {
+      "api_id": 536,
+      "api_name": "Sevilla",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Shakhtar Donetsk": {
+      "api_id": 550,
+      "api_name": "Shakhtar Donetsk",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Shamrock Rovers": {
+      "api_id": 652,
+      "api_name": "Shamrock Rovers",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Shandong Luneng Taishan FC": {
+      "api_id": 844,
+      "api_name": "Shandong Luneng",
+      "league_id": 169,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Shanghai Shenhua FC": {
+      "api_id": 833,
+      "api_name": "Shanghai Shenhua",
+      "league_id": 169,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sheffield United": {
+      "api_id": 7667,
+      "api_name": "Sheffield",
+      "league_id": 45,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sheffield United FC": {
+      "api_id": 7667,
+      "api_name": "Sheffield",
+      "league_id": 45,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sheffield Wednesday": {
+      "api_id": 74,
+      "api_name": "Sheffield Wednesday",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sheffield Wednesday FC": {
+      "api_id": 74,
+      "api_name": "Sheffield Wednesday",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Shelbourne Dublin": {
+      "api_id": 3854,
+      "api_name": "Shelbourne",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Shrewsbury Town": {
+      "api_id": 1352,
+      "api_name": "Shrewsbury",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Silkeborg IF": {
+      "api_id": 2073,
+      "api_name": "Silkeborg",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sligo Rovers": {
+      "api_id": 3842,
+      "api_name": "Sligo Rovers",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "South Africa": {
+      "api_id": 1531,
+      "api_name": "South Africa",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Southampton": {
+      "api_id": 41,
+      "api_name": "Southampton",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Southampton FC": {
+      "api_id": 41,
+      "api_name": "Southampton",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sparta Rotterdam": {
+      "api_id": 426,
+      "api_name": "Sparta Rotterdam",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Spartak Moscow": {
+      "api_id": 558,
+      "api_name": "Spartak Moscow",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Spezia": {
+      "api_id": 515,
+      "api_name": "Spezia",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sport Lisboa e Benfica": {
+      "api_id": 211,
+      "api_name": "Benfica",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sport Recife": {
+      "api_id": 123,
+      "api_name": "Sport Recife",
+      "league_id": 71,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sporting Cristal": {
+      "api_id": 2546,
+      "api_name": "Sporting Cristal",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sporting Kansas City": {
+      "api_id": 1611,
+      "api_name": "Sporting Kansas City",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "St. Louis City SC": {
+      "api_id": 20787,
+      "api_name": "St. Louis City",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Stade Brestois 29": {
+      "api_id": 106,
+      "api_name": "Stade Brestois 29",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Stade de Reims": {
+      "api_id": 93,
+      "api_name": "Reims",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Standard Liege": {
+      "api_id": 733,
+      "api_name": "Standard Liege",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Stevenage": {
+      "api_id": 1368,
+      "api_name": "Stevenage",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Stockport County FC": {
+      "api_id": 4686,
+      "api_name": "Stockport County",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Stoke City": {
+      "api_id": 75,
+      "api_name": "Stoke City",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Stoke City FC": {
+      "api_id": 75,
+      "api_name": "Stoke City",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Strasbourg": {
+      "api_id": 95,
+      "api_name": "Strasbourg",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sturm Graz": {
+      "api_id": 637,
+      "api_name": "Sturm Graz",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sunderland": {
+      "api_id": 746,
+      "api_name": "Sunderland",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sunderland AFC": {
+      "api_id": 746,
+      "api_name": "Sunderland",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Swansea City": {
+      "api_id": 76,
+      "api_name": "Swansea",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Swansea City AFC": {
+      "api_id": 76,
+      "api_name": "Swansea",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Swindon Town": {
+      "api_id": 1353,
+      "api_name": "Swindon Town",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Sydney FC": {
+      "api_id": 943,
+      "api_name": "Sydney",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "TSG 1899 Hoffenheim": {
+      "api_id": 167,
+      "api_name": "1899 Hoffenheim",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "TSG Hoffenheim II": {
+      "api_id": 9364,
+      "api_name": "Hoffenheim II",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "TSV 1860 München": {
+      "api_id": 786,
+      "api_name": "TSV 1860 München",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "TSV Havelse": {
+      "api_id": 9342,
+      "api_name": "Havelse",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Talleres": {
+      "api_id": 456,
+      "api_name": "Talleres Cordoba",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Telstar 1963": {
+      "api_id": 427,
+      "api_name": "Telstar",
+      "league_id": 88,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tigres": {
+      "api_id": 2279,
+      "api_name": "Tigres UANL",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tijuana": {
+      "api_id": 2280,
+      "api_name": "Club Tijuana",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Toluca": {
+      "api_id": 2281,
+      "api_name": "Toluca",
+      "league_id": 262,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tondela": {
+      "api_id": 218,
+      "api_name": "Tondela",
+      "league_id": 94,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Torino": {
+      "api_id": 503,
+      "api_name": "Torino",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Torino FC": {
+      "api_id": 503,
+      "api_name": "Torino",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Torku Konyaspor": {
+      "api_id": 607,
+      "api_name": "Konyaspor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Toronto FC": {
+      "api_id": 1601,
+      "api_name": "Toronto FC",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tottenham Hotspur": {
+      "api_id": 47,
+      "api_name": "Tottenham",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tottenham Hotspur FC": {
+      "api_id": 47,
+      "api_name": "Tottenham",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Toulouse": {
+      "api_id": 96,
+      "api_name": "Toulouse",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Toulouse FC": {
+      "api_id": 96,
+      "api_name": "Toulouse",
+      "league_id": 61,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Trabzonspor": {
+      "api_id": 998,
+      "api_name": "Trabzonspor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tranmere Rovers": {
+      "api_id": 1381,
+      "api_name": "Tranmere",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tromso": {
+      "api_id": 325,
+      "api_name": "Tromso",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Troyes": {
+      "api_id": 110,
+      "api_name": "Estac Troyes",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Tunisia": {
+      "api_id": 28,
+      "api_name": "Tunisia",
+      "league_id": 6,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "UCV FC": {
+      "api_id": 2840,
+      "api_name": "UCV",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "US Catanzaro 1929": {
+      "api_id": 1687,
+      "api_name": "Catanzaro",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "US Cremonese": {
+      "api_id": 520,
+      "api_name": "Cremonese",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "US Lecce": {
+      "api_id": 867,
+      "api_name": "Lecce",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "US Sassuolo Calcio": {
+      "api_id": 488,
+      "api_name": "Sassuolo",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "USL Dunkerque": {
+      "api_id": 1304,
+      "api_name": "Dunkerque",
+      "league_id": 62,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Udinese": {
+      "api_id": 494,
+      "api_name": "Udinese",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Udinese Calcio": {
+      "api_id": 494,
+      "api_name": "Udinese",
+      "league_id": 135,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Ulsan Hyundai FC": {
+      "api_id": 2767,
+      "api_name": "Ulsan Hyundai FC",
+      "league_id": 292,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Union Berlin": {
+      "api_id": 182,
+      "api_name": "Union Berlin",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Union La Calera": {
+      "api_id": 2326,
+      "api_name": "Union La Calera",
+      "league_id": 265,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Union Santa Fe": {
+      "api_id": 441,
+      "api_name": "Union Santa Fe",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Universidad de Chile": {
+      "api_id": 2323,
+      "api_name": "Universidad de Chile",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Urawa Red Diamonds": {
+      "api_id": 287,
+      "api_name": "Urawa",
+      "league_id": 98,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "VPS Vaasa": {
+      "api_id": 650,
+      "api_name": "VPS",
+      "league_id": 244,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Valencia": {
+      "api_id": 532,
+      "api_name": "Valencia",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Valencia CF": {
+      "api_id": 532,
+      "api_name": "Valencia",
+      "league_id": 140,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Vancouver Whitecaps FC": {
+      "api_id": 1603,
+      "api_name": "Vancouver Whitecaps",
+      "league_id": 253,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Varbergs BoIS": {
+      "api_id": 2171,
+      "api_name": "Varbergs BoIS FC",
+      "league_id": 114,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Vejle Boldklub": {
+      "api_id": 395,
+      "api_name": "Vejle",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Velez Sarsfield BA": {
+      "api_id": 438,
+      "api_name": "Velez Sarsfield",
+      "league_id": 13,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Venezia": {
+      "api_id": 517,
+      "api_name": "Venezia",
+      "league_id": 136,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "VfB Stuttgart": {
+      "api_id": 172,
+      "api_name": "VfB Stuttgart",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "VfB Stuttgart II": {
+      "api_id": 172,
+      "api_name": "VfB Stuttgart",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "VfL Bochum": {
+      "api_id": 176,
+      "api_name": "VfL Bochum",
+      "league_id": 79,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "VfL Osnabrück": {
+      "api_id": 1324,
+      "api_name": "VfL Osnabrück",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "VfL Wolfsburg": {
+      "api_id": 161,
+      "api_name": "VfL Wolfsburg",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Viborg FF": {
+      "api_id": 2070,
+      "api_name": "Viborg",
+      "league_id": 119,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Viking FK": {
+      "api_id": 759,
+      "api_name": "Viking",
+      "league_id": 103,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Vila Nova": {
+      "api_id": 142,
+      "api_name": "Vila Nova",
+      "league_id": 72,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Villarreal": {
+      "api_id": 533,
+      "api_name": "Villarreal",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Villarreal CF": {
+      "api_id": 533,
+      "api_name": "Villarreal",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Virtus Entella": {
+      "api_id": 5308,
+      "api_name": "Virtus",
+      "league_id": 2,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Vitoria": {
+      "api_id": 136,
+      "api_name": "Vitoria",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Waldhof Mannheim": {
+      "api_id": 4268,
+      "api_name": "Waldhof Mannheim",
+      "league_id": 80,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Walsall": {
+      "api_id": 1342,
+      "api_name": "Walsall",
+      "league_id": 42,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Waterford FC": {
+      "api_id": 3845,
+      "api_name": "Waterford",
+      "league_id": 357,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Watford": {
+      "api_id": 38,
+      "api_name": "Watford",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Watford FC": {
+      "api_id": 38,
+      "api_name": "Watford",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wellington Phoenix FC": {
+      "api_id": 942,
+      "api_name": "Wellington Phoenix",
+      "league_id": 188,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Werder Bremen": {
+      "api_id": 162,
+      "api_name": "Werder Bremen",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "West Ham United": {
+      "api_id": 48,
+      "api_name": "West Ham",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "West Ham United FC": {
+      "api_id": 48,
+      "api_name": "West Ham",
+      "league_id": 39,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Westerlo": {
+      "api_id": 261,
+      "api_name": "KVC Westerlo",
+      "league_id": 144,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Western Sydney Wanderers": {
+      "api_id": 2360,
+      "api_name": "Wanderers",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Widzew Łódź": {
+      "api_id": 6962,
+      "api_name": "Widzew Łódź",
+      "league_id": 106,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wigan Athletic": {
+      "api_id": 61,
+      "api_name": "Wigan",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wimbledon": {
+      "api_id": 1333,
+      "api_name": "AFC Wimbledon",
+      "league_id": 41,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wolfsberger AC": {
+      "api_id": 1025,
+      "api_name": "Wolfsberger AC",
+      "league_id": 3,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wolverhampton Wanderers": {
+      "api_id": 2360,
+      "api_name": "Wanderers",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wolverhampton Wanderers FC": {
+      "api_id": 2360,
+      "api_name": "Wanderers",
+      "league_id": 11,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wrexham AFC": {
+      "api_id": 1837,
+      "api_name": "Wrexham",
+      "league_id": 40,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Wuhan Three Towns": {
+      "api_id": 5695,
+      "api_name": "Wuhan Three Towns",
+      "league_id": 169,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Yokohama F Marinos": {
+      "api_id": 296,
+      "api_name": "Yokohama F. Marinos",
+      "league_id": 98,
+      "score": 97.3,
+      "reason": "token_set_ratio=97"
+    },
+    "Yunnan Yukun": {
+      "api_id": 21265,
+      "api_name": "Yunnan Yukun",
+      "league_id": 169,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Zaragoza": {
+      "api_id": 732,
+      "api_name": "Zaragoza",
+      "league_id": 141,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Zenit St Petersburg": {
+      "api_id": 596,
+      "api_name": "Zenit",
+      "league_id": 235,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Çaykur Rizespor": {
+      "api_id": 1007,
+      "api_name": "Rizespor",
+      "league_id": 203,
+      "score": 100.0,
+      "reason": "Exact match"
+    },
+    "Deportivo La Coruña": {
+      "api_id": 544,
+      "api_name": "Deportivo La Coruna",
+      "league_id": 141,
+      "score": 94.7,
+      "reason": "token_set_ratio=95"
+    },
+    "Defensa y Justicia": {
+      "api_id": 442,
+      "api_name": "Defensa Y Justicia",
+      "league_id": 11,
+      "score": 94.4,
+      "reason": "token_set_ratio=94"
+    },
+    "Atlético San Luis": {
+      "api_id": 2314,
+      "api_name": "Atletico San Luis",
+      "league_id": 262,
+      "score": 94.1,
+      "reason": "token_set_ratio=94"
+    },
+    "TPS Turku": {
+      "api_id": 1168,
+      "api_name": "Turku PS",
+      "league_id": 244,
+      "score": 94.1,
+      "reason": "token_set_ratio=94"
+    },
+    "Volos FC": {
+      "api_id": 2110,
+      "api_name": "Volos NFC",
+      "league_id": 197,
+      "score": 94.1,
+      "reason": "token_set_ratio=94"
+    },
+    "Atlético Tucuman": {
+      "api_id": 455,
+      "api_name": "Atletico Tucuman",
+      "league_id": 128,
+      "score": 93.8,
+      "reason": "token_set_ratio=94"
+    },
+    "Al-Hazem": {
+      "api_id": 2945,
+      "api_name": "Al-Hazm",
+      "league_id": 307,
+      "score": 93.3,
+      "reason": "token_set_ratio=93"
+    },
+    "América Mineiro": {
+      "api_id": 125,
+      "api_name": "America Mineiro",
+      "league_id": 72,
+      "score": 93.3,
+      "reason": "token_set_ratio=93"
+    },
+    "América de Cali": {
+      "api_id": 1138,
+      "api_name": "America de Cali",
+      "league_id": 11,
+      "score": 93.3,
+      "reason": "token_set_ratio=93"
+    },
+    "Atlético Madrid": {
+      "api_id": 530,
+      "api_name": "Atletico Madrid",
+      "league_id": 2,
+      "score": 93.3,
+      "reason": "token_set_ratio=93"
+    },
+    "Cracovia Kraków": {
+      "api_id": 350,
+      "api_name": "Cracovia Krakow",
+      "league_id": 106,
+      "score": 93.3,
+      "reason": "token_set_ratio=93"
+    },
+    "Go Ahead Eagles": {
+      "api_id": 410,
+      "api_name": "GO Ahead Eagles",
+      "league_id": 3,
+      "score": 93.3,
+      "reason": "token_set_ratio=93"
+    },
+    "Pogoń Szczecin": {
+      "api_id": 348,
+      "api_name": "Pogon Szczecin",
+      "league_id": 106,
+      "score": 92.9,
+      "reason": "token_set_ratio=93"
+    },
+    "Sporting Gijón": {
+      "api_id": 731,
+      "api_name": "Sporting Gijon",
+      "league_id": 141,
+      "score": 92.9,
+      "reason": "token_set_ratio=93"
+    },
+    "Cerro Porteño": {
+      "api_id": 1176,
+      "api_name": "Cerro Porteno",
+      "league_id": 13,
+      "score": 92.3,
+      "reason": "token_set_ratio=92"
+    },
+    "Górnik Zabrze": {
+      "api_id": 340,
+      "api_name": "Gornik Zabrze",
+      "league_id": 106,
+      "score": 92.3,
+      "reason": "token_set_ratio=92"
+    },
+    "HamKam": {
+      "api_id": 2159,
+      "api_name": "Ham-Kam",
+      "league_id": 103,
+      "score": 92.3,
+      "reason": "token_set_ratio=92"
+    },
+    "Lechia Gdańsk": {
+      "api_id": 343,
+      "api_name": "Lechia Gdansk",
+      "league_id": 106,
+      "score": 92.3,
+      "reason": "token_set_ratio=92"
+    },
+    "Östersunds FK": {
+      "api_id": 376,
+      "api_name": "Ostersunds FK",
+      "league_id": 114,
+      "score": 92.3,
+      "reason": "token_set_ratio=92"
+    },
+    "Hammarby IF": {
+      "api_id": 363,
+      "api_name": "Hammarby FF",
+      "league_id": 113,
+      "score": 90.9,
+      "reason": "token_set_ratio=91"
+    },
+    "IFK Värnamo": {
+      "api_id": 2163,
+      "api_name": "IFK Varnamo",
+      "league_id": 113,
+      "score": 90.9,
+      "reason": "token_set_ratio=91"
+    },
+    "Lech Poznań": {
+      "api_id": 347,
+      "api_name": "Lech Poznan",
+      "league_id": 2,
+      "score": 90.9,
+      "reason": "token_set_ratio=91"
+    },
+    "Mjällby AIF": {
+      "api_id": 2240,
+      "api_name": "Mjallby AIF",
+      "league_id": 113,
+      "score": 90.9,
+      "reason": "token_set_ratio=91"
+    },
+    "Operario PR": {
+      "api_id": 1223,
+      "api_name": "Operario-PR",
+      "league_id": 72,
+      "score": 90.9,
+      "reason": "token_set_ratio=91"
+    },
+    "SonderjyskE": {
+      "api_id": 396,
+      "api_name": "Sonderjyske",
+      "league_id": 119,
+      "score": 90.9,
+      "reason": "token_set_ratio=91"
+    },
+    "Al-Okhdood": {
+      "api_id": 2977,
+      "api_name": "Al Okhdood",
+      "league_id": 307,
+      "score": 90.0,
+      "reason": "token_set_ratio=90"
+    },
+    "Andorra CF": {
+      "api_id": 8157,
+      "api_name": "FC Andorra",
+      "league_id": 141,
+      "score": 90.0,
+      "reason": "token_set_ratio=90"
+    },
+    "Bodø/Glimt": {
+      "api_id": 327,
+      "api_name": "Bodo/Glimt",
+      "league_id": 2,
+      "score": 90.0,
+      "reason": "token_set_ratio=90"
+    },
+    "D.C. United": {
+      "api_id": 1615,
+      "api_name": "DC United",
+      "league_id": 253,
+      "score": 90.0,
+      "reason": "token_set_ratio=90"
+    },
+    "Fenerbahce": {
+      "api_id": 611,
+      "api_name": "Fenerbahçe",
+      "league_id": 2,
+      "score": 90.0,
+      "reason": "token_set_ratio=90"
+    },
+    "Örgryte IS": {
+      "api_id": 2166,
+      "api_name": "Orgryte IS",
+      "league_id": 113,
+      "score": 90.0,
+      "reason": "token_set_ratio=90"
+    },
+    "Rot-Weiss Essen": {
+      "api_id": 1621,
+      "api_name": "Rot-Weiß Essen",
+      "league_id": 80,
+      "score": 89.7,
+      "reason": "token_set_ratio=90"
+    },
+    "Al-Riyadh": {
+      "api_id": 10511,
+      "api_name": "Al Riyadh",
+      "league_id": 307,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "FC Juárez": {
+      "api_id": 2298,
+      "api_name": "FC Juarez",
+      "league_id": 262,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "FK Rostov": {
+      "api_id": 779,
+      "api_name": "FC Rostov",
+      "league_id": 235,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "Famalicão": {
+      "api_id": 242,
+      "api_name": "Famalicao",
+      "league_id": 94,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "Vålerenga": {
+      "api_id": 326,
+      "api_name": "Valerenga",
+      "league_id": 103,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "Örebro SK": {
+      "api_id": 365,
+      "api_name": "Orebro SK",
+      "league_id": 114,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "Östers IF": {
+      "api_id": 2174,
+      "api_name": "Osters IF",
+      "league_id": 113,
+      "score": 88.9,
+      "reason": "token_set_ratio=89"
+    },
+    "Chapecoense": {
+      "api_id": 132,
+      "api_name": "Chapecoense-sc",
+      "league_id": 72,
+      "score": 88.0,
+      "reason": "token_set_ratio=88"
+    },
+    "Corinthians-SP": {
+      "api_id": 131,
+      "api_name": "Corinthians",
+      "league_id": 11,
+      "score": 88.0,
+      "reason": "token_set_ratio=88"
+    },
+    "FC St Gallen": {
+      "api_id": 1011,
+      "api_name": "FC ST. Gallen",
+      "league_id": 207,
+      "score": 88.0,
+      "reason": "token_set_ratio=88"
+    },
+    "Al-Najma": {
+      "api_id": 2992,
+      "api_name": "Al Najma",
+      "league_id": 307,
+      "score": 87.5,
+      "reason": "token_set_ratio=88"
+    },
+    "FK Sochi": {
+      "api_id": 2012,
+      "api_name": "FC Sochi",
+      "league_id": 235,
+      "score": 87.5,
+      "reason": "token_set_ratio=88"
+    },
+    "IK Brage": {
+      "api_id": 2175,
+      "api_name": "IK brage",
+      "league_id": 114,
+      "score": 87.5,
+      "reason": "token_set_ratio=88"
+    },
+    "Südtirol": {
+      "api_id": 1578,
+      "api_name": "Sudtirol",
+      "league_id": 136,
+      "score": 87.5,
+      "reason": "token_set_ratio=88"
+    },
+    "Ñublense": {
+      "api_id": 2337,
+      "api_name": "Nublense",
+      "league_id": 13,
+      "score": 87.5,
+      "reason": "token_set_ratio=88"
+    },
+    "Accrington Stanley": {
+      "api_id": 1360,
+      "api_name": "Accrington ST",
+      "league_id": 42,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "CA Paranaense": {
+      "api_id": 134,
+      "api_name": "Atletico Paranaense",
+      "league_id": 72,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "CR Vasco da Gama": {
+      "api_id": 133,
+      "api_name": "Vasco DA Gama",
+      "league_id": 11,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "Dundee United": {
+      "api_id": 1386,
+      "api_name": "Dundee Utd",
+      "league_id": 848,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "Fluminense-RJ": {
+      "api_id": 124,
+      "api_name": "Fluminense",
+      "league_id": 11,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "Sint Truiden": {
+      "api_id": 735,
+      "api_name": "St. Truiden",
+      "league_id": 144,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "Vasco da Gama": {
+      "api_id": 133,
+      "api_name": "Vasco DA Gama",
+      "league_id": 11,
+      "score": 87.0,
+      "reason": "token_set_ratio=87"
+    },
+    "Instituto de Córdoba": {
+      "api_id": 478,
+      "api_name": "Instituto Cordoba",
+      "league_id": 128,
+      "score": 86.5,
+      "reason": "token_set_ratio=86"
+    },
+    "Almería": {
+      "api_id": 723,
+      "api_name": "Almeria",
+      "league_id": 141,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "Córdoba": {
+      "api_id": 713,
+      "api_name": "Cordoba",
+      "league_id": 141,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "Gazişehir Gaziantep": {
+      "api_id": 3573,
+      "api_name": "Gaziantep FK",
+      "league_id": 203,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "Goztepe": {
+      "api_id": 994,
+      "api_name": "Göztepe",
+      "league_id": 203,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "Leganés": {
+      "api_id": 537,
+      "api_name": "Leganes",
+      "league_id": 141,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "Palmeiras-SP": {
+      "api_id": 121,
+      "api_name": "Palmeiras",
+      "league_id": 13,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "Zagłębie Lubin": {
+      "api_id": 345,
+      "api_name": "Zaglebie Lubin",
+      "league_id": 106,
+      "score": 85.7,
+      "reason": "token_set_ratio=86"
+    },
+    "TSG Hoffenheim": {
+      "api_id": 167,
+      "api_name": "1899 Hoffenheim",
+      "league_id": 78,
+      "score": 100.0,
+      "reason": "Manual override - corrected from Hoffenheim II (reserve team, id=9364)"
+    }
+  }
+}

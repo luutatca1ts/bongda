@@ -53,18 +53,53 @@ _EV_BAND = 0.02
 _TEAM_SUFFIXES = (" fc", " afc", " cf", " sc", " ac", " fk", " sk", " ck",
                   " hc", " bk", " if", " ff", " kf")
 
+# Club-type prefixes to strip (mostly Spanish/Latin American):
+#   RCD = Real Club Deportivo, CD = Club Deportivo, UD = Unión Deportiva,
+#   CA = Club Atlético, SD = Sociedad Deportiva, AD = Agrupación Deportiva,
+#   RC = Real Club, CF = Club de Fútbol (when at start), AFC/FC (when at start).
+_TEAM_PREFIXES = ("rcd ", "cd ", "ud ", "ca ", "sd ", "ad ", "rc ",
+                  "afc ", "fc ", "cf ", "sc ", "ac ", "1. fc ",
+                  "vfl ", "vfb ", "tsv ", "tsg ", "sv ", "bv ")
+
+# Location tails to strip. Football-Data often appends the city / region
+# ("de Madrid", "de Barcelona", "de Bilbao"); the Odds API does not.
+# Order matters: multi-word tokens first so " de madrid" strips before " madrid".
+_TEAM_LOCATION_TAILS = (
+    " de madrid", " de barcelona", " de bilbao", " de vigo", " de sevilla",
+    " de san sebastián", " de san sebastian", " de la coruña", " de la coruna",
+    " de gijón", " de gijon", " de valencia", " de zaragoza",
+    " de rio de janeiro", " de são paulo", " de sao paulo",
+)
+
 
 def _norm_team(name: str) -> str:
+    """Aggressive normalization: lowercase, strip club-type prefixes, strip
+    city/region tails (Spanish "de X"), strip club-type suffixes.
+    Runs iteratively until stable.
+    """
     if not name:
         return ""
     s = name.strip().lower()
+    # Normalize multiple whitespace to single space.
+    s = " ".join(s.split())
     changed = True
     while changed:
         changed = False
+        for pref in _TEAM_PREFIXES:
+            if s.startswith(pref):
+                s = s[len(pref):].lstrip()
+                changed = True
+                break
+        for tail in _TEAM_LOCATION_TAILS:
+            if s.endswith(tail):
+                s = s[: -len(tail)].rstrip()
+                changed = True
+                break
         for suf in _TEAM_SUFFIXES:
             if s.endswith(suf):
                 s = s[: -len(suf)].rstrip()
                 changed = True
+                break
     return s
 
 

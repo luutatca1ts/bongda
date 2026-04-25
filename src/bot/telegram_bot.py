@@ -472,19 +472,54 @@ _MKT_NAMES = {
 _TEAM_SUFFIXES = (" fc", " afc", " cf", " sc", " ac", " fk", " sk", " ck",
                   " hc", " bk", " if", " ff", " kf")
 
+# Club-type prefixes to strip (mostly Spanish/Latin American):
+#   RCD = Real Club Deportivo, CD = Club Deportivo, UD = Unión Deportiva,
+#   CA = Club Atlético, SD = Sociedad Deportiva, AD = Agrupación Deportiva,
+#   RC = Real Club. Also the Bundesliga "1. FC" / VfL / VfB / TSV prefixes.
+_TEAM_PREFIXES = ("rcd ", "cd ", "ud ", "ca ", "sd ", "ad ", "rc ",
+                  "afc ", "fc ", "cf ", "sc ", "ac ", "1. fc ",
+                  "vfl ", "vfb ", "tsv ", "tsg ", "sv ", "bv ")
+
+# Location tails to strip. Football-Data often appends the city / region
+# ("de Madrid", "de Barcelona", "de Bilbao"); the Odds API does not.
+# Multi-word tokens first so " de madrid" strips before " madrid".
+_TEAM_LOCATION_TAILS = (
+    " de madrid", " de barcelona", " de bilbao", " de vigo", " de sevilla",
+    " de san sebastián", " de san sebastian", " de la coruña", " de la coruna",
+    " de gijón", " de gijon", " de valencia", " de zaragoza",
+    " de rio de janeiro", " de são paulo", " de sao paulo",
+)
+
 
 def _canonical_team_key(name: str) -> str:
-    """Lowercase + strip common club suffixes so name variants collapse."""
+    """Aggressive normalization: lowercase, strip club-type prefixes, strip
+    city/region tails (Spanish "de X"), strip club-type suffixes.
+    Runs iteratively until stable. Mirrors chot_pipeline._norm_team so dedup
+    across Football-Data (long names) vs Odds API (short names) works.
+    """
     if not name:
         return ""
     s = name.strip().lower()
+    # Normalize multiple whitespace to single space.
+    s = " ".join(s.split())
     changed = True
     while changed:
         changed = False
+        for pref in _TEAM_PREFIXES:
+            if s.startswith(pref):
+                s = s[len(pref):].lstrip()
+                changed = True
+                break
+        for tail in _TEAM_LOCATION_TAILS:
+            if s.endswith(tail):
+                s = s[: -len(tail)].rstrip()
+                changed = True
+                break
         for suf in _TEAM_SUFFIXES:
             if s.endswith(suf):
                 s = s[: -len(suf)].rstrip()
                 changed = True
+                break
     return s
 
 
@@ -913,28 +948,30 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             day_start = datetime(target_date.year, target_date.month, target_date.day)
             day_end = day_start + timedelta(days=1)
 
-            # All predictions for this day
+            # Anchor: /chot re-analyses DONE on this day (not Prediction.created_at).
+            # /history is a scoreboard of picks /chot re-checked during the day —
+            # the pred itself may have been generated earlier (kickoff day != created_at day).
+            # One pred can have several re-analyses — distinct() collapses them.
+            chot_pred_ids_rows = (
+                session.query(ChotReanalysis.prediction_id)
+                .filter(
+                    ChotReanalysis.reanalyzed_at >= day_start,
+                    ChotReanalysis.reanalyzed_at < day_end,
+                )
+                .distinct()
+                .all()
+            )
+            chot_pred_ids = {r[0] for r in chot_pred_ids_rows}
+            if not chot_pred_ids:
+                all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có kèo /chot\n")
+                continue
+
             preds = (
                 session.query(Prediction)
-                .filter(Prediction.created_at >= day_start, Prediction.created_at < day_end)
+                .filter(Prediction.id.in_(chot_pred_ids))
                 .order_by(Prediction.created_at.asc())
                 .all()
             )
-            if not preds:
-                all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có phân tích\n")
-                continue
-
-            # Keep only preds that /chot actually pushed (≥1 row in chot_reanalysis).
-            # Feedback loop: /history becomes a scoreboard of pre-match /chot picks,
-            # not of every value-bet the pipeline ever emitted. One pred can have
-            # several reanalyses — distinct() collapses them to an id set.
-            chot_pred_ids = {
-                r[0] for r in session.query(ChotReanalysis.prediction_id)
-                .filter(ChotReanalysis.prediction_id.in_([p.id for p in preds]))
-                .distinct()
-                .all()
-            }
-            preds = [p for p in preds if p.id in chot_pred_ids]
             if not preds:
                 all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có kèo /chot\n")
                 continue
@@ -2602,7 +2639,7 @@ async def _run_all_leagues_phantich(update: Update, context: ContextTypes.DEFAUL
 
         msg = (
             f"{title}\n"
-            f"{'\u2501' * 17}\n"
+            f"{'━' * 17}\n"
             f"\u0110\u00e3 ph\u00e2n t\u00edch: {n_matches} tr\u1eadn trong {m_leagues} gi\u1ea3i\n"
             f"T\u00ecm \u0111\u01b0\u1ee3c: {kept_total} k\u00e8o Prob \u2265 58%\n"
             f"\u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
@@ -4060,7 +4097,7 @@ async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_T
         else:
             sel_names = ", ".join(sorted(selected))
             await query.edit_message_text(
-                f"\u2705 \u0110ang {'ph\u00e2n t\u00edch' if command == 'phantich' else 'xem live'}: {sel_names}"
+                f"\u2705 \u0110ang {'phân tích' if command == 'phantich' else 'xem live'}: {sel_names}"
             )
 
         # Clean up state

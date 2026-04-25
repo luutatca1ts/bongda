@@ -1,0 +1,18 @@
+112:        if _match_teams(m.home_team, m.away_team, home, away):
+118:    home_team: str,
+119:    away_team: str,
+142:            pred = model.predict(home_team, away_team)
+164:                        "home_team": r.home_team,
+165:                        "away_team": r.away_team,
+175:                    pred = model.predict(home_team, away_team)
+316:                db_match.home_team, db_match.away_team, league_code, session=session,
+348:                if _match_event(db_match.home_team, db_match.away_team, m_utc, ev):
+358:                model_probs, odds_event, db_match.home_team, db_match.away_team,
+383:                    "home_team": db_match.home_team,
+384:                    "away_team": db_match.away_team,
+404:    home_team: str,
+405:    away_team: str,
+418:        mapped = _h2h_outcome_to_team(outcome_name, home_team, away_team)
+444:                f"{home_team} vs {away_team} | h2h:{mapped} @ {price} "
+493:                f"{home_team} vs {away_team} | totals:{_outcome_label} @ {price} "
+510:            f"[LivePipeline] {home_team} vs {away_team}: "

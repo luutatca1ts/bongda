@@ -51,7 +51,7 @@ from src.db.models import (
     Prediction,
     get_session,
 )
-from src.pipeline import _match_event, _match_teams
+from src.pipeline import _is_ev_suspicious, _match_event, _match_teams
 from src.bot.formatters import format_live_alert
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,9 @@ logger = logging.getLogger(__name__)
 
 # EV threshold cao hơn pregame (1%) vì live noise lớn hơn, risk cao hơn.
 LIVE_MIN_EV = 0.05
+# Prob threshold — chỉ push kèo có xác suất model >= ngưỡng này.
+# User strategy: prob >= 58% để lọc ra high-confidence picks.
+LIVE_MIN_PROB = 0.58
 # Không alert lại cùng match+market+outcome trong window này.
 ALERT_COOLDOWN_MIN = 10
 
@@ -401,10 +404,13 @@ def _find_live_value_bets(
     home_team: str,
     away_team: str,
     min_ev: float = LIVE_MIN_EV,
+    min_prob: float = LIVE_MIN_PROB,    
 ) -> list[dict]:
     """So xác suất model với live odds (Pinnacle). Return list vb thỏa EV ≥ min_ev."""
     value_bets: list[dict] = []
 
+    filtered_low_prob = 0
+    filtered_suspicious = 0
     # --- h2h ---
     h2h_probs = model_probs.get("h2h", {})
     h2h_odds = _best_live_odds(odds_event, "h2h")
@@ -416,23 +422,44 @@ def _find_live_value_bets(
         price = od.get("price", 0.0) or 0.0
         if prob <= 0 or price <= 1.01:
             continue
+        # Filter 1: prob threshold
+        if prob < min_prob:
+            filtered_low_prob += 1
+            continue
         ev = prob * price - 1
-        if ev >= min_ev:
-            value_bets.append({
-                "market": "h2h",
-                "outcome": mapped,
-                "probability": prob,
-                "odds": price,
-                "bookmaker": od.get("bookmaker", "Pinnacle"),
-                "ev": ev,
-                "confidence": _live_confidence(ev),
-            })
+        if ev < min_ev:
+            continue
+        # Filter 2: suspicious VB
+        _vb_check = {
+            "ev": ev,
+            "bookmaker": od.get("bookmaker", "Pinnacle") or "",
+            "market": "h2h",
+            "outcome": mapped,
+        }
+        _susp, _reason = _is_ev_suspicious(_vb_check)
+        if _susp:
+            filtered_suspicious += 1
+            logger.warning(
+                f"[LivePipeline] FILTERED suspicious VB - "
+                f"{home_team} vs {away_team} | h2h:{mapped} @ {price} "
+                f"(EV {ev*100:+.1f}%, bk={od.get('bookmaker', 'N/A')}) - {_reason}"
+            )
+            continue
+        value_bets.append({
+            "market": "h2h",
+            "outcome": mapped,
+            "probability": prob,
+            "odds": price,
+            "bookmaker": od.get("bookmaker", "Pinnacle"),
+            "ev": ev,
+            "confidence": _live_confidence(ev),
+        })
 
     # --- totals ---
     totals_model = model_probs.get("totals", {})
     totals_odds = _best_live_odds(odds_event, "totals")
     for outcome_name, od in totals_odds.items():
-        # Pinnacle trả "Over"/"Under" + point
+        # Pinnacle tra "Over"/"Under" + point
         point = od.get("point")
         price = od.get("price", 0.0) or 0.0
         if point is None or price <= 1.01:
@@ -443,17 +470,47 @@ def _find_live_value_bets(
         prob = line_probs.get(outcome_name, 0.0)
         if prob <= 0:
             continue
+        # Filter 1: prob threshold
+        if prob < min_prob:
+            filtered_low_prob += 1
+            continue
         ev = prob * price - 1
-        if ev >= min_ev:
-            value_bets.append({
-                "market": "totals",
-                "outcome": f"{outcome_name} {point}",
-                "probability": prob,
-                "odds": price,
-                "bookmaker": od.get("bookmaker", "Pinnacle"),
-                "ev": ev,
-                "confidence": _live_confidence(ev),
-            })
+        if ev < min_ev:
+            continue
+        # Filter 2: suspicious VB
+        _outcome_label = f"{outcome_name} {point}"
+        _vb_check = {
+            "ev": ev,
+            "bookmaker": od.get("bookmaker", "Pinnacle") or "",
+            "market": "totals",
+            "outcome": _outcome_label,
+        }
+        _susp, _reason = _is_ev_suspicious(_vb_check)
+        if _susp:
+            filtered_suspicious += 1
+            logger.warning(
+                f"[LivePipeline] FILTERED suspicious VB - "
+                f"{home_team} vs {away_team} | totals:{_outcome_label} @ {price} "
+                f"(EV {ev*100:+.1f}%, bk={od.get('bookmaker', 'N/A')}) - {_reason}"
+            )
+            continue
+        value_bets.append({
+            "market": "totals",
+            "outcome": _outcome_label,
+            "probability": prob,
+            "odds": price,
+            "bookmaker": od.get("bookmaker", "Pinnacle"),
+            "ev": ev,
+            "confidence": _live_confidence(ev),
+        })
+
+    # Summary log if filters caught anything
+    if filtered_low_prob > 0 or filtered_suspicious > 0:
+        logger.info(
+            f"[LivePipeline] {home_team} vs {away_team}: "
+            f"kept={len(value_bets)}, filtered_low_prob={filtered_low_prob}, "
+            f"filtered_suspicious={filtered_suspicious}"
+        )
 
     return value_bets
 

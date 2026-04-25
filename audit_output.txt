@@ -1,0 +1,568 @@
+Loaded 772 entries
+
+============================================================
+CHECK 1: Self-mismatch (key vs api_name)
+============================================================
+Found 280 self-mismatches:
+
+  key=[1. FC Heidenheim 1846] api_name=[1. FC Heidenheim] api_id=180 league_id=78
+  key=[1. FC Saarbrücken] api_name=[FC Saarbrücken] api_id=1639 league_id=80
+  key=[1. FC Union Berlin] api_name=[Union Berlin] api_id=182 league_id=78
+  key=[1. FSV Mainz 05] api_name=[FSV Mainz 05] api_id=164 league_id=78
+  key=[AC Pisa 1909] api_name=[Pisa] api_id=801 league_id=135
+  key=[ACF Fiorentina] api_name=[Fiorentina] api_id=502 league_id=135
+  key=[AE Kifisia FC] api_name=[Kifisia] api_id=5050 league_id=197
+  key=[AGF Aarhus] api_name=[Aarhus] api_id=406 league_id=119
+  key=[AIK] api_name=[AIK Stockholm] api_id=377 league_id=113
+  key=[AJ Auxerre] api_name=[Auxerre] api_id=108 league_id=61
+  key=[AS Monaco] api_name=[Monaco] api_id=91 league_id=2
+  key=[AS Monaco FC] api_name=[Monaco] api_id=91 league_id=2
+  key=[AVS Futebol SAD] api_name=[AVS] api_id=21595 league_id=94
+  key=[AZ] api_name=[AZ Alkmaar] api_id=201 league_id=88
+  key=[Aldosivi Mar del Plata] api_name=[Aldosivi] api_id=463 league_id=128
+  key=[Angers SCO] api_name=[Angers] api_id=77 league_id=61
+  key=[Aris Thessaloniki] api_name=[Aris] api_id=3408 league_id=848
+  key=[Atalanta BC] api_name=[Atalanta] api_id=499 league_id=2
+  key=[Athletic Club (MG)] api_name=[Athletic Club] api_id=531 league_id=2
+  key=[Atlas] api_name=[Atlas Paillade] api_id=27016 league_id=66
+  key=[Atromitos Athens] api_name=[Atromitos] api_id=12260 league_id=197
+  key=[Austria] api_name=[Austria Vienna] api_id=601 league_id=218
+  key=[Bayer 04 Leverkusen] api_name=[Bayer Leverkusen] api_id=168 league_id=2
+  key=[Belgrano de Cordoba] api_name=[Belgrano Cordoba] api_id=440 league_id=128
+  key=[Birmingham City] api_name=[Birmingham] api_id=54 league_id=40
+  key=[Birmingham City FC] api_name=[Birmingham] api_id=54 league_id=40
+  key=[Blackburn Rovers] api_name=[Blackburn] api_id=67 league_id=40
+  key=[Blackburn Rovers FC] api_name=[Blackburn] api_id=67 league_id=40
+  key=[Bologna FC 1909] api_name=[Bologna] api_id=500 league_id=3
+  key=[Borussia Monchengladbach] api_name=[Borussia Mönchengladbach] api_id=163 league_id=78
+  key=[Botafogo FR] api_name=[Botafogo] api_id=120 league_id=13
+  key=[Bradford City] api_name=[Bradford] api_id=1343 league_id=41
+  key=[Brest] api_name=[Dinamo Brest] api_id=386 league_id=848
+  key=[Brighton & Hove Albion FC] api_name=[Brighton] api_id=51 league_id=39
+  key=[Brighton and Hove Albion] api_name=[Brighton] api_id=51 league_id=39
+  key=[CA Boston River] api_name=[Boston River] api_id=2361 league_id=11
+  key=[CA Osasuna] api_name=[Osasuna] api_id=727 league_id=140
+  key=[CA Tigre BA] api_name=[Tigre] api_id=452 league_id=128
+  key=[CD Castellón] api_name=[Castellón] api_id=5254 league_id=141
+  key=[CD Nacional] api_name=[Nacional] api_id=225 league_id=94
+  key=[CD Santa Clara] api_name=[Santa Clara] api_id=227 league_id=94
+  key=[CD Tondela] api_name=[Tondela] api_id=218 league_id=94
+  key=[CF Estrela da Amadora] api_name=[Estrela] api_id=15130 league_id=94
+  key=[CR Flamengo] api_name=[Flamengo] api_id=127 league_id=13
+  key=[Cagliari Calcio] api_name=[Cagliari] api_id=490 league_id=135
+  key=[Cardiff City] api_name=[Cardiff] api_id=43 league_id=41
+  key=[Cercle Brugge KSV] api_name=[Cercle Brugge] api_id=741 league_id=144
+  key=[Charlton Athletic] api_name=[Charlton] api_id=1335 league_id=40
+  key=[Charlton Athletic FC] api_name=[Charlton] api_id=1335 league_id=40
+  key=[Cheltenham Town] api_name=[Cheltenham] api_id=1372 league_id=42
+  key=[Clermont] api_name=[Clermont Foot] api_id=99 league_id=62
+  key=[Club Bolívar] api_name=[Bolívar] api_id=3702 league_id=11
+  key=[Club Brugge] api_name=[Club Brugge KV] api_id=569 league_id=2
+  key=[Club Cienciano] api_name=[Cienciano] api_id=2562 league_id=11
+  key=[Club Independiente Petrolero] api_name=[Independiente] api_id=453 league_id=11
+  key=[Club Universitario de Deportes] api_name=[Universitario] api_id=2540 league_id=13
+  key=[Clube do Remo] api_name=[Remo] api_id=1198 league_id=72
+  key=[Colchester United] api_name=[Colchester] api_id=1361 league_id=42
+  key=[Como 1907] api_name=[Como] api_id=895 league_id=135
+  key=[Coritiba FBC] api_name=[Coritiba] api_id=147 league_id=72
+  key=[Coventry City] api_name=[Coventry] api_id=1346 league_id=40
+  key=[Coventry City FC] api_name=[Coventry] api_id=1346 league_id=40
+  key=[Crewe Alexandra] api_name=[Crewe] api_id=1363 league_id=42
+  key=[Cruzeiro EC] api_name=[Cruzeiro] api_id=135 league_id=11
+  key=[DR Congo] api_name=[Congo DR] api_id=1508 league_id=6
+  key=[Derby County] api_name=[Derby] api_id=69 league_id=40
+  key=[Derby County FC] api_name=[Derby] api_id=69 league_id=40
+  key=[Doncaster Rovers] api_name=[Doncaster] api_id=1354 league_id=41
+  key=[EC Bahia] api_name=[Bahia] api_id=118 league_id=11
+  key=[Elversberg] api_name=[SV Elversberg] api_id=1660 league_id=79
+  key=[England] api_name=[New England Revolution] api_id=1609 league_id=253
+  key=[Estudiantes] api_name=[Estudiantes L.P.] api_id=450 league_id=13
+  key=[Everton] api_name=[Everton de Vina] api_id=2325 league_id=11
+  key=[Everton de Viña del Mar] api_name=[Everton] api_id=45 league_id=39
+  key=[FC Akhmat Grozny] api_name=[Akhmat] api_id=1085 league_id=235
+  key=[FC Akron Tolyatti] api_name=[Akron] api_id=6786 league_id=235
+  key=[FC Baltika Kaliningrad] api_name=[Baltika] api_id=2006 league_id=235
+  key=[FC Basel] api_name=[FC Basel 1893] api_id=551 league_id=2
+  key=[FC Dynamo Makhachkala] api_name=[Dynamo] api_id=1088 league_id=235
+  key=[FC Inter Turku] api_name=[Inter] api_id=505 league_id=2
+  key=[FC St. Pauli 1910] api_name=[FC St. Pauli] api_id=186 league_id=78
+  key=[FC Twente '65] api_name=[Twente] api_id=415 league_id=88
+  key=[FC Twente Enschede] api_name=[Twente] api_id=415 league_id=88
+  key=[FC Viktoria Köln 1904] api_name=[FC Viktoria Köln] api_id=1620 league_id=80
+  key=[Feyenoord Rotterdam] api_name=[Feyenoord] api_id=209 league_id=2
+  key=[Fortaleza] api_name=[Fortaleza EC] api_id=154 league_id=13
+  key=[France] api_name=[France Aizenay] api_id=22735 league_id=66
+  key=[GD Estoril Praia] api_name=[Estoril] api_id=230 league_id=94
+  key=[Galatasaray SK] api_name=[Galatasaray] api_id=645 league_id=2
+  key=[Genoa CFC] api_name=[Genoa] api_id=495 league_id=135
+  key=[Greuther Fürth] api_name=[SpVgg Greuther Fürth] api_id=178 league_id=79
+  key=[Grimsby Town] api_name=[Grimsby] api_id=1365 league_id=42
+  key=[Grêmio Novorizontino] api_name=[Novorizontino] api_id=7834 league_id=72
+  key=[Hartberg] api_name=[TSV Hartberg] api_id=1072 league_id=218
+  key=[Heracles Almelo] api_name=[Heracles] api_id=206 league_id=88
+  key=[Hiroshima Sanfrecce FC] api_name=[Sanfrecce Hiroshima] api_id=282 league_id=98
+  key=[Houston Dynamo] api_name=[Dynamo] api_id=1088 league_id=235
+  key=[IFK Mariehamn] api_name=[Mariehamn] api_id=587 league_id=244
+  key=[IK Oddevold] api_name=[Oddevold] api_id=11674 league_id=114
+  key=[IK Sirius] api_name=[Sirius] api_id=370 league_id=113
+  key=[Ilves Tampere] api_name=[Ilves] api_id=1163 league_id=3
+  key=[Independiente Medellín] api_name=[Independiente] api_id=453 league_id=11
+  key=[Independiente Rivadavia] api_name=[Independiente] api_id=453 league_id=11
+  key=[Independiente Santa Fe] api_name=[Independiente] api_id=453 league_id=11
+  key=[Independiente del Valle] api_name=[Independiente] api_id=453 league_id=11
+  key=[Inter Miami CF] api_name=[Inter] api_id=505 league_id=2
+  key=[Inter Milan] api_name=[Inter] api_id=505 league_id=2
+  key=[Ipswich Town] api_name=[Ipswich] api_id=57 league_id=40
+  key=[Ipswich Town FC] api_name=[Ipswich] api_id=57 league_id=40
+  key=[Jagiellonia Białystok] api_name=[Jagiellonia] api_id=336 league_id=106
+  key=[Jahn Regensburg] api_name=[SSV Jahn Regensburg] api_id=177 league_id=80
+  key=[Jaro] api_name=[FF Jaro] api_id=2075 league_id=244
+  key=[Jeonbuk Hyundai Motors] api_name=[Jeonbuk Motors] api_id=2762 league_id=292
+  key=[KFUM] api_name=[KFUM Oslo] api_id=2143 league_id=103
+  key=[Kashima Antlers] api_name=[Kashima] api_id=290 league_id=98
+  key=[Kryliya Sovetov] api_name=[Krylia Sovetov] api_id=1079 league_id=235
+  key=[KuPS Kuopio] api_name=[KuPS] api_id=1165 league_id=2
+  key=[LDU Quito] api_name=[LDU de Quito] api_id=1158 league_id=13
+  key=[La Serena] api_name=[D. La Serena] api_id=2341 league_id=265
+  key=[Leeds United] api_name=[Leeds] api_id=63 league_id=39
+  key=[Leeds United FC] api_name=[Leeds] api_id=63 league_id=39
+  key=[Leicester City] api_name=[Leicester] api_id=46 league_id=40
+  key=[Leicester City FC] api_name=[Leicester] api_id=46 league_id=40
+  key=[Leuven] api_name=[OH Leuven] api_id=260 league_id=144
+  key=[Levante UD] api_name=[Levante] api_id=539 league_id=140
+  key=[Lille OSC] api_name=[Lille] api_id=79 league_id=3
+  key=[Lincoln City] api_name=[Lincoln] api_id=1379 league_id=41
+  key=[Lokomotiv Moscow] api_name=[Lokomotiv] api_id=597 league_id=235
+  key=[NEC] api_name=[NEC Nijmegen] api_id=413 league_id=88
+  key=[Nacional] api_name=[Nacional Potosí] api_id=3706 league_id=11
+  key=[Nacional de Montevideo] api_name=[Nacional] api_id=225 league_id=94
+  key=[New York City FC] api_name=[York] api_id=1828 league_id=45
+  key=[New York Red Bulls] api_name=[York] api_id=1828 league_id=45
+  key=[Newcastle Jets FC] api_name=[Newcastle] api_id=34 league_id=2
+  key=[Newcastle United] api_name=[Newcastle] api_id=34 league_id=2
+  key=[Newcastle United FC] api_name=[Newcastle] api_id=34 league_id=2
+  key=[Northampton Town] api_name=[Northampton] api_id=1337 league_id=41
+  key=[Norwich City] api_name=[Norwich] api_id=71 league_id=40
+  key=[Norwich City FC] api_name=[Norwich] api_id=71 league_id=40
+  key=[OB Odense BK] api_name=[Odense] api_id=405 league_id=119
+  key=[OFI Crete] api_name=[OFI] api_id=1124 league_id=197
+  key=[OGC Nice] api_name=[Nice] api_id=84 league_id=2
+  key=[Oldham Athletic] api_name=[Oldham] api_id=1349 league_id=42
+  key=[Olimpia Asunción] api_name=[Olimpia] api_id=1182 league_id=13
+  key=[Olympique de Marseille] api_name=[Marseille] api_id=81 league_id=2
+  key=[PAOK Thessaloniki] api_name=[PAOK] api_id=619 league_id=3
+  key=[PSV] api_name=[PSV Eindhoven] api_id=197 league_id=2
+  key=[Panetolikos Agrinio] api_name=[Panetolikos] api_id=949 league_id=197
+  key=[Paris Saint-Germain FC] api_name=[Paris FC] api_id=114 league_id=61
+  key=[Parma Calcio 1913] api_name=[Parma] api_id=523 league_id=135
+  key=[Plymouth Argyle] api_name=[Plymouth] api_id=1357 league_id=41
+  key=[Preston North End] api_name=[Preston] api_id=59 league_id=40
+  key=[Preston North End FC] api_name=[Preston] api_id=59 league_id=40
+  key=[Pumas] api_name=[U.N.A.M. - Pumas] api_id=2286 league_id=262
+  key=[Queens Park Rangers] api_name=[Rangers] api_id=257 league_id=2
+  key=[Queens Park Rangers FC] api_name=[Rangers] api_id=257 league_id=2
+  key=[RC Celta de Vigo] api_name=[Celta Vigo] api_id=538 league_id=3
+  key=[RC Lens] api_name=[Lens] api_id=116 league_id=61
+  key=[RC Strasbourg Alsace] api_name=[Strasbourg] api_id=95 league_id=61
+  key=[RCD Espanyol de Barcelona] api_name=[Barcelona] api_id=529 league_id=2
+  key=[RCD Mallorca] api_name=[Mallorca] api_id=798 league_id=140
+  key=[Racing Club de Lens] api_name=[Racing Club] api_id=436 league_id=13
+  key=[Rayo Vallecano de Madrid] api_name=[Rayo Vallecano] api_id=728 league_id=140
+  key=[Real Betis Balompié] api_name=[Real Betis] api_id=543 league_id=3
+  key=[Real Oviedo] api_name=[Oviedo] api_id=718 league_id=140
+  key=[Real Racing Club de Santander] api_name=[Racing Club] api_id=436 league_id=13
+  key=[Real Sociedad B] api_name=[Real Sociedad] api_id=548 league_id=140
+  key=[Real Sociedad de Fútbol] api_name=[Real Sociedad] api_id=548 league_id=140
+  key=[Real Valladolid CF] api_name=[Valladolid] api_id=720 league_id=141
+  key=[Rodez AF] api_name=[Rodez] api_id=1301 league_id=62
+  key=[Rotherham United] api_name=[Rotherham] api_id=73 league_id=41
+  key=[Royal Antwerp] api_name=[Antwerp] api_id=740 league_id=144
+  key=[Rubin Kazan] api_name=[Rubin] api_id=1083 league_id=235
+  key=[SBV Excelsior] api_name=[Excelsior] api_id=196 league_id=88
+  key=[SC Corinthians Paulista] api_name=[Corinthians] api_id=131 league_id=11
+  key=[SC Paderborn] api_name=[SC Paderborn 07] api_id=185 league_id=79
+  key=[SD Eibar] api_name=[Eibar] api_id=545 league_id=141
+  key=[SD Huesca] api_name=[Huesca] api_id=726 league_id=141
+  key=[SE Palmeiras] api_name=[Palmeiras] api_id=121 league_id=13
+  key=[SJK Seinäjoki] api_name=[SJK] api_id=689 league_id=244
+  key=[SK Brann] api_name=[Brann] api_id=319 league_id=2
+  key=[SK Slavia Praha] api_name=[Slavia Praha] api_id=560 league_id=2
+  key=[SS Lazio] api_name=[Lazio] api_id=487 league_id=135
+  key=[SSC Napoli] api_name=[Napoli] api_id=492 league_id=2
+  key=[SV Werder Bremen] api_name=[Werder Bremen] api_id=162 league_id=78
+  key=[Santos Laguna] api_name=[Santos] api_id=128 league_id=71
+  key=[Sarmiento de Junin] api_name=[Sarmiento Junin] api_id=474 league_id=128
+  key=[Schweinfurt] api_name=[FC Schweinfurt 05] api_id=1635 league_id=80
+  key=[Shandong Luneng Taishan FC] api_name=[Shandong Luneng] api_id=844 league_id=169
+  key=[Sheffield United] api_name=[Sheffield] api_id=7667 league_id=45
+  key=[Sheffield United FC] api_name=[Sheffield] api_id=7667 league_id=45
+  key=[Shelbourne Dublin] api_name=[Shelbourne] api_id=3854 league_id=2
+  key=[Shrewsbury Town] api_name=[Shrewsbury] api_id=1352 league_id=42
+  key=[Sport Lisboa e Benfica] api_name=[Benfica] api_id=211 league_id=2
+  key=[Stade de Reims] api_name=[Reims] api_id=93 league_id=62
+  key=[Swansea City] api_name=[Swansea] api_id=76 league_id=40
+  key=[Swansea City AFC] api_name=[Swansea] api_id=76 league_id=40
+  key=[TSG 1899 Hoffenheim] api_name=[1899 Hoffenheim] api_id=167 league_id=78
+  key=[TSG Hoffenheim II] api_name=[Hoffenheim II] api_id=9364 league_id=80
+  key=[TSV Havelse] api_name=[Havelse] api_id=9342 league_id=80
+  key=[Talleres] api_name=[Talleres Cordoba] api_id=456 league_id=13
+  key=[Telstar 1963] api_name=[Telstar] api_id=427 league_id=88
+  key=[Tigres] api_name=[Tigres UANL] api_id=2279 league_id=262
+  key=[Tijuana] api_name=[Club Tijuana] api_id=2280 league_id=262
+  key=[Torku Konyaspor] api_name=[Konyaspor] api_id=607 league_id=203
+  key=[Tottenham Hotspur] api_name=[Tottenham] api_id=47 league_id=2
+  key=[Tottenham Hotspur FC] api_name=[Tottenham] api_id=47 league_id=2
+  key=[Tranmere Rovers] api_name=[Tranmere] api_id=1381 league_id=42
+  key=[Troyes] api_name=[Estac Troyes] api_id=110 league_id=62
+  key=[US Catanzaro 1929] api_name=[Catanzaro] api_id=1687 league_id=136
+  key=[US Cremonese] api_name=[Cremonese] api_id=520 league_id=135
+  key=[US Lecce] api_name=[Lecce] api_id=867 league_id=135
+  key=[US Sassuolo Calcio] api_name=[Sassuolo] api_id=488 league_id=135
+  key=[USL Dunkerque] api_name=[Dunkerque] api_id=1304 league_id=62
+  key=[Udinese Calcio] api_name=[Udinese] api_id=494 league_id=135
+  key=[Urawa Red Diamonds] api_name=[Urawa] api_id=287 league_id=98
+  key=[VPS Vaasa] api_name=[VPS] api_id=650 league_id=244
+  key=[Vejle Boldklub] api_name=[Vejle] api_id=395 league_id=119
+  key=[Velez Sarsfield BA] api_name=[Velez Sarsfield] api_id=438 league_id=13
+  key=[VfB Stuttgart II] api_name=[VfB Stuttgart] api_id=172 league_id=3
+  key=[Viborg FF] api_name=[Viborg] api_id=2070 league_id=119
+  key=[Virtus Entella] api_name=[Virtus] api_id=5308 league_id=2
+  key=[West Ham United] api_name=[West Ham] api_id=48 league_id=39
+  key=[West Ham United FC] api_name=[West Ham] api_id=48 league_id=39
+  key=[Westerlo] api_name=[KVC Westerlo] api_id=261 league_id=144
+  key=[Western Sydney Wanderers] api_name=[Wanderers] api_id=2360 league_id=11
+  key=[Wigan Athletic] api_name=[Wigan] api_id=61 league_id=41
+  key=[Wolverhampton Wanderers] api_name=[Wanderers] api_id=2360 league_id=11
+  key=[Wolverhampton Wanderers FC] api_name=[Wanderers] api_id=2360 league_id=11
+  key=[Zenit St Petersburg] api_name=[Zenit] api_id=596 league_id=235
+  key=[Çaykur Rizespor] api_name=[Rizespor] api_id=1007 league_id=203
+  key=[Deportivo La Coruña] api_name=[Deportivo La Coruna] api_id=544 league_id=141
+  key=[Atlético San Luis] api_name=[Atletico San Luis] api_id=2314 league_id=262
+  key=[TPS Turku] api_name=[Turku PS] api_id=1168 league_id=244
+  key=[Atlético Tucuman] api_name=[Atletico Tucuman] api_id=455 league_id=128
+  key=[Al-Hazem] api_name=[Al-Hazm] api_id=2945 league_id=307
+  key=[América Mineiro] api_name=[America Mineiro] api_id=125 league_id=72
+  key=[América de Cali] api_name=[America de Cali] api_id=1138 league_id=11
+  key=[Atlético Madrid] api_name=[Atletico Madrid] api_id=530 league_id=2
+  key=[Cracovia Kraków] api_name=[Cracovia Krakow] api_id=350 league_id=106
+  key=[Pogoń Szczecin] api_name=[Pogon Szczecin] api_id=348 league_id=106
+  key=[Sporting Gijón] api_name=[Sporting Gijon] api_id=731 league_id=141
+  key=[Cerro Porteño] api_name=[Cerro Porteno] api_id=1176 league_id=13
+  key=[Górnik Zabrze] api_name=[Gornik Zabrze] api_id=340 league_id=106
+  key=[HamKam] api_name=[Ham-Kam] api_id=2159 league_id=103
+  key=[Lechia Gdańsk] api_name=[Lechia Gdansk] api_id=343 league_id=106
+  key=[Östersunds FK] api_name=[Ostersunds FK] api_id=376 league_id=114
+  key=[Hammarby IF] api_name=[Hammarby FF] api_id=363 league_id=113
+  key=[IFK Värnamo] api_name=[IFK Varnamo] api_id=2163 league_id=113
+  key=[Lech Poznań] api_name=[Lech Poznan] api_id=347 league_id=2
+  key=[Mjällby AIF] api_name=[Mjallby AIF] api_id=2240 league_id=113
+  key=[Bodø/Glimt] api_name=[Bodo/Glimt] api_id=327 league_id=2
+  key=[D.C. United] api_name=[DC United] api_id=1615 league_id=253
+  key=[Fenerbahce] api_name=[Fenerbahçe] api_id=611 league_id=2
+  key=[Örgryte IS] api_name=[Orgryte IS] api_id=2166 league_id=113
+  key=[Rot-Weiss Essen] api_name=[Rot-Weiß Essen] api_id=1621 league_id=80
+  key=[FC Juárez] api_name=[FC Juarez] api_id=2298 league_id=262
+  key=[Famalicão] api_name=[Famalicao] api_id=242 league_id=94
+  key=[Vålerenga] api_name=[Valerenga] api_id=326 league_id=103
+  key=[Örebro SK] api_name=[Orebro SK] api_id=365 league_id=114
+  key=[Östers IF] api_name=[Osters IF] api_id=2174 league_id=113
+  key=[Chapecoense] api_name=[Chapecoense-sc] api_id=132 league_id=72
+  key=[Corinthians-SP] api_name=[Corinthians] api_id=131 league_id=11
+  key=[Südtirol] api_name=[Sudtirol] api_id=1578 league_id=136
+  key=[Ñublense] api_name=[Nublense] api_id=2337 league_id=13
+  key=[Accrington Stanley] api_name=[Accrington ST] api_id=1360 league_id=42
+  key=[CA Paranaense] api_name=[Atletico Paranaense] api_id=134 league_id=72
+  key=[CR Vasco da Gama] api_name=[Vasco DA Gama] api_id=133 league_id=11
+  key=[Dundee United] api_name=[Dundee Utd] api_id=1386 league_id=848
+  key=[Fluminense-RJ] api_name=[Fluminense] api_id=124 league_id=11
+  key=[Sint Truiden] api_name=[St. Truiden] api_id=735 league_id=144
+  key=[Instituto de Córdoba] api_name=[Instituto Cordoba] api_id=478 league_id=128
+  key=[Almería] api_name=[Almeria] api_id=723 league_id=141
+  key=[Córdoba] api_name=[Cordoba] api_id=713 league_id=141
+  key=[Gazişehir Gaziantep] api_name=[Gaziantep FK] api_id=3573 league_id=203
+  key=[Goztepe] api_name=[Göztepe] api_id=994 league_id=203
+  key=[Leganés] api_name=[Leganes] api_id=537 league_id=141
+  key=[Palmeiras-SP] api_name=[Palmeiras] api_id=121 league_id=13
+  key=[Zagłębie Lubin] api_name=[Zaglebie Lubin] api_id=345 league_id=106
+  key=[TSG Hoffenheim] api_name=[1899 Hoffenheim] api_id=167 league_id=78
+
+============================================================
+CHECK 2: Substring collision (same api_id, keys nested)
+============================================================
+Found 64 suspect collisions:
+
+  api_id=180:
+    key=[1. FC Heidenheim] api_name=[1. FC Heidenheim] league_id=78
+    key=[1. FC Heidenheim 1846] api_name=[1. FC Heidenheim] league_id=78
+
+  api_id=182:
+    key=[1. FC Union Berlin] api_name=[Union Berlin] league_id=78
+    key=[Union Berlin] api_name=[Union Berlin] league_id=78
+
+  api_id=164:
+    key=[1. FSV Mainz 05] api_name=[FSV Mainz 05] league_id=78
+    key=[FSV Mainz 05] api_name=[FSV Mainz 05] league_id=78
+
+  api_id=801:
+    key=[AC Pisa 1909] api_name=[Pisa] league_id=135
+    key=[Pisa] api_name=[Pisa] league_id=135
+
+  api_id=502:
+    key=[ACF Fiorentina] api_name=[Fiorentina] league_id=135
+    key=[Fiorentina] api_name=[Fiorentina] league_id=135
+
+  api_id=108:
+    key=[AJ Auxerre] api_name=[Auxerre] league_id=61
+    key=[Auxerre] api_name=[Auxerre] league_id=61
+
+  api_id=21595:
+    key=[AVS] api_name=[AVS] league_id=94
+    key=[AVS Futebol SAD] api_name=[AVS] league_id=94
+
+  api_id=201:
+    key=[AZ] api_name=[AZ Alkmaar] league_id=88
+    key=[AZ Alkmaar] api_name=[AZ Alkmaar] league_id=88
+
+  api_id=77:
+    key=[Angers] api_name=[Angers] league_id=61
+    key=[Angers SCO] api_name=[Angers] league_id=61
+
+  api_id=531:
+    key=[Athletic Club] api_name=[Athletic Club] league_id=2
+    key=[Athletic Club (MG)] api_name=[Athletic Club] league_id=2
+
+  api_id=118:
+    key=[Bahia] api_name=[Bahia] league_id=11
+    key=[EC Bahia] api_name=[Bahia] league_id=11
+
+  api_id=529:
+    key=[Barcelona] api_name=[Barcelona] league_id=2
+    key=[Barcelona SC] api_name=[Barcelona] league_id=2
+    key=[FC Barcelona] api_name=[Barcelona] league_id=2
+    key=[RCD Espanyol de Barcelona] api_name=[Barcelona] league_id=2
+
+  api_id=211:
+    key=[Benfica] api_name=[Benfica] league_id=2
+    key=[Sport Lisboa e Benfica] api_name=[Benfica] league_id=2
+
+  api_id=500:
+    key=[Bologna] api_name=[Bologna] league_id=3
+    key=[Bologna FC 1909] api_name=[Bologna] league_id=3
+
+  api_id=120:
+    key=[Botafogo] api_name=[Botafogo] league_id=13
+    key=[Botafogo FR] api_name=[Botafogo] league_id=13
+
+  api_id=227:
+    key=[CD Santa Clara] api_name=[Santa Clara] league_id=94
+    key=[Santa Clara] api_name=[Santa Clara] league_id=94
+
+  api_id=218:
+    key=[CD Tondela] api_name=[Tondela] league_id=94
+    key=[Tondela] api_name=[Tondela] league_id=94
+
+  api_id=15130:
+    key=[CF Estrela] api_name=[Estrela] league_id=94
+    key=[CF Estrela da Amadora] api_name=[Estrela] league_id=94
+
+  api_id=127:
+    key=[CR Flamengo] api_name=[Flamengo] league_id=13
+    key=[Flamengo] api_name=[Flamengo] league_id=13
+
+  api_id=490:
+    key=[Cagliari] api_name=[Cagliari] league_id=135
+    key=[Cagliari Calcio] api_name=[Cagliari] league_id=135
+
+  api_id=569:
+    key=[Club Brugge] api_name=[Club Brugge KV] league_id=2
+    key=[Club Brugge KV] api_name=[Club Brugge KV] league_id=2
+
+  api_id=453:
+    key=[Club Independiente Petrolero] api_name=[Independiente] league_id=11
+    key=[Independiente] api_name=[Independiente] league_id=11
+    key=[Independiente Medellín] api_name=[Independiente] league_id=11
+    key=[Independiente Rivadavia] api_name=[Independiente] league_id=11
+    key=[Independiente Santa Fe] api_name=[Independiente] league_id=11
+    key=[Independiente del Valle] api_name=[Independiente] league_id=11
+
+  api_id=1198:
+    key=[Clube do Remo] api_name=[Remo] league_id=72
+    key=[Remo] api_name=[Remo] league_id=72
+
+  api_id=895:
+    key=[Como] api_name=[Como] league_id=135
+    key=[Como 1907] api_name=[Como] league_id=135
+
+  api_id=131:
+    key=[Corinthians] api_name=[Corinthians] league_id=11
+    key=[SC Corinthians Paulista] api_name=[Corinthians] league_id=11
+    key=[Corinthians-SP] api_name=[Corinthians] league_id=11
+
+  api_id=147:
+    key=[Coritiba] api_name=[Coritiba] league_id=72
+    key=[Coritiba FBC] api_name=[Coritiba] league_id=72
+
+  api_id=520:
+    key=[Cremonese] api_name=[Cremonese] league_id=135
+    key=[US Cremonese] api_name=[Cremonese] league_id=135
+
+  api_id=135:
+    key=[Cruzeiro] api_name=[Cruzeiro] league_id=11
+    key=[Cruzeiro EC] api_name=[Cruzeiro] league_id=11
+
+  api_id=1609:
+    key=[England] api_name=[New England Revolution] league_id=253
+    key=[New England Revolution] api_name=[New England Revolution] league_id=253
+
+  api_id=230:
+    key=[Estoril] api_name=[Estoril] league_id=94
+    key=[GD Estoril Praia] api_name=[Estoril] league_id=94
+
+  api_id=45:
+    key=[Everton FC] api_name=[Everton] league_id=39
+    key=[Everton de Viña del Mar] api_name=[Everton] league_id=39
+
+  api_id=196:
+    key=[Excelsior] api_name=[Excelsior] league_id=88
+    key=[SBV Excelsior] api_name=[Excelsior] league_id=88
+
+  api_id=186:
+    key=[FC St. Pauli] api_name=[FC St. Pauli] league_id=78
+    key=[FC St. Pauli 1910] api_name=[FC St. Pauli] league_id=78
+
+  api_id=209:
+    key=[Feyenoord] api_name=[Feyenoord] league_id=2
+    key=[Feyenoord Rotterdam] api_name=[Feyenoord] league_id=2
+
+  api_id=124:
+    key=[Fluminense] api_name=[Fluminense] league_id=11
+    key=[Fluminense FC] api_name=[Fluminense] league_id=11
+    key=[Fluminense-RJ] api_name=[Fluminense] league_id=11
+
+  api_id=645:
+    key=[Galatasaray] api_name=[Galatasaray] league_id=2
+    key=[Galatasaray SK] api_name=[Galatasaray] league_id=2
+
+  api_id=495:
+    key=[Genoa] api_name=[Genoa] league_id=135
+    key=[Genoa CFC] api_name=[Genoa] league_id=135
+
+  api_id=487:
+    key=[Lazio] api_name=[Lazio] league_id=135
+    key=[SS Lazio] api_name=[Lazio] league_id=135
+
+  api_id=867:
+    key=[Lecce] api_name=[Lecce] league_id=135
+    key=[US Lecce] api_name=[Lecce] league_id=135
+
+  api_id=539:
+    key=[Levante] api_name=[Levante] league_id=140
+    key=[Levante UD] api_name=[Levante] league_id=140
+
+  api_id=79:
+    key=[Lille] api_name=[Lille] league_id=3
+    key=[Lille OSC] api_name=[Lille] league_id=3
+
+  api_id=798:
+    key=[Mallorca] api_name=[Mallorca] league_id=140
+    key=[RCD Mallorca] api_name=[Mallorca] league_id=140
+
+  api_id=81:
+    key=[Marseille] api_name=[Marseille] league_id=2
+    key=[Olympique de Marseille] api_name=[Marseille] league_id=2
+
+  api_id=413:
+    key=[NEC] api_name=[NEC Nijmegen] league_id=88
+    key=[NEC Nijmegen] api_name=[NEC Nijmegen] league_id=88
+
+  api_id=492:
+    key=[Napoli] api_name=[Napoli] league_id=2
+    key=[SSC Napoli] api_name=[Napoli] league_id=2
+
+  api_id=84:
+    key=[Nice] api_name=[Nice] league_id=2
+    key=[OGC Nice] api_name=[Nice] league_id=2
+
+  api_id=718:
+    key=[Oviedo] api_name=[Oviedo] league_id=140
+    key=[Real Oviedo] api_name=[Oviedo] league_id=140
+
+  api_id=197:
+    key=[PSV] api_name=[PSV Eindhoven] league_id=2
+    key=[PSV Eindhoven] api_name=[PSV Eindhoven] league_id=2
+
+  api_id=121:
+    key=[Palmeiras] api_name=[Palmeiras] league_id=13
+    key=[SE Palmeiras] api_name=[Palmeiras] league_id=13
+    key=[Palmeiras-SP] api_name=[Palmeiras] league_id=13
+
+  api_id=114:
+    key=[Paris FC] api_name=[Paris FC] league_id=61
+    key=[Paris Saint-Germain FC] api_name=[Paris FC] league_id=61
+
+  api_id=523:
+    key=[Parma] api_name=[Parma] league_id=135
+    key=[Parma Calcio 1913] api_name=[Parma] league_id=135
+
+  api_id=257:
+    key=[Queens Park Rangers] api_name=[Rangers] league_id=2
+    key=[Queens Park Rangers FC] api_name=[Rangers] league_id=2
+    key=[Rangers] api_name=[Rangers] league_id=2
+
+  api_id=95:
+    key=[RC Strasbourg Alsace] api_name=[Strasbourg] league_id=61
+    key=[Strasbourg] api_name=[Strasbourg] league_id=61
+
+  api_id=436:
+    key=[Racing Club] api_name=[Racing Club] league_id=13
+    key=[Racing Club de Lens] api_name=[Racing Club] league_id=13
+    key=[Real Racing Club de Santander] api_name=[Racing Club] league_id=13
+
+  api_id=728:
+    key=[Rayo Vallecano] api_name=[Rayo Vallecano] league_id=140
+    key=[Rayo Vallecano de Madrid] api_name=[Rayo Vallecano] league_id=140
+
+  api_id=543:
+    key=[Real Betis] api_name=[Real Betis] league_id=3
+    key=[Real Betis Balompié] api_name=[Real Betis] league_id=3
+
+  api_id=548:
+    key=[Real Sociedad] api_name=[Real Sociedad] league_id=140
+    key=[Real Sociedad B] api_name=[Real Sociedad] league_id=140
+    key=[Real Sociedad de Fútbol] api_name=[Real Sociedad] league_id=140
+
+  api_id=427:
+    key=[SC Telstar] api_name=[Telstar] league_id=88
+    key=[Telstar 1963] api_name=[Telstar] league_id=88
+
+  api_id=162:
+    key=[SV Werder Bremen] api_name=[Werder Bremen] league_id=78
+    key=[Werder Bremen] api_name=[Werder Bremen] league_id=78
+
+  api_id=128:
+    key=[Santos] api_name=[Santos] league_id=71
+    key=[Santos FC] api_name=[Santos] league_id=71
+    key=[Santos Laguna] api_name=[Santos] league_id=71
+
+  api_id=488:
+    key=[Sassuolo] api_name=[Sassuolo] league_id=135
+    key=[US Sassuolo Calcio] api_name=[Sassuolo] league_id=135
+
+  api_id=494:
+    key=[Udinese] api_name=[Udinese] league_id=135
+    key=[Udinese Calcio] api_name=[Udinese] league_id=135
+
+  api_id=172:
+    key=[VfB Stuttgart] api_name=[VfB Stuttgart] league_id=3
+    key=[VfB Stuttgart II] api_name=[VfB Stuttgart] league_id=3
+
+  api_id=133:
+    key=[CR Vasco da Gama] api_name=[Vasco DA Gama] league_id=11
+    key=[Vasco da Gama] api_name=[Vasco DA Gama] league_id=11
+
+============================================================
+SUMMARY
+============================================================
+Self-mismatches: 280
+Substring collisions: 64
+Total entries: 772

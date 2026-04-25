@@ -454,7 +454,7 @@ USE_MATCH_CONTEXT = "log_only"
 #   "on":       prefer api_id lookup; fall back to name when api_id is NULL
 #               or the id-keyed bucket misses.
 # Populated by migrate_team_mapping.py + artifacts/team_mapping.json (Phase B1).
-USE_TEAM_MAPPING = "log_only"
+USE_TEAM_MAPPING = "on"
 
 # Phase 2.1 — pre-match fixture_id resolver for /chot lineup + injuries.
 #   "off":      resolver never called, /chot only uses LiveMatchState (legacy).

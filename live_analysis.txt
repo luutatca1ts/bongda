@@ -1,0 +1,52 @@
+=== LiveDebug lines: 16 ===
+=== Cycle done: 224 ===
+=== kept= summary: 278 ===
+=== FILTERED suspicious: 166 ===
+
+=== AGGREGATE (278 match-cycles) ===
+Total kept=:       15
+Total low_prob:    744
+Total suspicious:  166
+
+=== PER MATCH ===
+  Brighton & Hove Albion FC vs Chelsea FC:
+    cycles=1, kept=0, low=0, susp=1
+  Chengdu Rongcheng FC vs Yunnan Yukun:
+    cycles=44, kept=0, low=137, susp=12
+  Girona FC vs Real Betis Balompi�:
+    cycles=1, kept=0, low=2, susp=1
+  Le�n vs Am�rica:
+    cycles=33, kept=1, low=95, susp=15
+  Monterrey vs Puebla:
+    cycles=35, kept=1, low=95, susp=29
+  Pumas vs FC Ju�rez:
+    cycles=43, kept=4, low=103, susp=13
+  Quer�taro vs Cruz Azul:
+    cycles=59, kept=8, low=162, susp=41
+  Shanghai SIPG FC vs Chongqing Tonglianglong FC:
+    cycles=31, kept=1, low=77, susp=26
+  Tianjin Jinmen Tiger FC vs Shandong Luneng Taishan FC:
+    cycles=31, kept=0, low=73, susp=28
+
+=== LAST 5 LIVEDEBUG ===
+2026-04-21 21:13:41,198 INFO src.live_pipeline: [LiveDebug] Monterrey vs Puebla | state: min=46 score=2-1 xg=2.12-0.53 reds=0-0 | lambdas: h=1.30 a=1.10 low_conf=True | probs: {'h2h': {'Home': np.float64(0.8661297750547147), 'Draw': np.float64(0.10072635873468022), 'Away': np.float64(0.0316377343125
+
+2026-04-21 21:15:40,545 INFO src.live_pipeline: [LiveDebug] Le�n vs Am�rica | state: min=45 score=2-2 xg=0.66-0.38 reds=0-0 | lambdas: h=1.30 a=1.10 low_conf=True | probs: {'h2h': {'Home': np.float64(0.3657796653306506), 'Draw': np.float64(0.42269218990665164), 'Away': np.float64(0.21151861929626947
+
+2026-04-21 21:15:41,277 INFO src.live_pipeline: [LiveDebug] Monterrey vs Puebla | state: min=48 score=2-1 xg=2.12-0.53 reds=0-0 | lambdas: h=1.30 a=1.10 low_conf=True | probs: {'h2h': {'Home': np.float64(0.8640421122641652), 'Draw': np.float64(0.10435913631334134), 'Away': np.float64(0.0306460588710
+
+2026-04-21 21:17:40,426 INFO src.live_pipeline: [LiveDebug] Le�n vs Am�rica | state: min=45 score=2-2 xg=0.66-0.38 reds=0-0 | lambdas: h=1.30 a=1.10 low_conf=True | probs: {'h2h': {'Home': np.float64(0.3657796653306506), 'Draw': np.float64(0.42269218990665164), 'Away': np.float64(0.21151861929626947
+
+2026-04-21 21:17:41,145 INFO src.live_pipeline: [LiveDebug] Monterrey vs Puebla | state: min=50 score=2-1 xg=2.16-0.36 reds=0-0 | lambdas: h=1.30 a=1.10 low_conf=True | probs: {'h2h': {'Home': np.float64(0.8946826408110116), 'Draw': np.float64(0.08637455631552574), 'Away': np.float64(0.0182878194752
+
+=== LAST 10 FILTERED SUSPICIOUS (live pipeline) ===
+  Monterrey vs Puebla | h2h:Home @ 2.75 (EV +127.4%, bk=Pinnacle) | EV 127.4%
+  Le�n vs Am�rica | totals:Under 4.5 @ 1.84 (EV +28.9%, bk=Pinnacle) | EV 28.9%
+  Le�n vs Am�rica | totals:Under 4.5 @ 1.84 (EV +25.0%, bk=Pinnacle) | EV 25.0%
+  Le�n vs Am�rica | totals:Over 4.5 @ 2.02 (EV +38.7%, bk=Pinnacle) | EV 38.7%
+  Le�n vs Am�rica | totals:Over 4.5 @ 2.02 (EV +38.7%, bk=Pinnacle) | EV 38.7%
+  Le�n vs Am�rica | totals:Over 4.5 @ 2.05 (EV +40.8%, bk=Pinnacle) | EV 40.8%
+  Le�n vs Am�rica | totals:Over 4.5 @ 2.05 (EV +40.8%, bk=Pinnacle) | EV 40.8%
+  Le�n vs Am�rica | totals:Over 4.5 @ 2.05 (EV +40.8%, bk=Pinnacle) | EV 40.8%
+  Monterrey vs Puebla | totals:Over 4.5 @ 1.85 (EV +24.6%, bk=Pinnacle) | EV 24.6%
+  Monterrey vs Puebla | totals:Over 4.5 @ 1.85 (EV +20.7%, bk=Pinnacle) | EV 20.7%
