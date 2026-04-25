@@ -54,6 +54,18 @@ async def scheduled_results_update(app):
         logger.error(f"[Scheduler] Results update failed: {e}", exc_info=True)
 
 
+async def scheduled_corner_fetch(app):
+    """Fetch corners cho matches FINISHED ch\u01b0a c\u00f3 corner data. Ch\u1ea1y m\u1ed7i 2h."""
+    logger.info("[Scheduler] Running corner fetch...")
+    try:
+        from src.collectors.corner_fetcher import fetch_corners_batch
+        loop = asyncio.get_event_loop()
+        counters = await loop.run_in_executor(None, fetch_corners_batch, 100)
+        logger.info(f"[Scheduler] corner_fetch: {counters}")
+    except Exception as e:
+        logger.error(f"[Scheduler] corner fetch failed: {e}", exc_info=True)
+
+
 async def scheduled_steam_check(app):
     """Phát hiện steam move mỗi 15 phút và gửi alert."""
     logger.info("[Scheduler] Running steam check...")
@@ -212,6 +224,15 @@ def main():
                 name="Results Update",
             )
             scheduler.add_job(
+                scheduled_corner_fetch,
+                "cron",
+                hour="*/2",
+                minute=15,
+                args=[app],
+                id="corner_fetch",
+                name="Fetch corner data every 2h",
+            )
+            scheduler.add_job(
                 scheduled_steam_check,
                 "interval",
                 minutes=15,
@@ -272,9 +293,9 @@ def main():
             )
             scheduler.start()
             logger.info(
-                "Scheduler started: analysis/30min, results/2h, steam/15min, "
-                "clv/15min, cleanup/03:30, live/2min (18-06h), report/23:00, "
-                "chot/5min, eod_summary/23:55"
+                "Scheduler started: analysis/30min, results/2h, corner_fetch/2h, "
+                "steam/15min, clv/15min, cleanup/03:30, live/2min (18-06h), "
+                "report/23:00, chot/5min, eod_summary/23:55"
             )
 
             # Keep running

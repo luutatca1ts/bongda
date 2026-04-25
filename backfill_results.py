@@ -125,7 +125,7 @@ def main():
                 unresolved_unfinished += 1
                 continue
 
-            result = _compute_pred_result(pred, match.home_goals, match.away_goals)
+            result = _compute_pred_result(pred, match)
             if result is None:
                 unresolved_unknown_market += 1
                 continue

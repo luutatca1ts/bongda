@@ -1098,53 +1098,102 @@ def run_analysis_pipeline() -> list[str]:
     return alerts
 
 
-def _compute_pred_result(pred, home_goals: int, away_goals: int) -> str | None:
-    """Compute WIN/LOSE/PUSH cho 1 prediction dựa trên kết quả thực tế.
+# Compiled patterns for parsing outcome strings
+_AH_PATTERN = re.compile(r"^AH\s+([+-]?\d+(?:\.\d+)?)\s+(.+)$", re.IGNORECASE)
+_TEAM_HCAP_PATTERN = re.compile(r"^(.+?)\s+([+-]?\d+(?:\.\d+)?)$")
+_OVER_UNDER_PATTERN = re.compile(r"^(Over|Under)\s+(\d+(?:\.\d+)?)$", re.IGNORECASE)
 
-    Handle markets: h2h, totals, btts, asian_handicap (spreads),
+
+def _team_matches(outcome_team: str, home_team: str, away_team: str) -> str | None:
+    """Match outcome team name against home/away. Returns 'home', 'away', or None."""
+    from src.bot.telegram_bot import _canonical_team_key
+    ck_out = _canonical_team_key(outcome_team or "")
+    ck_home = _canonical_team_key(home_team or "")
+    ck_away = _canonical_team_key(away_team or "")
+    if not ck_out:
+        return None
+    if ck_out == ck_home or ck_out in ck_home or ck_home in ck_out:
+        return "home"
+    if ck_out == ck_away or ck_out in ck_away or ck_away in ck_out:
+        return "away"
+    return None
+
+
+def _resolve_handicap(margin: float, handicap: float) -> str:
+    """Resolve handicap bet given side's goal margin + handicap value.
+
+    adjusted = margin + handicap (from side's perspective)
+    adjusted > 0 → WIN, < 0 → LOSE, == 0 → PUSH
+    Quarter lines (.25, .75) → simplified to nearest WIN/LOSE.
+    """
+    adjusted = margin + handicap
+    frac = abs(handicap) - int(abs(handicap))
+    is_quarter = abs(frac - 0.25) < 0.01 or abs(frac - 0.75) < 0.01
+
+    if is_quarter:
+        if adjusted > 0.25:
+            return "WIN"
+        if adjusted < -0.25:
+            return "LOSE"
+        return "WIN" if adjusted >= 0 else "LOSE"
+
+    if adjusted > 0.01:
+        return "WIN"
+    if adjusted < -0.01:
+        return "LOSE"
+    return "PUSH"
+
+
+def _compute_pred_result(pred, match) -> str | None:
+    """Compute WIN/LOSE/PUSH cho 1 prediction dựa trên Match data.
+
+    Handle markets: h2h, totals, btts, asian_handicap,
     corners_totals, corners_spreads, corners_h1_totals, corners_h1_spreads.
 
-    Returns None nếu market hoặc outcome không parse được — caller increments
-    unknown_market counter để monitoring.
-
-    Lưu ý: corners_* markets KHÔNG resolve được vì DB không lưu corner counts
-    của trận đấu — return None để skip chứ không gây result sai.
+    Returns None nếu:
+    - Market không recognize
+    - Outcome format không parse được
+    - Corner market nhưng Match.home_corners/away_corners is None
     """
-    market = (pred.market or "").lower()
-    outcome = (pred.outcome or "").strip()
-    total_goals = home_goals + away_goals
+    if match is None or match.home_goals is None or match.away_goals is None:
+        return None
 
-    # 1X2 / Moneyline
+    market = (pred.market or "").lower().strip()
+    outcome = (pred.outcome or "").strip()
+    if not market or not outcome:
+        return None
+
+    home_goals = match.home_goals
+    away_goals = match.away_goals
+    total_goals = home_goals + away_goals
+    home_corners = match.home_corners
+    away_corners = match.away_corners
+
+    # === H2H / Moneyline ===
     if market == "h2h":
         if outcome == "Home":
-            return "WIN" if home_goals > away_goals else "LOSE"
+            return "WIN" if home_goals > away_goals else ("PUSH" if home_goals == away_goals else "LOSE")
         if outcome == "Draw":
             return "WIN" if home_goals == away_goals else "LOSE"
         if outcome == "Away":
-            return "WIN" if away_goals > home_goals else "LOSE"
+            return "WIN" if away_goals > home_goals else ("PUSH" if home_goals == away_goals else "LOSE")
         return None
 
-    # Goal totals (Over/Under X.X)
+    # === Goal totals (Over/Under X.X) ===
     if market == "totals":
-        try:
-            threshold = float(outcome.split()[-1])
-        except (ValueError, IndexError):
+        m = _OVER_UNDER_PATTERN.match(outcome)
+        if not m:
             return None
-        if "Over" in outcome:
-            if total_goals > threshold:
-                return "WIN"
-            if total_goals < threshold:
-                return "LOSE"
-            return "PUSH"
-        if "Under" in outcome:
-            if total_goals < threshold:
-                return "WIN"
-            if total_goals > threshold:
-                return "LOSE"
-            return "PUSH"
-        return None
+        side, threshold_str = m.group(1).lower(), m.group(2)
+        try:
+            threshold = float(threshold_str)
+        except ValueError:
+            return None
+        if side == "over":
+            return "WIN" if total_goals > threshold else ("PUSH" if total_goals == threshold else "LOSE")
+        return "WIN" if total_goals < threshold else ("PUSH" if total_goals == threshold else "LOSE")
 
-    # Both Teams To Score
+    # === BTTS ===
     if market == "btts":
         both_scored = home_goals > 0 and away_goals > 0
         if outcome == "Yes":
@@ -1153,86 +1202,67 @@ def _compute_pred_result(pred, home_goals: int, away_goals: int) -> str | None:
             return "WIN" if not both_scored else "LOSE"
         return None
 
-    # Asian Handicap / Spreads
+    # === Asian Handicap ===
+    # Format: "AH <handicap> <team_name>"
     if market in ("asian_handicap", "spreads"):
-        return _resolve_asian_handicap(outcome, home_goals, away_goals, pred)
+        m = _AH_PATTERN.match(outcome)
+        if not m:
+            return None
+        try:
+            handicap = float(m.group(1))
+        except ValueError:
+            return None
+        team = m.group(2).strip()
+        side = _team_matches(team, match.home_team, match.away_team)
+        if side is None:
+            return None
+        margin = (home_goals - away_goals) if side == "home" else (away_goals - home_goals)
+        return _resolve_handicap(margin, handicap)
 
-    # Corner markets — DB không lưu corner counts cho match → không resolve được
-    if market.startswith("corners_"):
-        return None
+    # === Corner Totals ===
+    # Format: "Over 9.5" / "Under 8.5"
+    if market in ("corners_totals", "corners_h1_totals"):
+        if home_corners is None or away_corners is None:
+            return None  # No corner data → can't resolve
+        m = _OVER_UNDER_PATTERN.match(outcome)
+        if not m:
+            return None
+        side, threshold_str = m.group(1).lower(), m.group(2)
+        try:
+            threshold = float(threshold_str)
+        except ValueError:
+            return None
+        # NOTE: corners_h1_totals would need H1 corner data (not stored).
+        # For now, can only resolve full-match corners_totals.
+        if market == "corners_h1_totals":
+            return None  # Skip until we have H1 corner tracking
+        total_corners = home_corners + away_corners
+        if side == "over":
+            return "WIN" if total_corners > threshold else ("PUSH" if total_corners == threshold else "LOSE")
+        return "WIN" if total_corners < threshold else ("PUSH" if total_corners == threshold else "LOSE")
+
+    # === Corner Spreads ===
+    # Format: "<team_name> <handicap>" (no "AH" prefix)
+    if market in ("corners_spreads", "corners_h1_spreads"):
+        if market == "corners_h1_spreads":
+            return None  # Skip H1
+        if home_corners is None or away_corners is None:
+            return None
+        m = _TEAM_HCAP_PATTERN.match(outcome)
+        if not m:
+            return None
+        team = m.group(1).strip()
+        try:
+            handicap = float(m.group(2))
+        except ValueError:
+            return None
+        side = _team_matches(team, match.home_team, match.away_team)
+        if side is None:
+            return None
+        margin = (home_corners - away_corners) if side == "home" else (away_corners - home_corners)
+        return _resolve_handicap(margin, handicap)
 
     return None
-
-
-def _resolve_asian_handicap(outcome: str, home_goals: int, away_goals: int, pred) -> str | None:
-    """Resolve Asian Handicap. Outcome dạng '<side> <handicap>' với side là tên
-    team hoặc 'Home'/'Away', handicap là số float (có thể là 0.25 / 0.75 → quarter line).
-
-    AH logic (handicap từ perspective của side):
-      - side = 'home': adjusted_margin = (home_goals - away_goals) + handicap
-      - side = 'away': adjusted_margin = (away_goals - home_goals) + handicap
-      - adjusted_margin > 0 → WIN
-      - adjusted_margin < 0 → LOSE
-      - adjusted_margin == 0 → PUSH (refund)
-
-    Quarter lines (.25, .75): split bet — half WIN/half PUSH or half LOSE/half PUSH.
-    Để đơn giản, resolve sang WIN/LOSE/PUSH gần nhất theo majority (không tracking
-    half-stake refund — TODO sau nếu cần).
-    """
-    parts = outcome.rsplit(" ", 1)
-    if len(parts) != 2:
-        return None
-    side_str, hcap_str = parts[0].strip(), parts[1].strip()
-    try:
-        handicap = float(hcap_str)
-    except ValueError:
-        return None
-
-    side_lower = side_str.lower()
-    if side_lower == "home":
-        is_home = True
-    elif side_lower == "away":
-        is_home = False
-    else:
-        from src.db.models import get_session, Match
-        from src.bot.telegram_bot import _canonical_team_key
-        s = get_session()
-        try:
-            m = s.query(Match).filter(Match.match_id == pred.match_id).first()
-            if not m:
-                return None
-            ck_home = _canonical_team_key(m.home_team or "")
-            ck_away = _canonical_team_key(m.away_team or "")
-            ck_outcome = _canonical_team_key(side_str)
-            if ck_outcome == ck_home or ck_outcome in ck_home or ck_home in ck_outcome:
-                is_home = True
-            elif ck_outcome == ck_away or ck_outcome in ck_away or ck_away in ck_outcome:
-                is_home = False
-            else:
-                return None
-        finally:
-            s.close()
-
-    base_margin = (home_goals - away_goals) if is_home else (away_goals - home_goals)
-    adjusted = base_margin + handicap
-
-    # Quarter line handling: 0.25 / 0.75 split between two adjacent lines
-    frac = abs(handicap) - int(abs(handicap))
-    if abs(frac - 0.25) < 0.01 or abs(frac - 0.75) < 0.01:
-        if adjusted > 0.25:
-            return "WIN"
-        if adjusted < -0.25:
-            return "LOSE"
-        if adjusted >= 0:
-            return "WIN"
-        return "LOSE"
-
-    # Whole or half lines (.0, .5)
-    if adjusted > 0.01:
-        return "WIN"
-    if adjusted < -0.01:
-        return "LOSE"
-    return "PUSH"
 
 
 def update_results() -> list[str]:
@@ -1358,7 +1388,7 @@ def update_results() -> list[str]:
                 unresolved_unfinished += 1
                 continue
 
-            result = _compute_pred_result(pred, match.home_goals, match.away_goals)
+            result = _compute_pred_result(pred, match)
             if result is None:
                 unresolved_unknown_market += 1
                 continue

@@ -35,6 +35,9 @@ class Match(Base):
     away_api_id = Column(Integer, nullable=True)
     home_league_id = Column(Integer, nullable=True)
     away_league_id = Column(Integer, nullable=True)
+    home_corners = Column(Integer, nullable=True)
+    away_corners = Column(Integer, nullable=True)
+    api_football_fixture_id = Column(Integer, nullable=True, index=True)
 
 
 class Prediction(Base):
