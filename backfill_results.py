@@ -15,7 +15,6 @@ from datetime import datetime
 
 from src.db.models import get_session, Match, Prediction
 from src.collectors.football_data import get_recent_results
-from src.pipeline import update_results
 from src.bot.telegram_bot import _canonical_team_key
 
 logging.basicConfig(
@@ -36,7 +35,16 @@ def main():
         )
         logger.info(f"[backfill] {len(stale)} stale SCHEDULED matches with past kickoff")
 
-        league_codes = sorted({m.competition_code for m in stale if m.competition_code})
+        league_codes_all = {m.competition_code for m in stale if m.competition_code}
+
+        # Football-Data free tier chỉ support 13 league codes — filter để tránh 403/404 spam
+        FD_FREE_TIER = {"PL", "BL1", "SA", "PD", "FL1", "DED", "PPL", "ELC", "CL", "EC", "WC", "BSA", "CLI"}
+        invalid_codes = league_codes_all - FD_FREE_TIER
+        if invalid_codes:
+            logger.info(
+                f"[backfill] skipping non-FD league codes: {sorted(invalid_codes)}"
+            )
+        league_codes = sorted(league_codes_all & FD_FREE_TIER)
         logger.info(f"[backfill] leagues to fetch: {league_codes}")
 
         # Build API index keyed by (home_canon, away_canon, kickoff_min)
@@ -94,8 +102,102 @@ def main():
             f"(unmatched: {unmatched})"
         )
 
-        updated = update_results()
-        logger.info(f"[backfill] Phase 2 done: resolved {len(updated)} predictions")
+        # ---------- PHASE 2: resolve pending preds via finished_index ----------
+        # Match qua (canonical_home, canonical_away, ko_min) — không dùng pred.match_id
+        # vì DB có thể có 2 Match record cho cùng 1 trận (Odds API + Football-Data).
+        pending_preds = (
+            session.query(Prediction)
+            .filter(Prediction.is_value_bet == True, Prediction.result.is_(None))  # noqa: E712
+            .all()
+        )
+
+        finished_index: dict[tuple, Match] = {}
+        all_finished = (
+            session.query(Match)
+            .filter(
+                Match.status == "FINISHED",
+                Match.home_goals.isnot(None),
+                Match.away_goals.isnot(None),
+            )
+            .all()
+        )
+        for fm in all_finished:
+            h = _canonical_team_key(fm.home_team or "")
+            a = _canonical_team_key(fm.away_team or "")
+            ko_min = (
+                fm.utc_date.replace(second=0, microsecond=0).isoformat()
+                if fm.utc_date else ""
+            )
+            if h and a and ko_min:
+                finished_index[(h, a, ko_min)] = fm
+
+        logger.info(
+            f"[backfill] Phase 2: indexed {len(finished_index)} finished matches"
+        )
+
+        updated: list[str] = []
+        unresolved_no_match = 0
+        unresolved_unfinished = 0
+        for pred in pending_preds:
+            pred_match = session.query(Match).filter(Match.match_id == pred.match_id).first()
+            if not pred_match:
+                unresolved_no_match += 1
+                continue
+
+            h = _canonical_team_key(pred_match.home_team or "")
+            a = _canonical_team_key(pred_match.away_team or "")
+            ko_min = (
+                pred_match.utc_date.replace(second=0, microsecond=0).isoformat()
+                if pred_match.utc_date else ""
+            )
+            if not (h and a and ko_min):
+                unresolved_no_match += 1
+                continue
+
+            finished_match = finished_index.get((h, a, ko_min))
+            if not finished_match:
+                unresolved_unfinished += 1
+                continue
+
+            match = finished_match
+            total_goals = match.home_goals + match.away_goals
+
+            if pred.market == "h2h":
+                if pred.outcome == "Home":
+                    pred.result = "WIN" if match.home_goals > match.away_goals else "LOSE"
+                elif pred.outcome == "Draw":
+                    pred.result = "WIN" if match.home_goals == match.away_goals else "LOSE"
+                elif pred.outcome == "Away":
+                    pred.result = "WIN" if match.away_goals > match.home_goals else "LOSE"
+
+            elif pred.market == "totals":
+                if "Over" in pred.outcome:
+                    threshold = float(pred.outcome.split()[-1])
+                    pred.result = "WIN" if total_goals > threshold else "LOSE"
+                elif "Under" in pred.outcome:
+                    threshold = float(pred.outcome.split()[-1])
+                    pred.result = "WIN" if total_goals < threshold else "LOSE"
+
+            elif pred.market == "btts":
+                both_scored = match.home_goals > 0 and match.away_goals > 0
+                if pred.outcome == "Yes":
+                    pred.result = "WIN" if both_scored else "LOSE"
+                elif pred.outcome == "No":
+                    pred.result = "WIN" if not both_scored else "LOSE"
+
+            if pred.result:
+                icon = "✅" if pred.result == "WIN" else "❌"
+                updated.append(
+                    f"{icon} {match.home_team} vs {match.away_team} "
+                    f"{pred.market}/{pred.outcome} → {pred.result}"
+                )
+
+        if updated:
+            session.commit()
+        logger.info(
+            f"[backfill] Phase 2 done: resolved {len(updated)}/{len(pending_preds)} "
+            f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished})"
+        )
 
         total_preds = session.query(Prediction).count()
         resolved = (

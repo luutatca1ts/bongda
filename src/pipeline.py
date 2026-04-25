@@ -1128,6 +1128,19 @@ def update_results() -> list[str]:
             if m and m.competition_code:
                 league_codes.add(m.competition_code)
 
+        # Football-Data free tier chỉ support 13 league codes — filter để tránh 403/404 spam
+        FD_FREE_TIER = {"PL", "BL1", "SA", "PD", "FL1", "DED", "PPL", "ELC", "CL", "EC", "WC", "BSA", "CLI"}
+        invalid_codes = league_codes - FD_FREE_TIER
+        if invalid_codes:
+            logger.info(
+                f"[update_results] skipping non-FD league codes: {sorted(invalid_codes)}"
+            )
+        league_codes = league_codes & FD_FREE_TIER
+
+        if not league_codes:
+            logger.warning("[update_results] no FD-supported leagues in pending preds — skip API pull")
+            # vẫn chạy Phase 2 để handle case data đã có sẵn trong DB
+
         # Pull all API results, keyed by (home_canon, away_canon, kickoff_min)
         api_index: dict[tuple, dict] = {}
         for lc in league_codes:
@@ -1192,13 +1205,63 @@ def update_results() -> list[str]:
             )
 
         # ---------- PHASE 2: resolve pending preds ----------
+        # KHÔNG dùng pred.match_id để query Match (Odds API match_id ≠ FD match_id).
+        # Dùng (canonical_home, canonical_away, kickoff_min) — cùng key với Phase 1 —
+        # để tìm Match đã FINISHED bất kể source nào tạo ra nó.
+
+        # Build index: (h_canon, a_canon, ko_min) → Match (chỉ lấy FINISHED có goals)
+        finished_index: dict[tuple, Match] = {}
+        all_finished = (
+            session.query(Match)
+            .filter(
+                Match.status == "FINISHED",
+                Match.home_goals.isnot(None),
+                Match.away_goals.isnot(None),
+            )
+            .all()
+        )
+        for m in all_finished:
+            h = _canonical_team_key(m.home_team or "")
+            a = _canonical_team_key(m.away_team or "")
+            ko_min = (
+                m.utc_date.replace(second=0, microsecond=0).isoformat()
+                if m.utc_date else ""
+            )
+            if h and a and ko_min:
+                finished_index[(h, a, ko_min)] = m
+
+        logger.info(
+            f"[update_results] phase 2: indexed {len(finished_index)} finished matches"
+        )
+
+        # Resolve mỗi pred bằng cách lookup Match của nó (qua pred.match_id để
+        # lấy team+kickoff), rồi tìm trong finished_index
+        unresolved_no_match = 0
+        unresolved_unfinished = 0
         for pred in pending_preds:
-            match = session.query(Match).filter(Match.match_id == pred.match_id).first()
-            if not match or match.status != "FINISHED":
-                continue
-            if match.home_goals is None or match.away_goals is None:
+            # Lấy Match record của pred (có thể status=SCHEDULED, không sao)
+            pred_match = session.query(Match).filter(Match.match_id == pred.match_id).first()
+            if not pred_match:
+                unresolved_no_match += 1
                 continue
 
+            h = _canonical_team_key(pred_match.home_team or "")
+            a = _canonical_team_key(pred_match.away_team or "")
+            ko_min = (
+                pred_match.utc_date.replace(second=0, microsecond=0).isoformat()
+                if pred_match.utc_date else ""
+            )
+            if not (h and a and ko_min):
+                unresolved_no_match += 1
+                continue
+
+            # Tìm match đã FINISHED (có thể là record khác có cùng team+kickoff)
+            finished_match = finished_index.get((h, a, ko_min))
+            if not finished_match:
+                unresolved_unfinished += 1
+                continue
+
+            match = finished_match  # alias để code resolve bên dưới không phải đổi
             total_goals = match.home_goals + match.away_goals
 
             if pred.market == "h2h":
@@ -1233,9 +1296,10 @@ def update_results() -> list[str]:
 
         if updated:
             session.commit()
-            logger.info(
-                f"[update_results] phase 2: resolved {len(updated)} predictions"
-            )
+        logger.info(
+            f"[update_results] phase 2: resolved {len(updated)}/{len(pending_preds)} "
+            f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished})"
+        )
     finally:
         session.close()
 
