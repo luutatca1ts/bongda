@@ -1098,6 +1098,143 @@ def run_analysis_pipeline() -> list[str]:
     return alerts
 
 
+def _compute_pred_result(pred, home_goals: int, away_goals: int) -> str | None:
+    """Compute WIN/LOSE/PUSH cho 1 prediction dựa trên kết quả thực tế.
+
+    Handle markets: h2h, totals, btts, asian_handicap (spreads),
+    corners_totals, corners_spreads, corners_h1_totals, corners_h1_spreads.
+
+    Returns None nếu market hoặc outcome không parse được — caller increments
+    unknown_market counter để monitoring.
+
+    Lưu ý: corners_* markets KHÔNG resolve được vì DB không lưu corner counts
+    của trận đấu — return None để skip chứ không gây result sai.
+    """
+    market = (pred.market or "").lower()
+    outcome = (pred.outcome or "").strip()
+    total_goals = home_goals + away_goals
+
+    # 1X2 / Moneyline
+    if market == "h2h":
+        if outcome == "Home":
+            return "WIN" if home_goals > away_goals else "LOSE"
+        if outcome == "Draw":
+            return "WIN" if home_goals == away_goals else "LOSE"
+        if outcome == "Away":
+            return "WIN" if away_goals > home_goals else "LOSE"
+        return None
+
+    # Goal totals (Over/Under X.X)
+    if market == "totals":
+        try:
+            threshold = float(outcome.split()[-1])
+        except (ValueError, IndexError):
+            return None
+        if "Over" in outcome:
+            if total_goals > threshold:
+                return "WIN"
+            if total_goals < threshold:
+                return "LOSE"
+            return "PUSH"
+        if "Under" in outcome:
+            if total_goals < threshold:
+                return "WIN"
+            if total_goals > threshold:
+                return "LOSE"
+            return "PUSH"
+        return None
+
+    # Both Teams To Score
+    if market == "btts":
+        both_scored = home_goals > 0 and away_goals > 0
+        if outcome == "Yes":
+            return "WIN" if both_scored else "LOSE"
+        if outcome == "No":
+            return "WIN" if not both_scored else "LOSE"
+        return None
+
+    # Asian Handicap / Spreads
+    if market in ("asian_handicap", "spreads"):
+        return _resolve_asian_handicap(outcome, home_goals, away_goals, pred)
+
+    # Corner markets — DB không lưu corner counts cho match → không resolve được
+    if market.startswith("corners_"):
+        return None
+
+    return None
+
+
+def _resolve_asian_handicap(outcome: str, home_goals: int, away_goals: int, pred) -> str | None:
+    """Resolve Asian Handicap. Outcome dạng '<side> <handicap>' với side là tên
+    team hoặc 'Home'/'Away', handicap là số float (có thể là 0.25 / 0.75 → quarter line).
+
+    AH logic (handicap từ perspective của side):
+      - side = 'home': adjusted_margin = (home_goals - away_goals) + handicap
+      - side = 'away': adjusted_margin = (away_goals - home_goals) + handicap
+      - adjusted_margin > 0 → WIN
+      - adjusted_margin < 0 → LOSE
+      - adjusted_margin == 0 → PUSH (refund)
+
+    Quarter lines (.25, .75): split bet — half WIN/half PUSH or half LOSE/half PUSH.
+    Để đơn giản, resolve sang WIN/LOSE/PUSH gần nhất theo majority (không tracking
+    half-stake refund — TODO sau nếu cần).
+    """
+    parts = outcome.rsplit(" ", 1)
+    if len(parts) != 2:
+        return None
+    side_str, hcap_str = parts[0].strip(), parts[1].strip()
+    try:
+        handicap = float(hcap_str)
+    except ValueError:
+        return None
+
+    side_lower = side_str.lower()
+    if side_lower == "home":
+        is_home = True
+    elif side_lower == "away":
+        is_home = False
+    else:
+        from src.db.models import get_session, Match
+        from src.bot.telegram_bot import _canonical_team_key
+        s = get_session()
+        try:
+            m = s.query(Match).filter(Match.match_id == pred.match_id).first()
+            if not m:
+                return None
+            ck_home = _canonical_team_key(m.home_team or "")
+            ck_away = _canonical_team_key(m.away_team or "")
+            ck_outcome = _canonical_team_key(side_str)
+            if ck_outcome == ck_home or ck_outcome in ck_home or ck_home in ck_outcome:
+                is_home = True
+            elif ck_outcome == ck_away or ck_outcome in ck_away or ck_away in ck_outcome:
+                is_home = False
+            else:
+                return None
+        finally:
+            s.close()
+
+    base_margin = (home_goals - away_goals) if is_home else (away_goals - home_goals)
+    adjusted = base_margin + handicap
+
+    # Quarter line handling: 0.25 / 0.75 split between two adjacent lines
+    frac = abs(handicap) - int(abs(handicap))
+    if abs(frac - 0.25) < 0.01 or abs(frac - 0.75) < 0.01:
+        if adjusted > 0.25:
+            return "WIN"
+        if adjusted < -0.25:
+            return "LOSE"
+        if adjusted >= 0:
+            return "WIN"
+        return "LOSE"
+
+    # Whole or half lines (.0, .5)
+    if adjusted > 0.01:
+        return "WIN"
+    if adjusted < -0.01:
+        return "LOSE"
+    return "PUSH"
+
+
 def update_results() -> list[str]:
     """Pull recent results from API, match to DB Match rows by team name +
     kickoff time, flip Match.status, then resolve preds.
@@ -1205,100 +1342,40 @@ def update_results() -> list[str]:
             )
 
         # ---------- PHASE 2: resolve pending preds ----------
-        # KHÔNG dùng pred.match_id để query Match (Odds API match_id ≠ FD match_id).
-        # Dùng (canonical_home, canonical_away, kickoff_min) — cùng key với Phase 1 —
-        # để tìm Match đã FINISHED bất kể source nào tạo ra nó.
-
-        # Build index: (h_canon, a_canon, ko_min) → Match (chỉ lấy FINISHED có goals)
-        finished_index: dict[tuple, Match] = {}
-        all_finished = (
-            session.query(Match)
-            .filter(
-                Match.status == "FINISHED",
-                Match.home_goals.isnot(None),
-                Match.away_goals.isnot(None),
-            )
-            .all()
-        )
-        for m in all_finished:
-            h = _canonical_team_key(m.home_team or "")
-            a = _canonical_team_key(m.away_team or "")
-            ko_min = (
-                m.utc_date.replace(second=0, microsecond=0).isoformat()
-                if m.utc_date else ""
-            )
-            if h and a and ko_min:
-                finished_index[(h, a, ko_min)] = m
-
-        logger.info(
-            f"[update_results] phase 2: indexed {len(finished_index)} finished matches"
-        )
-
-        # Resolve mỗi pred bằng cách lookup Match của nó (qua pred.match_id để
-        # lấy team+kickoff), rồi tìm trong finished_index
+        # pred_match có thể đã được flip FINISHED bởi Phase 1 hoặc từ trước.
+        # Compute result cho mọi market: h2h, totals, btts, asian_handicap,
+        # corners_totals, corners_spreads, corners_h1_totals, corners_h1_spreads.
         unresolved_no_match = 0
         unresolved_unfinished = 0
+        unresolved_unknown_market = 0
+
         for pred in pending_preds:
-            # Lấy Match record của pred (có thể status=SCHEDULED, không sao)
-            pred_match = session.query(Match).filter(Match.match_id == pred.match_id).first()
-            if not pred_match:
+            match = session.query(Match).filter(Match.match_id == pred.match_id).first()
+            if not match:
                 unresolved_no_match += 1
                 continue
-
-            h = _canonical_team_key(pred_match.home_team or "")
-            a = _canonical_team_key(pred_match.away_team or "")
-            ko_min = (
-                pred_match.utc_date.replace(second=0, microsecond=0).isoformat()
-                if pred_match.utc_date else ""
-            )
-            if not (h and a and ko_min):
-                unresolved_no_match += 1
-                continue
-
-            # Tìm match đã FINISHED (có thể là record khác có cùng team+kickoff)
-            finished_match = finished_index.get((h, a, ko_min))
-            if not finished_match:
+            if match.status != "FINISHED" or match.home_goals is None or match.away_goals is None:
                 unresolved_unfinished += 1
                 continue
 
-            match = finished_match  # alias để code resolve bên dưới không phải đổi
-            total_goals = match.home_goals + match.away_goals
+            result = _compute_pred_result(pred, match.home_goals, match.away_goals)
+            if result is None:
+                unresolved_unknown_market += 1
+                continue
+            pred.result = result
 
-            if pred.market == "h2h":
-                if pred.outcome == "Home":
-                    pred.result = "WIN" if match.home_goals > match.away_goals else "LOSE"
-                elif pred.outcome == "Draw":
-                    pred.result = "WIN" if match.home_goals == match.away_goals else "LOSE"
-                elif pred.outcome == "Away":
-                    pred.result = "WIN" if match.away_goals > match.home_goals else "LOSE"
-
-            elif pred.market == "totals":
-                if "Over" in pred.outcome:
-                    threshold = float(pred.outcome.split()[-1])
-                    pred.result = "WIN" if total_goals > threshold else "LOSE"
-                elif "Under" in pred.outcome:
-                    threshold = float(pred.outcome.split()[-1])
-                    pred.result = "WIN" if total_goals < threshold else "LOSE"
-
-            elif pred.market == "btts":
-                both_scored = match.home_goals > 0 and match.away_goals > 0
-                if pred.outcome == "Yes":
-                    pred.result = "WIN" if both_scored else "LOSE"
-                elif pred.outcome == "No":
-                    pred.result = "WIN" if not both_scored else "LOSE"
-
-            if pred.result:
-                icon = "✅" if pred.result == "WIN" else "❌"
-                updated.append(
-                    f"{icon} {match.home_team} vs {match.away_team} "
-                    f"{pred.market}/{pred.outcome} → {pred.result}"
-                )
+            icon = "✅" if pred.result == "WIN" else ("↩️" if pred.result == "PUSH" else "❌")
+            updated.append(
+                f"{icon} {match.home_team} vs {match.away_team} "
+                f"{pred.market}/{pred.outcome} → {pred.result}"
+            )
 
         if updated:
             session.commit()
         logger.info(
             f"[update_results] phase 2: resolved {len(updated)}/{len(pending_preds)} "
-            f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished})"
+            f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished}, "
+            f"unknown_market={unresolved_unknown_market})"
         )
     finally:
         session.close()
