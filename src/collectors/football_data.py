@@ -82,6 +82,7 @@ def _parse_result(m: dict) -> dict:
     score = m.get("score", {}).get("fullTime", {})
     return {
         "match_id": m["id"],
+        "status": m.get("status"),
         "competition": m["competition"]["name"],
         "competition_code": m["competition"].get("code", ""),
         "home_team": m["homeTeam"]["name"],

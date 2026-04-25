@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile c:/bongda/main.py c:/bongda/src/bot/telegram_bot.py c:/bongda/src/chot_pipeline.py c:/bongda/src/db/models.py)",
+      "Bash(git add *)",
+      "Bash(python -)",
+      "Bash(grep -n \"ancan.*58%\\\\|ancan.*60%\\\\|/chot \\\\\\\\\\\\\\\\u2014\" c:/bongda/src/bot/telegram_bot.py)",
+      "Bash(python -m py_compile c:/bongda/src/bot/telegram_bot.py)",
+      "Bash(git commit -m ' *)",
+      "Bash(git pull *)",
+      "Bash(git push *)",
+      "Bash(python -m py_compile c:/bongda/src/collectors/lineup.py)",
+      "Bash(python -c \"from src.pipeline import _normalize; print\\(_normalize\\('RCD Espanyol de Barcelona'\\)\\); print\\(_normalize\\('Athletic Club de Bilbao'\\)\\); print\\(_normalize\\('Atletico de Madrid'\\)\\)\")",
+      "Bash(python -m py_compile src/chot_pipeline.py)",
+      "Bash(python -c \"from src.chot_pipeline import _collect_phase2_signals, _format_message, _format_signals_block; print\\('import OK'\\)\")",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

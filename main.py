@@ -137,6 +137,25 @@ async def scheduled_daily_report(app):
         logger.error(f"[Scheduler] Daily report failed: {e}", exc_info=True)
 
 
+async def scheduled_eod_summary(app):
+    """End-of-day summary at 23:55 UTC: pull final results, push totals."""
+    from src.pipeline import generate_eod_summary
+
+    logger.info("[Scheduler] Running EOD summary...")
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, update_results)
+
+        summary = await loop.run_in_executor(None, generate_eod_summary)
+        if summary:
+            await send_alert(app, summary)
+            logger.info("[Scheduler] EOD summary sent")
+        else:
+            logger.info("[Scheduler] EOD summary: no preds today, skipping")
+    except Exception as e:
+        logger.error(f"[Scheduler] EOD summary failed: {e}", exc_info=True)
+
+
 async def scheduled_chot_reanalysis(app):
     """Pre-match odds re-check — runs every 5 min, picks with kickoff in 30-90 min."""
     logger.info("[Scheduler] Running chot re-analysis...")
@@ -242,11 +261,20 @@ def main():
                 id="chot_reanalysis",
                 name="Chot Pre-Match Re-analysis",
             )
+            scheduler.add_job(
+                scheduled_eod_summary,
+                "cron",
+                hour=23,
+                minute=55,
+                args=[app],
+                id="eod_summary",
+                name="End-of-Day Summary",
+            )
             scheduler.start()
             logger.info(
                 "Scheduler started: analysis/30min, results/2h, steam/15min, "
                 "clv/15min, cleanup/03:30, live/2min (18-06h), report/23:00, "
-                "chot/5min"
+                "chot/5min, eod_summary/23:55"
             )
 
             # Keep running

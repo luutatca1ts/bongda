@@ -1099,30 +1099,84 @@ def run_analysis_pipeline() -> list[str]:
 
 
 def update_results() -> list[str]:
-    """Check finished matches and update prediction results."""
+    """Pull recent results from API, flip Match.status, then resolve preds.
+
+    Phase 1: For every league with pending value-bet preds, call
+    get_recent_results() and UPSERT each Match's status / home_goals /
+    away_goals. This is what flips matches SCHEDULED -> FINISHED.
+
+    Phase 2: For every pending pred whose Match is now FINISHED with a
+    full score, compute pred.result from market + outcome. Markets
+    handled: h2h, totals, btts.
+    """
+    from src.collectors.football_data import get_recent_results
+
     session = get_session()
-    updated = []
+    updated: list[str] = []
 
     try:
         pending_preds = (
             session.query(Prediction)
-            .filter(Prediction.is_value_bet == True, Prediction.result.is_(None))
+            .filter(Prediction.is_value_bet == True, Prediction.result.is_(None))  # noqa: E712
             .all()
         )
+        if not pending_preds:
+            return updated
 
+        # ---------- PHASE 1: refresh Match rows from API ----------
+        league_codes: set[str] = set()
+        for pred in pending_preds:
+            m = session.query(Match).filter(Match.match_id == pred.match_id).first()
+            if m and m.competition_code:
+                league_codes.add(m.competition_code)
+
+        api_matches: dict[int, dict] = {}
+        for lc in league_codes:
+            try:
+                results = get_recent_results(lc, days=60) or []
+                for r in results:
+                    mid = r.get("match_id")
+                    if mid is not None:
+                        api_matches[int(mid)] = r
+                logger.info(
+                    f"[update_results] {lc}: pulled {len(results)} results from API"
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    f"[update_results] get_recent_results({lc}) failed: {e}"
+                )
+
+        flipped = 0
+        for mid, r in api_matches.items():
+            m = session.query(Match).filter(Match.match_id == mid).first()
+            if not m:
+                continue
+            changed = False
+            if r.get("status") and m.status != r["status"]:
+                m.status = r["status"]
+                changed = True
+            if r.get("home_goals") is not None and m.home_goals != r["home_goals"]:
+                m.home_goals = r["home_goals"]
+                changed = True
+            if r.get("away_goals") is not None and m.away_goals != r["away_goals"]:
+                m.away_goals = r["away_goals"]
+                changed = True
+            if changed:
+                flipped += 1
+        if flipped:
+            session.commit()
+            logger.info(
+                f"[update_results] phase 1: flipped {flipped} Match rows"
+            )
+
+        # ---------- PHASE 2: resolve pending preds ----------
         for pred in pending_preds:
             match = session.query(Match).filter(Match.match_id == pred.match_id).first()
             if not match or match.status != "FINISHED":
-                # Try to update match result from API
-                if match and match.home_goals is None:
-                    continue
-                if not match:
-                    continue
-
-            if match.home_goals is None:
+                continue
+            if match.home_goals is None or match.away_goals is None:
                 continue
 
-            # Determine result
             total_goals = match.home_goals + match.away_goals
 
             if pred.market == "h2h":
@@ -1149,20 +1203,83 @@ def update_results() -> list[str]:
                     pred.result = "WIN" if not both_scored else "LOSE"
 
             if pred.result:
+                icon = "✅" if pred.result == "WIN" else "❌"
                 updated.append(
-                    f"{'✅' if pred.result == 'WIN' else '❌'} "
-                    f"{match.home_team} vs {match.away_team} | "
-                    f"{pred.outcome} @ {pred.best_odds} → {pred.result}"
+                    f"{icon} {match.home_team} vs {match.away_team} "
+                    f"{pred.market}/{pred.outcome} → {pred.result}"
                 )
 
-        session.commit()
-    except Exception as e:
-        logger.error(f"[Results] Error: {e}", exc_info=True)
-        session.rollback()
+        if updated:
+            session.commit()
+            logger.info(
+                f"[update_results] phase 2: resolved {len(updated)} predictions"
+            )
     finally:
         session.close()
 
     return updated
+
+
+def generate_eod_summary() -> str | None:
+    """Generate end-of-day summary message for Telegram.
+
+    Returns formatted string with W/L/Push/Pending counts, win rate, ROI
+    for all preds whose Match kicked off today (UTC). Returns None if no
+    preds for today.
+    """
+    from datetime import datetime, date, timedelta
+
+    session = get_session()
+    try:
+        today = date.today()
+        day_start = datetime(today.year, today.month, today.day)
+        day_end = day_start + timedelta(days=1)
+
+        rows = (
+            session.query(Prediction, Match)
+            .join(Match, Prediction.match_id == Match.match_id)
+            .filter(
+                Prediction.is_value_bet == True,  # noqa: E712
+                Match.utc_date >= day_start,
+                Match.utc_date < day_end,
+            )
+            .all()
+        )
+
+        if not rows:
+            return None
+
+        total = len(rows)
+        wins = sum(1 for p, _ in rows if p.result == "WIN")
+        losses = sum(1 for p, _ in rows if p.result == "LOSE")
+        pushes = sum(1 for p, _ in rows if p.result == "PUSH")
+        pending = sum(1 for p, _ in rows if p.result is None)
+
+        decided = wins + losses
+        win_rate = (wins / decided * 100) if decided > 0 else 0.0
+        stake = wins + losses + pushes
+        gross = sum((p.best_odds or 0) for p, _ in rows if p.result == "WIN")
+        roi = ((gross - stake) / stake * 100) if stake > 0 else 0.0
+
+        lines = [
+            "📊 TỔNG KẾT HÔM NAY",
+            "━━━━━━━━━━━━━━━━━",
+            f"📅 {today.strftime('%d/%m/%Y')}",
+            f"📌 Tổng kèo: {total}",
+            f"✅ Thắng: {wins}",
+            f"❌ Thua: {losses}",
+        ]
+        if pushes:
+            lines.append(f"↩️ Push: {pushes}")
+        if pending:
+            lines.append(f"⏳ Chờ kết quả: {pending}")
+        if decided:
+            lines.append("")
+            lines.append(f"🎯 Tỉ lệ thắng: {win_rate:.1f}% ({wins}W/{losses}L)")
+            lines.append(f"💰 ROI: {roi:+.1f}%")
+        return "\n".join(lines)
+    finally:
+        session.close()
 
 
 def _compute_lesson_learned(session, day_start_utc, day_end_utc) -> str:
