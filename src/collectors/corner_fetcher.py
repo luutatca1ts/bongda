@@ -35,41 +35,16 @@ def fetch_corners_for_match(match: Match, session) -> tuple[bool, str]:
     # Step 1: Resolve fixture_id (skip nếu đã có)
     fid = match.api_football_fixture_id
     if not fid:
-        league_api = match.home_league_id or match.away_league_id
-        # Try original first
+        # SKIP league_api_id — DB sometimes has wrong league_id (e.g. La Liga
+        # match has home_league_id=2 UCL while away_league_id=140 La Liga).
+        # Resolver can find fixture by date+season+team_ids without league filter.
         try:
             fid = resolve_fixture_id_prematch(
                 match.home_api_id, match.away_api_id,
-                match.utc_date, league_api
+                match.utc_date, None
             )
         except Exception as e:
-            logger.debug(f"[corner_fetch] original resolve error: {e}")
-            fid = None
-
-        # Fallback 1: no_season resolver
-        if not fid:
-            try:
-                from src.collectors.api_football import resolve_fixture_id_no_season
-                fid = resolve_fixture_id_no_season(
-                    match.home_api_id, match.away_api_id,
-                    match.utc_date, league_api
-                )
-            except Exception as e:
-                logger.debug(f"[corner_fetch] no_season resolve error: {e}")
-                fid = None
-
-        # Fallback 2: no_season + no league
-        if not fid:
-            try:
-                from src.collectors.api_football import resolve_fixture_id_no_season
-                fid = resolve_fixture_id_no_season(
-                    match.home_api_id, match.away_api_id,
-                    match.utc_date, None
-                )
-            except Exception as e:
-                logger.debug(f"[corner_fetch] no_season+no_league resolve error: {e}")
-                fid = None
-
+            return False, f"resolve_failed: {e}"
         if not fid:
             return False, "fixture_not_found"
         match.api_football_fixture_id = fid

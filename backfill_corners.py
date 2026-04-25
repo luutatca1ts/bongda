@@ -12,6 +12,11 @@ def main():
     print("=" * 60)
     print("PHASE A: Fetching corner stats from API-Football")
     print("=" * 60)
+    # Clear in-memory cache to force fresh API lookups (cache may have stale
+    # None entries from earlier runs with wrong league_id).
+    from src.collectors.api_football import _PREMATCH_FIXTURE_CACHE
+    _PREMATCH_FIXTURE_CACHE.clear()
+    print(f"Cleared resolver cache (size before: {len(_PREMATCH_FIXTURE_CACHE)} entries — already 0 if fresh process)")
     counters = fetch_corners_batch(limit=2000)
     print(f"\nFetch summary: {counters}")
 
