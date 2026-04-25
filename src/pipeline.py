@@ -1104,17 +1104,95 @@ _TEAM_HCAP_PATTERN = re.compile(r"^(.+?)\s+([+-]?\d+(?:\.\d+)?)$")
 _OVER_UNDER_PATTERN = re.compile(r"^(Over|Under)\s+(\d+(?:\.\d+)?)$", re.IGNORECASE)
 
 
+# Token sets for team name normalization
+_TEAM_PREFIX_TOKENS = {
+    "club", "fc", "cf", "rcd", "cd", "ud", "ac", "as", "ss", "us", "ssc",
+    "sc", "vfb", "vfl", "sv", "tsv", "fsv", "kas", "rsc", "rb", "1", "1.",
+    "real", "deportivo", "atlético", "atletico",
+}
+_TEAM_SUFFIX_TOKENS = {
+    "fc", "cf", "sc", "fk", "ks", "sk", "afc", "cfc", "lfc", "ssc", "ac",
+    "bc", "cc", "ec", "hc", "lc", "mc", "nc", "rc", "tc", "vc",
+    "calcio", "balompié", "balompie", "sad", "ev",
+}
+_TEAM_STOPWORDS = {
+    "the", "de", "of", "do", "da", "von", "der", "ten", "du", "le", "la",
+    "el", "y", "and", "und", "&",
+}
+# Multi-word organizational tails — strip these (they don't carry discriminating info).
+# NOTE: Spec also listed "de madrid" / "de barcelona" / "de bilbao" / "de la coruña" /
+# "of london" / "do brasil" — but those swallow the CITY token, which IS the
+# discriminator (e.g. "Club Atlético de Madrid" vs "Atlético Madrid" both need
+# {atletico, madrid}). We rely on the "de" stopword + "club"/"atletico" prefix
+# strip to handle those cases instead.
+_LOCATION_TAILS = (
+    "de futbol", "de fútbol",
+)
+
+
+def _normalize_team_for_match(name: str) -> set[str]:
+    """Convert team name to set of significant tokens for fuzzy matching.
+
+    Steps:
+    1. Strip accents (NFKD)
+    2. Lowercase
+    3. Strip multi-word location tails ("de madrid")
+    4. Tokenize, remove prefix/suffix/stopword tokens
+    5. Return set of remaining tokens
+    """
+    if not name:
+        return set()
+
+    s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    s = s.lower().strip()
+
+    for tail in _LOCATION_TAILS:
+        if s.endswith(" " + tail):
+            s = s[: -(len(tail) + 1)].strip()
+
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
+    raw_tokens = [t for t in s.split() if t]
+
+    if not raw_tokens:
+        return set()
+
+    while raw_tokens and raw_tokens[0] in _TEAM_PREFIX_TOKENS:
+        raw_tokens.pop(0)
+    while raw_tokens and raw_tokens[-1] in _TEAM_SUFFIX_TOKENS:
+        raw_tokens.pop()
+    final = [t for t in raw_tokens if t not in _TEAM_STOPWORDS and len(t) >= 2]
+
+    if not final:
+        final = [t for t in s.split() if t not in _TEAM_STOPWORDS and len(t) >= 2]
+
+    return set(final)
+
+
 def _team_matches(outcome_team: str, home_team: str, away_team: str) -> str | None:
-    """Match outcome team name against home/away. Returns 'home', 'away', or None."""
-    from src.bot.telegram_bot import _canonical_team_key
-    ck_out = _canonical_team_key(outcome_team or "")
-    ck_home = _canonical_team_key(home_team or "")
-    ck_away = _canonical_team_key(away_team or "")
-    if not ck_out:
+    """Match outcome team name against home/away. Returns 'home', 'away', or None.
+
+    Strategy:
+    1. Normalize all 3 names to token sets.
+    2. Compute Jaccard-like overlap: |outcome ∩ team| / |outcome|
+    3. Pick the side with HIGHER overlap, IF overlap >= 0.5.
+    4. If tie (incl. both 0.0), return None.
+    """
+    out_tokens = _normalize_team_for_match(outcome_team)
+    home_tokens = _normalize_team_for_match(home_team)
+    away_tokens = _normalize_team_for_match(away_team)
+
+    if not out_tokens:
         return None
-    if ck_out == ck_home or ck_out in ck_home or ck_home in ck_out:
+
+    home_overlap = len(out_tokens & home_tokens) / len(out_tokens)
+    away_overlap = len(out_tokens & away_tokens) / len(out_tokens)
+
+    THRESHOLD = 0.5
+    if home_overlap < THRESHOLD and away_overlap < THRESHOLD:
+        return None
+    if home_overlap > away_overlap:
         return "home"
-    if ck_out == ck_away or ck_out in ck_away or ck_away in ck_out:
+    if away_overlap > home_overlap:
         return "away"
     return None
 
