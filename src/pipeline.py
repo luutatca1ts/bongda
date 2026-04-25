@@ -1168,14 +1168,42 @@ def _normalize_team_for_match(name: str) -> set[str]:
     return set(final)
 
 
+def _token_overlap_with_prefix(out_tokens: set[str], team_tokens: set[str], min_prefix_len: int = 4) -> int:
+    """Compute overlap count, treating prefix matches as same token.
+
+    'brest' matches 'brestois' (prefix ≥4 chars).
+    'lens' matches 'lens' (exact).
+    'rc' does NOT match 'racing' (rc < 4 chars).
+    """
+    matched = set(out_tokens & team_tokens)  # exact matches first
+
+    for t_out in out_tokens - matched:
+        if len(t_out) < min_prefix_len:
+            continue
+        for t_team in team_tokens - matched:
+            if len(t_team) < min_prefix_len:
+                continue
+            if t_out.startswith(t_team) or t_team.startswith(t_out):
+                matched.add(t_out)
+                break
+
+    return len(matched)
+
+
 def _team_matches(outcome_team: str, home_team: str, away_team: str) -> str | None:
     """Match outcome team name against home/away. Returns 'home', 'away', or None.
 
     Strategy:
     1. Normalize all 3 names to token sets.
-    2. Compute Jaccard-like overlap: |outcome ∩ team| / |outcome|
-    3. Pick the side with HIGHER overlap, IF overlap >= 0.5.
-    4. If tie (incl. both 0.0), return None.
+    2. Compute overlap with prefix matching (≥4 chars).
+    3. Pick side with higher overlap, IF overlap >= 0.5 of outcome tokens.
+    4. Tie → None.
+
+    Examples:
+        outcome="Brest" {brest}
+        home="Stade Brestois 29" {brestois, stade, 29}
+        away="Lens" {lens}
+        → home overlap = 1 (brest~brestois), away = 0 → "home"
     """
     out_tokens = _normalize_team_for_match(outcome_team)
     home_tokens = _normalize_team_for_match(home_team)
@@ -1184,8 +1212,11 @@ def _team_matches(outcome_team: str, home_team: str, away_team: str) -> str | No
     if not out_tokens:
         return None
 
-    home_overlap = len(out_tokens & home_tokens) / len(out_tokens)
-    away_overlap = len(out_tokens & away_tokens) / len(out_tokens)
+    home_match = _token_overlap_with_prefix(out_tokens, home_tokens)
+    away_match = _token_overlap_with_prefix(out_tokens, away_tokens)
+
+    home_overlap = home_match / len(out_tokens)
+    away_overlap = away_match / len(out_tokens)
 
     THRESHOLD = 0.5
     if home_overlap < THRESHOLD and away_overlap < THRESHOLD:
@@ -1450,21 +1481,71 @@ def update_results() -> list[str]:
             )
 
         # ---------- PHASE 2: resolve pending preds ----------
-        # pred_match có thể đã được flip FINISHED bởi Phase 1 hoặc từ trước.
-        # Compute result cho mọi market: h2h, totals, btts, asian_handicap,
-        # corners_totals, corners_spreads, corners_h1_totals, corners_h1_spreads.
         unresolved_no_match = 0
         unresolved_unfinished = 0
         unresolved_unknown_market = 0
+        recovered_via_sibling = 0
+
+        # Build sibling index: (canon_h, canon_a, ko_min) → FINISHED Match
+        # Phase 2.5 will use this to find finished sibling for SCHEDULED pred_match
+        # (DB sometimes has 2 records: Odds API SCHEDULED + Football-Data FINISHED).
+        sibling_index: dict[tuple, Match] = {}
+        all_finished = (
+            session.query(Match)
+            .filter(
+                Match.status == "FINISHED",
+                Match.home_goals.isnot(None),
+                Match.away_goals.isnot(None),
+            )
+            .all()
+        )
+        for m in all_finished:
+            home_tokens = _normalize_team_for_match(m.home_team or "")
+            away_tokens = _normalize_team_for_match(m.away_team or "")
+            ko = m.utc_date.replace(second=0, microsecond=0) if m.utc_date else None
+            if home_tokens and away_tokens and ko:
+                key = (frozenset(home_tokens), frozenset(away_tokens), ko)
+                sibling_index[key] = m
+
+        logger.info(
+            f"[update_results] phase 2.5: indexed {len(sibling_index)} finished matches for sibling lookup"
+        )
 
         for pred in pending_preds:
             match = session.query(Match).filter(Match.match_id == pred.match_id).first()
             if not match:
                 unresolved_no_match += 1
                 continue
+
+            # Phase 2.5: if pred_match not FINISHED, try sibling lookup
             if match.status != "FINISHED" or match.home_goals is None or match.away_goals is None:
-                unresolved_unfinished += 1
-                continue
+                if match.utc_date:
+                    pred_home_tokens = _normalize_team_for_match(match.home_team or "")
+                    pred_away_tokens = _normalize_team_for_match(match.away_team or "")
+                    pred_ko = match.utc_date.replace(second=0, microsecond=0)
+
+                    sibling = None
+                    exact_key = (frozenset(pred_home_tokens), frozenset(pred_away_tokens), pred_ko)
+                    sibling = sibling_index.get(exact_key)
+
+                    # If not found, scan all finished within ±5min and fuzzy match teams
+                    if not sibling and pred_home_tokens and pred_away_tokens:
+                        for (sh_tokens, sa_tokens, sko), sm in sibling_index.items():
+                            if abs((sko - pred_ko).total_seconds()) > 300:  # 5 min window
+                                continue
+                            home_overlap = _token_overlap_with_prefix(pred_home_tokens, sh_tokens)
+                            away_overlap = _token_overlap_with_prefix(pred_away_tokens, sa_tokens)
+                            if home_overlap >= 1 and away_overlap >= 1:
+                                sibling = sm
+                                break
+
+                    if sibling:
+                        match = sibling
+                        recovered_via_sibling += 1
+
+                if match.status != "FINISHED" or match.home_goals is None or match.away_goals is None:
+                    unresolved_unfinished += 1
+                    continue
 
             result = _compute_pred_result(pred, match)
             if result is None:
@@ -1483,7 +1564,7 @@ def update_results() -> list[str]:
         logger.info(
             f"[update_results] phase 2: resolved {len(updated)}/{len(pending_preds)} "
             f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished}, "
-            f"unknown_market={unresolved_unknown_market})"
+            f"unknown_market={unresolved_unknown_market}, recovered_via_sibling={recovered_via_sibling})"
         )
     finally:
         session.close()

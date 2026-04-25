@@ -16,7 +16,11 @@ from datetime import datetime
 from src.db.models import get_session, Match, Prediction
 from src.collectors.football_data import get_recent_results
 from src.bot.telegram_bot import _canonical_team_key
-from src.pipeline import _compute_pred_result
+from src.pipeline import (
+    _compute_pred_result,
+    _normalize_team_for_match,
+    _token_overlap_with_prefix,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,26 +108,74 @@ def main():
         )
 
         # ---------- PHASE 2: resolve pending preds ----------
-        # pred_match có thể đã được flip FINISHED bởi Phase 1 hoặc từ trước.
-        # Compute result cho mọi market via _compute_pred_result helper.
         pending_preds = (
             session.query(Prediction)
             .filter(Prediction.is_value_bet == True, Prediction.result.is_(None))  # noqa: E712
             .all()
         )
 
+        # Build sibling index for Phase 2.5 (DB sometimes has 2 records per match:
+        # Odds API SCHEDULED + Football-Data FINISHED — pred trỏ tới SCHEDULED).
+        sibling_index: dict[tuple, Match] = {}
+        all_finished = (
+            session.query(Match)
+            .filter(
+                Match.status == "FINISHED",
+                Match.home_goals.isnot(None),
+                Match.away_goals.isnot(None),
+            )
+            .all()
+        )
+        for fm in all_finished:
+            home_tokens = _normalize_team_for_match(fm.home_team or "")
+            away_tokens = _normalize_team_for_match(fm.away_team or "")
+            ko = fm.utc_date.replace(second=0, microsecond=0) if fm.utc_date else None
+            if home_tokens and away_tokens and ko:
+                key = (frozenset(home_tokens), frozenset(away_tokens), ko)
+                sibling_index[key] = fm
+
+        logger.info(
+            f"[backfill] Phase 2.5: indexed {len(sibling_index)} finished matches for sibling lookup"
+        )
+
         updated: list[str] = []
         unresolved_no_match = 0
         unresolved_unfinished = 0
         unresolved_unknown_market = 0
+        recovered_via_sibling = 0
         for pred in pending_preds:
             match = session.query(Match).filter(Match.match_id == pred.match_id).first()
             if not match:
                 unresolved_no_match += 1
                 continue
+
             if match.status != "FINISHED" or match.home_goals is None or match.away_goals is None:
-                unresolved_unfinished += 1
-                continue
+                if match.utc_date:
+                    pred_home_tokens = _normalize_team_for_match(match.home_team or "")
+                    pred_away_tokens = _normalize_team_for_match(match.away_team or "")
+                    pred_ko = match.utc_date.replace(second=0, microsecond=0)
+
+                    sibling = None
+                    exact_key = (frozenset(pred_home_tokens), frozenset(pred_away_tokens), pred_ko)
+                    sibling = sibling_index.get(exact_key)
+
+                    if not sibling and pred_home_tokens and pred_away_tokens:
+                        for (sh_tokens, sa_tokens, sko), sm in sibling_index.items():
+                            if abs((sko - pred_ko).total_seconds()) > 300:
+                                continue
+                            home_overlap = _token_overlap_with_prefix(pred_home_tokens, sh_tokens)
+                            away_overlap = _token_overlap_with_prefix(pred_away_tokens, sa_tokens)
+                            if home_overlap >= 1 and away_overlap >= 1:
+                                sibling = sm
+                                break
+
+                    if sibling:
+                        match = sibling
+                        recovered_via_sibling += 1
+
+                if match.status != "FINISHED" or match.home_goals is None or match.away_goals is None:
+                    unresolved_unfinished += 1
+                    continue
 
             result = _compute_pred_result(pred, match)
             if result is None:
@@ -142,7 +194,7 @@ def main():
         logger.info(
             f"[backfill] Phase 2 done: resolved {len(updated)}/{len(pending_preds)} "
             f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished}, "
-            f"unknown_market={unresolved_unknown_market})"
+            f"unknown_market={unresolved_unknown_market}, recovered_via_sibling={recovered_via_sibling})"
         )
 
         total_preds = session.query(Prediction).count()
