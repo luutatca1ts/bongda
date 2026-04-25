@@ -170,34 +170,69 @@ def get_odds(league_code: str, markets: str = "h2h,totals,spreads") -> list[dict
 
 
 def _parse_event(event: dict) -> dict:
+    home_team = event["home_team"]
+    away_team = event["away_team"]
+
+    def _normalize_h2h_outcome(name: str) -> str:
+        """Map team name to 'Home'/'Away'/'Draw' (canonical keys for downstream)."""
+        if name == home_team:
+            return "Home"
+        if name == away_team:
+            return "Away"
+        if name == "Draw":
+            return "Draw"
+        n_lower = name.lower().strip()
+        h_lower = home_team.lower().strip()
+        a_lower = away_team.lower().strip()
+        if n_lower in h_lower or h_lower in n_lower:
+            return "Home"
+        if n_lower in a_lower or a_lower in n_lower:
+            return "Away"
+        return name  # unknown — preserve original
+
     bookmakers_data = {}
     for bk in event.get("bookmakers", []):
         bk_key = bk["key"]
         bk_name = bk["title"]
         markets = {}
         for market in bk.get("markets", []):
-            if market["key"] in ("totals", "spreads"):
-                # Include point (handicap line or O/U line) for both
+            if market["key"] == "totals":
+                # totals: keys are 'Over'/'Under' (already canonical), keep with point
                 outcomes = {}
                 for o in market.get("outcomes", []):
                     outcomes[o["name"]] = {
                         "price": o.get("price"),
                         "point": o.get("point"),
                     }
-                markets[market["key"]] = outcomes
+                markets["totals"] = outcomes
+            elif market["key"] == "spreads":
+                # spreads: outcomes use team names → normalize to Home/Away
+                outcomes = {}
+                for o in market.get("outcomes", []):
+                    canonical = _normalize_h2h_outcome(o["name"])
+                    outcomes[canonical] = {
+                        "price": o.get("price"),
+                        "point": o.get("point"),
+                    }
+                markets["spreads"] = outcomes
             elif market["key"] == "alternate_totals_corners":
                 # Corner O/U — multiple lines (8.5, 9.5, 10.5, etc.)
-                # Group by point to keep all lines
                 corners = markets.get("corners_totals", [])
                 for o in market.get("outcomes", []):
                     corners.append({
-                        "name": o["name"],  # Over / Under
+                        "name": o["name"],
                         "price": o.get("price"),
                         "point": o.get("point"),
                     })
                 markets["corners_totals"] = corners
+            elif market["key"] == "h2h":
+                # h2h: outcomes use team names → normalize to Home/Away/Draw
+                outcomes = {}
+                for o in market.get("outcomes", []):
+                    canonical = _normalize_h2h_outcome(o["name"])
+                    outcomes[canonical] = o.get("price")
+                markets["h2h"] = outcomes
             else:
-                # h2h — just price
                 outcomes = {o["name"]: o.get("price") for o in market.get("outcomes", [])}
                 markets[market["key"]] = outcomes
         bookmakers_data[bk_key] = {"name": bk_name, "markets": markets}
@@ -205,8 +240,8 @@ def _parse_event(event: dict) -> dict:
     return {
         "event_id": event["id"],
         "sport": event["sport_key"],
-        "home_team": event["home_team"],
-        "away_team": event["away_team"],
+        "home_team": home_team,
+        "away_team": away_team,
         "commence_time": event["commence_time"],
         "bookmakers": bookmakers_data,
     }

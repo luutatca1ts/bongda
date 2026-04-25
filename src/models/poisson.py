@@ -381,22 +381,34 @@ def find_value_bets(prediction: dict, odds_data: dict, min_ev: float = 0.01) -> 
                     "bookmaker": odds_info.get("bookmaker", "N/A") if isinstance(odds_info, dict) else "N/A",
                 })
 
-    # Check totals (over/under)
+    # Check totals (over/under) — match by point.
+    # prediction['totals'] keys = "Over 2.5", "Under 3.5" (with point baked in).
+    # odds_data['totals'] keys = "Over", "Under" (point in dict).
     if "totals" in odds_data:
-        for outcome, prob in prediction["totals"].items():
-            odds_info = odds_data["totals"].get(outcome)
-            if not odds_info:
+        for outcome_key, odds_info in odds_data["totals"].items():
+            if not isinstance(odds_info, dict):
                 continue
-            price = odds_info if isinstance(odds_info, (int, float)) else odds_info.get("price", 0)
+            point = odds_info.get("point")
+            price = odds_info.get("price", 0) or 0
+            if point is None or price <= 0:
+                continue
+            # Build prediction key with the point: "Over 2.75", "Under 2.75".
+            pred_key = f"{outcome_key} {point}"
+            prob = prediction.get("totals", {}).get(pred_key)
+            if prob is None:
+                # Fallback: try default 2.5 line if model doesn't have this point.
+                prob = prediction.get("totals", {}).get(f"{outcome_key} 2.5")
+                if prob is None:
+                    continue
             ev = calculate_expected_value(prob, price)
             if ev > min_ev:
                 value_bets.append({
                     "market": "totals",
-                    "outcome": outcome,
+                    "outcome": pred_key,  # Save with point: "Over 2.75"
                     "probability": prob,
                     "odds": price,
                     "ev": ev,
-                    "bookmaker": odds_info.get("bookmaker", "N/A") if isinstance(odds_info, dict) else "N/A",
+                    "bookmaker": odds_info.get("bookmaker", "N/A"),
                 })
 
     # Check BTTS
