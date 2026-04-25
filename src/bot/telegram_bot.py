@@ -791,8 +791,11 @@ def _build_chot_sections(session) -> dict:
     }
 
 
-def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> str:
-    """Format picks list thành Telegram message text với decision_note + result."""
+def _format_chot_picks(picks: list, section_label: str, max_show: int = 15, offset: int = 0) -> tuple[str, bool, int]:
+    """v26: Format picks list với decision_note + result + pagination.
+
+    Returns: (text, has_more, next_offset).
+    """
     from datetime import timezone, timedelta
     from src.chot_pipeline import _decision_note
     DECISION_ICON = {"keep": "✅", "better": "\U0001f7e2", "worse": "⚠️", "drop": "❌"}
@@ -800,10 +803,19 @@ def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> s
     VN_TZ = timezone(timedelta(hours=7))
 
     if not picks:
-        return f"\U0001f4c5 {section_label}\n━━━━━━━━━━━━━━━\n\nKhông có kèo nào.\n"
+        return (
+            f"\U0001f4c5 {section_label}\n━━━━━━━━━━━━━━━\n\nKhông có kèo nào.\n",
+            False,
+            0,
+        )
 
-    body = f"\U0001f4c5 {section_label} ({len(picks)} kèo)\n━━━━━━━━━━━━━━━\n"
-    for i, (chot, p, m) in enumerate(picks[:max_show], 1):
+    total = len(picks)
+    page_picks = picks[offset:offset + max_show]
+    page_num = (offset // max_show) + 1
+    total_pages = (total + max_show - 1) // max_show if total > 0 else 1
+    page_info = f" — Trang {page_num}/{total_pages}" if total_pages > 1 else ""
+    body = f"\U0001f4c5 {section_label} ({total} kèo){page_info}\n━━━━━━━━━━━━━━━\n"
+    for i, (chot, p, m) in enumerate(page_picks, offset + 1):
         icon = DECISION_ICON.get(chot.decision, "•")
         label = DECISION_LABEL.get(chot.decision, chot.decision or "?")
         mkt = _MKT_NAMES.get(p.market, p.market)
@@ -849,9 +861,12 @@ def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> s
             f"{note_str}\n"
             f"⏱ {when} (VN)\n"
         )
-    if len(picks) > max_show:
-        body += f"\n... và {len(picks) - max_show} kèo khác trong {section_label.lower()}\n"
-    return body
+    has_more = (offset + max_show) < total
+    next_offset = offset + max_show if has_more else 0
+    if has_more:
+        remaining = total - (offset + max_show)
+        body += f"\n... còn {remaining} kèo (bấm nút bên dưới để xem thêm)\n"
+    return body, has_more, next_offset
 
 
 async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -879,8 +894,10 @@ async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        has_more = False
+        next_offset = 0
         if today_picks:
-            text = _format_chot_picks(today_picks, "HÔM NAY")
+            text, has_more, next_offset = _format_chot_picks(today_picks, "HÔM NAY")
         else:
             text = (
                 "\U0001f4c5 HÔM NAY (0 kèo)\n"
@@ -889,24 +906,30 @@ async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "\U0001f449 Xem các ngày trước:\n"
             )
 
-        buttons = []
+        keyboard_rows = []
+        # v26: "Xem thêm" button cho HÔM NAY page kế tiếp (nếu có).
+        if has_more:
+            remaining_to_show = min(15, len(today_picks) - next_offset)
+            keyboard_rows.append([InlineKeyboardButton(
+                f"\U0001f4e5 Xem thêm {remaining_to_show} kèo",
+                callback_data=f"chot_more:today:{next_offset}",
+            )])
         if data["yesterday"]:
-            buttons.append(InlineKeyboardButton(
+            keyboard_rows.append([InlineKeyboardButton(
                 f"\U0001f4c5 HÔM QUA ({len(data['yesterday'])})",
                 callback_data="chot_section:yesterday",
-            ))
+            )])
         if data["day_before"]:
-            buttons.append(InlineKeyboardButton(
+            keyboard_rows.append([InlineKeyboardButton(
                 f"\U0001f4c5 HÔM TRƯỚC ({len(data['day_before'])})",
                 callback_data="chot_section:day_before",
-            ))
+            )])
         if data["week"]:
-            buttons.append(InlineKeyboardButton(
+            keyboard_rows.append([InlineKeyboardButton(
                 f"\U0001f4c5 4-7 NGÀY ({len(data['week'])})",
                 callback_data="chot_section:week",
-            ))
+            )])
 
-        keyboard_rows = [[btn] for btn in buttons]
         reply_markup = InlineKeyboardMarkup(keyboard_rows) if keyboard_rows else None
 
         await update.message.reply_text(text, reply_markup=reply_markup)
@@ -936,12 +959,64 @@ async def cb_chot_section(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     label = SECTION_LABELS.get(section_key, section_key.upper())
 
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
     session = get_session()
     try:
         data = _build_chot_sections(session)
         picks = data.get(section_key, [])
-        text = _format_chot_picks(picks, label)
-        await query.message.reply_text(text)
+        text, has_more, next_offset = _format_chot_picks(picks, label)
+        keyboard_rows = []
+        if has_more:
+            remaining_to_show = min(15, len(picks) - next_offset)
+            keyboard_rows.append([InlineKeyboardButton(
+                f"\U0001f4e5 Xem thêm {remaining_to_show} kèo",
+                callback_data=f"chot_more:{section_key}:{next_offset}",
+            )])
+        reply_markup = InlineKeyboardMarkup(keyboard_rows) if keyboard_rows else None
+        await query.message.reply_text(text, reply_markup=reply_markup)
+    finally:
+        session.close()
+
+
+async def cb_chot_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """v26: Handle callback 'chot_more:<section>:<offset>' — load thêm 15 picks."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    query = update.callback_query
+    await query.answer()
+    data_str = query.data or ""
+    if not data_str.startswith("chot_more:"):
+        return
+    parts = data_str.split(":", 2)
+    if len(parts) != 3:
+        return
+    section_key = parts[1]
+    try:
+        offset = int(parts[2])
+    except ValueError:
+        return
+    SECTION_LABELS = {
+        "today": "HÔM NAY",
+        "yesterday": "HÔM QUA",
+        "day_before": "HÔM TRƯỚC",
+        "week": "4-7 NGÀY TRƯỚC",
+    }
+    label = SECTION_LABELS.get(section_key, section_key.upper())
+    session = get_session()
+    try:
+        data = _build_chot_sections(session)
+        picks = data.get(section_key, [])
+        text, has_more, next_offset = _format_chot_picks(picks, label, offset=offset)
+        keyboard_rows = []
+        if has_more:
+            remaining_to_show = min(15, len(picks) - next_offset)
+            keyboard_rows.append([InlineKeyboardButton(
+                f"\U0001f4e5 Xem thêm {remaining_to_show} kèo",
+                callback_data=f"chot_more:{section_key}:{next_offset}",
+            )])
+        reply_markup = InlineKeyboardMarkup(keyboard_rows) if keyboard_rows else None
+        await query.message.reply_text(text, reply_markup=reply_markup)
     finally:
         session.close()
 
@@ -4507,6 +4582,7 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("help", cmd_help))
     # Pattern-specific handlers FIRST so they take priority over the generic one.
     app.add_handler(CallbackQueryHandler(cb_chot_section, pattern=r"^chot_section:"))
+    app.add_handler(CallbackQueryHandler(cb_chot_more, pattern=r"^chot_more:"))
     app.add_handler(CallbackQueryHandler(callback_league_picker))
 
     return app
