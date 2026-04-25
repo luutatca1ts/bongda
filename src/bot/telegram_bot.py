@@ -3077,9 +3077,9 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     league_filter = args[0].upper() if args else None
 
     if not league_filter:
-        # No args → show simplified ALL-LIVE summary (all Pinnacle-covered leagues).
-        # User can pick a specific league via /live <code> or buttons in picker.
-        await _run_all_live_summary(update, context)
+        # v22: Show interactive league picker (giống /phantich).
+        # User chọn các giải → bấm XÁC NHẬN → bot chạy phân tích cho từng giải.
+        await _show_league_picker(update, "live")
         return
 
     if league_filter not in LEAGUES:
@@ -3684,16 +3684,20 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         is_corner = best["market"] in CORNER_MARKETS
                         conf_emoji = {"HIGH": "\U0001f534", "MEDIUM": "\U0001f7e1", "LOW": "\U0001f7e2"}.get(conf, "\u26aa")
 
-                        # Decision: BET or SKIP
+                        # === v22: Hướng B — Kèo siêu chặt ===
+                        # Chỉ ĐẶT khi: EV >= 12% AND confidence == HIGH AND odds hợp lệ
+                        EV_LIVE_HARD = 0.12      # 12%
+                        MIN_ODDS_LIVE = 1.30
+                        MAX_ODDS_LIVE = 5.00
                         live_sig_val = best.get("live_signal", "")
                         if "ĐÃ QUA" in live_sig_val:
                             decision = "✅ ĐÃ THẮNG"
-                        elif conf in ("HIGH", "MEDIUM"):
+                        elif (
+                            best["ev"] >= EV_LIVE_HARD
+                            and conf == "HIGH"
+                            and MIN_ODDS_LIVE <= best["odds"] <= MAX_ODDS_LIVE
+                        ):
                             decision = "✅ ĐẶT"
-                        elif is_corner and best.get("prob", 0) >= 0.7 and best["ev"] > 0:
-                            decision = "✅ ĐẶT"  # High live prob corner
-                        elif is_corner and best["ev"] > -0.05:
-                            decision = "⚡ CÂN NHẮC"
                         else:
                             decision = "⏭ BỎ QUA"
 
@@ -3706,7 +3710,8 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             f"→ {decision}{sig_str}\n"
                         )
 
-                        if conf in ("HIGH", "MEDIUM") or (is_corner and best["ev"] > -0.03):
+                        # v22: Chỉ append khi thực sự ĐẶT (Hướng B)
+                        if decision == "✅ ĐẶT":
                             m_min = match_stats.get("minute", 0) if match_stats else 0
                             live_values.append({
                                 **best, "home": home, "away": away,
@@ -3739,7 +3744,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             live_values.sort(key=lambda x: (0 if x["confidence"] == "HIGH" else 1 if x["confidence"] == "MEDIUM" else 2, -x["ev"]))
 
             summary = (
-                f"\n\U0001f525 KÈO LIVE — QUYẾT ĐỊNH\n"
+                f"\n\U0001f525 KÈO LIVE SIÊU CHẶT (EV ≥ 12% + HIGH confidence)\n"
                 f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
             )
             seen = set()
@@ -3752,10 +3757,8 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 emoji = conf_emojis.get(conf, "\u26aa")
                 label = conf_labels.get(conf, "?")
 
-                if conf in ("HIGH", "MEDIUM"):
-                    decision = "✅ ĐẶT"
-                else:
-                    decision = "⚡ CÂN NHẮC"
+                # v22: Chỉ còn ĐẶT (vì live_values chỉ chứa pick đã pass Hướng B)
+                decision = "✅ ĐẶT"
 
                 pick_min = pick.get('minute', 0)
                 min_str = f" ({pick_min}')" if pick_min else ""
