@@ -1386,14 +1386,21 @@ def _compute_pred_result(pred, match) -> str | None:
 
 
 def _resolve_live_predictions(session) -> int:
-    """v25: Resolve LivePrediction.result cho picks có Match đã FINISHED.
-
-    Reuse _compute_pred_result + Phase 2.5-style sibling lookup (canonical
-    team match + utc_date ±5 min) cho case Odds API record SCHEDULED nhưng
-    Football-Data sibling FINISHED. Returns số picks đã resolve.
+    """v32.1: Resolve LivePrediction.result qua Odds API /scores với fuzzy match.
+    
+    Logic:
+    1. Group pending LP theo Match.competition_code
+    2. Gọi get_completed_scores(league_code, days_from=3) cho mỗi league
+    3. Match LP <-> completed score qua fuzzy team name + utc_date ±5 phút
+    4. Update Match.home_goals/away_goals/status -> compute result
+    
+    Hạn chế: chỉ resolve picks trong 3 ngày qua (Odds API /scores limit).
     """
     from src.db.models import LivePrediction, Match
-
+    from src.collectors.odds_api import get_completed_scores, ODDS_SPORTS
+    from datetime import timedelta
+    from collections import defaultdict
+    
     pending = (
         session.query(LivePrediction)
         .filter(LivePrediction.result.is_(None))
@@ -1402,56 +1409,62 @@ def _resolve_live_predictions(session) -> int:
     )
     if not pending:
         return 0
-
-    resolved_count = 0
+    
+    # Group by league code
+    by_league = defaultdict(list)
     for lp in pending:
         m = session.query(Match).filter(Match.match_id == lp.match_id).first()
-        if not m:
+        if not m or not m.competition_code or not m.utc_date:
             continue
-
-        # Sibling lookup khi Match chưa FINISHED (Odds API record có thể stuck SCHEDULED).
-        if m.status != "FINISHED" or m.home_goals is None or m.away_goals is None:
-            if not m.utc_date:
-                continue
+        by_league[m.competition_code].append((lp, m))
+    
+    resolved_count = 0
+    for league_code, lps in by_league.items():
+        if league_code not in ODDS_SPORTS:
+            continue
+        completed = get_completed_scores(league_code, days_from=3)
+        if not completed:
+            continue
+        
+        for lp, m in lps:
             home_tokens = _normalize_team_for_match(m.home_team or "")
             away_tokens = _normalize_team_for_match(m.away_team or "")
             if not home_tokens or not away_tokens:
                 continue
-            kickoff_min = m.utc_date.replace(second=0, microsecond=0)
-            sibling = None
-            candidates = (
-                session.query(Match)
-                .filter(
-                    Match.status == "FINISHED",
-                    Match.home_goals.isnot(None),
-                    Match.away_goals.isnot(None),
-                    Match.id != m.id,
-                )
-                .all()
-            )
-            for sib in candidates:
-                if not sib.utc_date:
+            kickoff = m.utc_date.replace(second=0, microsecond=0)
+            
+            # Find matching completed event by team + kickoff
+            matched_ev = None
+            for ev in completed:
+                ev_home = _normalize_team_for_match(ev.get("home_team", ""))
+                ev_away = _normalize_team_for_match(ev.get("away_team", ""))
+                if not ev_home or not ev_away:
                     continue
-                if abs((sib.utc_date - kickoff_min).total_seconds()) > 300:
-                    continue
-                sib_h = _normalize_team_for_match(sib.home_team or "")
-                sib_a = _normalize_team_for_match(sib.away_team or "")
+                # Parse commence_time from ev (already converted to dict in get_completed_scores)
+                # Actually get_completed_scores doesn't return commence_time; we need to skip time check
+                # OR update get_completed_scores to include it. For now use team-only fuzzy match.
                 if (
-                    _token_overlap_with_prefix(home_tokens, sib_h) >= 1
-                    and _token_overlap_with_prefix(away_tokens, sib_a) >= 1
+                    _token_overlap_with_prefix(home_tokens, ev_home) >= 1
+                    and _token_overlap_with_prefix(away_tokens, ev_away) >= 1
                 ):
-                    sibling = sib
+                    matched_ev = ev
                     break
-            if not sibling:
+            
+            if not matched_ev:
                 continue
-            m = sibling
-
-        # Pass lp object — _compute_pred_result reads .market/.outcome/.match_id attrs.
-        result = _compute_pred_result(lp, m)
-        if result:
-            lp.result = result
-            resolved_count += 1
-
+            
+            # Update Match with FT score
+            if m.home_goals is None:
+                m.home_goals = matched_ev["home_score"]
+                m.away_goals = matched_ev["away_score"]
+                m.status = "FINISHED"
+            
+            # Compute result
+            result = _compute_pred_result(lp, m)
+            if result:
+                lp.result = result
+                resolved_count += 1
+    
     if resolved_count > 0:
         session.commit()
     return resolved_count

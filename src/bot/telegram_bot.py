@@ -3932,10 +3932,16 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             "market": best["market"],
                         }
                         is_susp, susp_reason = _is_ev_suspicious(vb_check)
+                        # v33: Filter picks ở phút sớm (<30) — model chưa đủ data live
+                        MIN_MINUTE_LIVE = 30
+                        m_minute_check = match_stats.get("minute", 0) if match_stats else 0
+                        too_early = m_minute_check < MIN_MINUTE_LIVE
                         if "ĐÃ QUA" in live_sig_val:
                             decision = "✅ ĐÃ THẮNG"
                         elif is_susp:
                             decision = f"⏭ BỎ QUA (NGHI ẢO: {susp_reason})"
+                        elif too_early:
+                            decision = f"⏭ BỎ QUA (PHÚT {m_minute_check} <30 - data chưa đủ)"
                         elif (
                             best["ev"] >= EV_LIVE_HARD
                             and conf == "HIGH"

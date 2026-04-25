@@ -852,3 +852,38 @@ def get_spread_pairs(event: dict) -> list[dict]:
         })
         break
     return pairs
+
+
+def get_completed_scores(league_code: str, days_from: int = 3) -> list[dict]:
+    """v32: Get completed (FT) scores for resolution.
+    Returns: [{event_id, home_team, away_team, home_score, away_score, completed}]
+    """
+    sport_key = ODDS_SPORTS.get(league_code)
+    if not sport_key:
+        return []
+    try:
+        resp = requests.get(
+            f"{BASE_URL}/sports/{sport_key}/scores",
+            params={"apiKey": ODDS_API_KEY, "daysFrom": days_from},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        _update_quota(resp)
+        results = []
+        for ev in resp.json():
+            if not ev.get("completed") or not ev.get("scores"):
+                continue
+            scores = {s["name"]: int(s["score"]) for s in ev["scores"] if s.get("score") is not None}
+            results.append({
+                "event_id": ev["id"],
+                "home_team": ev["home_team"],
+                "away_team": ev["away_team"],
+                "home_score": scores.get(ev["home_team"], 0),
+                "away_score": scores.get(ev["away_team"], 0),
+                "completed": True,
+            })
+        return results
+    except Exception as e:
+        logger.error(f"[OddsAPI] get_completed_scores failed: {e}")
+        return []
+
