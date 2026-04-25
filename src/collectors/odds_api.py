@@ -386,6 +386,40 @@ def _parse_corner_response(data: dict, ev_hint: dict | None = None) -> dict:
         parsed["totals"] = _build_corner_best(corners_totals)
     if corners_spreads:
         parsed["spreads"] = _build_corner_spreads(corners_spreads)
+
+    # v18: Log nếu best price không phải Pinnacle (sharp book) — recreational
+    # books drift dễ gây noise trong reanalysis. Drift > 5% → warning để debug.
+    try:
+        pin_data = next(
+            (b for b in data.get("bookmakers", []) if b.get("key") == "pinnacle"),
+            None,
+        )
+        if pin_data and parsed.get("spreads"):
+            for sp in parsed["spreads"]:
+                if sp.get("bk") and sp["bk"].lower() != "pinnacle":
+                    for m in pin_data.get("markets", []):
+                        mk_key = m.get("key", "")
+                        if "spreads_corners" not in mk_key:
+                            continue
+                        for o in m.get("outcomes", []):
+                            if abs((o.get("point") or 0) - (sp.get("home_point") or 999)) < 0.01:
+                                pin_price = o.get("price", 0)
+                                best_price = sp.get("home_price", 0)
+                                if pin_price > 0 and best_price > 0:
+                                    drift_pct = (best_price - pin_price) / pin_price * 100
+                                    if abs(drift_pct) > 5:
+                                        logger.warning(
+                                            f"[CORNER-DRIFT] {sp.get('home_name', '?')} "
+                                            f"{sp.get('home_point', 0):+g}: "
+                                            f"best={sp['bk']}@{best_price:.2f} "
+                                            f"vs Pinnacle@{pin_price:.2f} "
+                                            f"(drift={drift_pct:+.1f}%) "
+                                            f"— recreational book may be off"
+                                        )
+                                break
+    except Exception as _e:
+        logger.debug(f"[CORNER-DRIFT] log failed: {_e}")
+
     return parsed
 
 

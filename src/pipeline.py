@@ -736,6 +736,17 @@ def run_analysis_pipeline() -> list[str]:
                     if confidence == "SKIP":
                         continue
 
+                    # v18: Skip LOW confidence picks — chất lượng kém, hay sai
+                    # (vd Sevilla -0.5 case). Only MEDIUM+HIGH push to /chot.
+                    if confidence == "LOW":
+                        logger.info(
+                            f"[Pipeline] SKIP LOW confidence pick: "
+                            f"{match['home_team']} vs {match['away_team']} "
+                            f"{vb['market']}/{vb['outcome']} ev={vb['ev']*100:+.1f}% "
+                            f"— only MEDIUM+HIGH push to /chot"
+                        )
+                        continue
+
                     vb["confidence"] = confidence
                     vb["low_confidence_league"] = is_low_confidence
 

@@ -792,8 +792,9 @@ def _build_chot_sections(session) -> dict:
 
 
 def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> str:
-    """Format picks list thành Telegram message text."""
+    """Format picks list thành Telegram message text với decision_note + result."""
     from datetime import timezone, timedelta
+    from src.chot_pipeline import _decision_note
     DECISION_ICON = {"keep": "✅", "better": "\U0001f7e2", "worse": "⚠️", "drop": "❌"}
     DECISION_LABEL = {"keep": "GIỮ", "better": "ODDS TỐT HƠN", "worse": "ODDS XẤU ĐI", "drop": "BỎ KÈO"}
     VN_TZ = timezone(timedelta(hours=7))
@@ -813,12 +814,37 @@ def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> s
             if chot.reanalyzed_at else None
         )
         when = ts_vn.strftime("%d/%m %H:%M") if ts_vn else "?"
+
+        # THỰC TẾ result (post-match if pred resolved)
+        result_str = ""
+        if p.result == "WIN":
+            result_str = " | THỰC TẾ: ✅ WIN"
+        elif p.result == "LOSE":
+            result_str = " | THỰC TẾ: ❌ LOSE"
+        elif p.result == "PUSH":
+            result_str = " | THỰC TẾ: ↩️ PUSH"
+
+        # Lý do bỏ/giữ kèo — recomputed from decision + ev (drift not persisted)
+        note_str = ""
+        try:
+            note = _decision_note(
+                chot.decision or "",
+                chot.old_ev or 0.0,
+                chot.new_ev or 0.0,
+                drift=None,
+            )
+            if note:
+                note_str = f"\n\U0001f4a1 Lý do: {note}"
+        except Exception:
+            pass
+
         body += (
-            f"\n#{i} {icon} {label}\n"
+            f"\n#{i} {icon} {label}{result_str}\n"
             f"⚽ {m.home_team} vs {m.away_team}\n"
             f"➜ {p.outcome} ({mkt})\n"
             f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
-            f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%\n"
+            f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%"
+            f"{note_str}\n"
             f"⏱ {when} (VN)\n"
         )
     if len(picks) > max_show:
