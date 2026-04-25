@@ -1093,7 +1093,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /history        — thống kê hôm nay
+    /history        — thống kê 3 ngày gần nhất (hôm nay + hôm qua + hôm trước)
     /history N      — thống kê N ngày gần nhất (max 7)
     /history YYYY-MM-DD — thống kê ngày cụ thể
     """
@@ -1107,7 +1107,8 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Parse argument
     if not args:
-        target_dates = [today]
+        # v24: Mặc định hiện 3 ngày gần nhất (hôm nay + hôm qua + hôm trước)
+        target_dates = [today - timedelta(days=i) for i in range(3)]
     elif args[0].isdigit():
         n_days = min(int(args[0]), 7)
         target_dates = [today - timedelta(days=i) for i in range(n_days)]
@@ -1115,7 +1116,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             target_dates = [datetime.strptime(args[0], "%Y-%m-%d").date()]
         except ValueError:
-            await update.message.reply_text("⚠️ Dùng: /history hoặc /history 3 hoặc /history 2026-04-11")
+            await update.message.reply_text("⚠️ Dùng: /history (3 ngày gần nhất) hoặc /history 7 hoặc /history 2026-04-11")
             return
 
     session = get_session()
