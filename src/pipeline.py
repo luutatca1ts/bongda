@@ -1099,17 +1099,15 @@ def run_analysis_pipeline() -> list[str]:
 
 
 def update_results() -> list[str]:
-    """Pull recent results from API, flip Match.status, then resolve preds.
+    """Pull recent results from API, match to DB Match rows by team name +
+    kickoff time, flip Match.status, then resolve preds.
 
-    Phase 1: For every league with pending value-bet preds, call
-    get_recent_results() and UPSERT each Match's status / home_goals /
-    away_goals. This is what flips matches SCHEDULED -> FINISHED.
-
-    Phase 2: For every pending pred whose Match is now FINISHED with a
-    full score, compute pred.result from market + outcome. Markets
-    handled: h2h, totals, btts.
+    NOTE: Football-Data API và DB dùng match_id KHÁC nhau (DB thường lấy
+    từ Odds API), nên ta match qua (canonical_home, canonical_away,
+    kickoff rounded to minute) thay vì match_id.
     """
     from src.collectors.football_data import get_recent_results
+    from src.bot.telegram_bot import _canonical_team_key
 
     session = get_session()
     updated: list[str] = []
@@ -1123,21 +1121,30 @@ def update_results() -> list[str]:
         if not pending_preds:
             return updated
 
-        # ---------- PHASE 1: refresh Match rows from API ----------
+        # ---------- PHASE 1: refresh Match rows from API (team-name match) ----------
         league_codes: set[str] = set()
         for pred in pending_preds:
             m = session.query(Match).filter(Match.match_id == pred.match_id).first()
             if m and m.competition_code:
                 league_codes.add(m.competition_code)
 
-        api_matches: dict[int, dict] = {}
+        # Pull all API results, keyed by (home_canon, away_canon, kickoff_min)
+        api_index: dict[tuple, dict] = {}
         for lc in league_codes:
             try:
                 results = get_recent_results(lc, days=60) or []
                 for r in results:
-                    mid = r.get("match_id")
-                    if mid is not None:
-                        api_matches[int(mid)] = r
+                    h = _canonical_team_key(r.get("home_team") or "")
+                    a = _canonical_team_key(r.get("away_team") or "")
+                    raw_dt = r.get("utc_date") or ""
+                    try:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(raw_dt.replace("Z", "+00:00")).replace(tzinfo=None)
+                        ko_min = dt.replace(second=0, microsecond=0).isoformat()
+                    except Exception:
+                        ko_min = ""
+                    if h and a and ko_min:
+                        api_index[(h, a, ko_min)] = r
                 logger.info(
                     f"[update_results] {lc}: pulled {len(results)} results from API"
                 )
@@ -1146,23 +1153,38 @@ def update_results() -> list[str]:
                     f"[update_results] get_recent_results({lc}) failed: {e}"
                 )
 
+        # Walk DB Match rows for each league, look up by (home, away, ko_min)
         flipped = 0
-        for mid, r in api_matches.items():
-            m = session.query(Match).filter(Match.match_id == mid).first()
-            if not m:
-                continue
-            changed = False
-            if r.get("status") and m.status != r["status"]:
-                m.status = r["status"]
-                changed = True
-            if r.get("home_goals") is not None and m.home_goals != r["home_goals"]:
-                m.home_goals = r["home_goals"]
-                changed = True
-            if r.get("away_goals") is not None and m.away_goals != r["away_goals"]:
-                m.away_goals = r["away_goals"]
-                changed = True
-            if changed:
-                flipped += 1
+        for lc in league_codes:
+            db_matches = (
+                session.query(Match)
+                .filter(Match.competition_code == lc)
+                .all()
+            )
+            for m in db_matches:
+                h = _canonical_team_key(m.home_team or "")
+                a = _canonical_team_key(m.away_team or "")
+                ko_min = (
+                    m.utc_date.replace(second=0, microsecond=0).isoformat()
+                    if m.utc_date else ""
+                )
+                if not (h and a and ko_min):
+                    continue
+                r = api_index.get((h, a, ko_min))
+                if not r:
+                    continue
+                changed = False
+                if r.get("status") and m.status != r["status"]:
+                    m.status = r["status"]
+                    changed = True
+                if r.get("home_goals") is not None and m.home_goals != r["home_goals"]:
+                    m.home_goals = r["home_goals"]
+                    changed = True
+                if r.get("away_goals") is not None and m.away_goals != r["away_goals"]:
+                    m.away_goals = r["away_goals"]
+                    changed = True
+                if changed:
+                    flipped += 1
         if flipped:
             session.commit()
             logger.info(
