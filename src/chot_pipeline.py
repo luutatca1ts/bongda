@@ -377,20 +377,63 @@ def _decide(old_ev: float, new_ev: float) -> tuple[str, str]:
 
 
 def _decision_note(decision: str, old_ev: float, new_ev: float,
-                   drift: Optional[dict] = None) -> str:
+                   drift: Optional[dict] = None,
+                   old_odds: Optional[float] = None,
+                   new_odds: Optional[float] = None) -> str:
+    """Generate detailed reason for /chot decision.
+
+    Examples:
+        drop  → "EV âm -7.7% — odds 2.09→1.83 ↓12.4%, market dồn về cửa đối nghịch — không còn value"
+        worse → "EV giảm -3.2 điểm (odds 2.10→1.95 ↓7.1%) — vẫn dương nhưng cảnh giác"
+        better → "EV tăng +5.4 điểm (odds 1.85→2.05 ↑10.8%) — market chạy ngược, lock in nhanh"
+        keep  → "EV ổn định (odds 1.92→1.93 ↑0.5%)"
+
+    Backward compat: nếu old_odds/new_odds không pass, fallback về text đơn giản.
+    """
     diff_pct = (new_ev - old_ev) * 100
+
+    odds_str = ""
+    drift_pct_str = ""
+    drift_pct = 0.0
+    if old_odds and new_odds and old_odds > 0:
+        drift_pct = (new_odds - old_odds) / old_odds * 100
+        odds_str = f"{old_odds:.2f}→{new_odds:.2f}"
+        if abs(drift_pct) >= 0.5:
+            arrow = "↓" if drift_pct < 0 else "↑"
+            drift_pct_str = f" {arrow}{abs(drift_pct):.1f}%"
+
     if decision == "drop":
-        base = f"EV mới {new_ev*100:+.1f}% ≤ 0"
+        if odds_str and drift_pct_str:
+            base = f"EV âm {new_ev*100:+.1f}% — odds {odds_str}{drift_pct_str}"
+            if drift_pct < 0:
+                base += ", market dồn về cửa đối nghịch — không còn value"
+            elif drift_pct > 0:
+                base += ", odds tăng nhưng vẫn không đủ EV — model có thể overestimate"
+            else:
+                base += ", odds ổn định nhưng EV âm — nên skip"
+        else:
+            base = f"EV âm {new_ev*100:+.1f}% — không có value"
     elif decision == "better":
-        base = f"EV tăng {diff_pct:+.1f} điểm"
+        if odds_str and drift_pct_str:
+            base = f"EV tăng {diff_pct:+.1f} điểm (odds {odds_str}{drift_pct_str}) — market chạy ngược, lock in nhanh"
+        else:
+            base = f"EV tăng {diff_pct:+.1f} điểm — opportunity"
     elif decision == "worse":
-        base = f"EV giảm {diff_pct:+.1f} điểm"
-    else:
-        base = "EV gần như không đổi"
+        if odds_str and drift_pct_str:
+            base = f"EV giảm {diff_pct:+.1f} điểm (odds {odds_str}{drift_pct_str}) — vẫn dương nhưng cảnh giác"
+        else:
+            base = f"EV giảm {diff_pct:+.1f} điểm — vẫn dương nhưng cảnh giác"
+    else:  # keep
+        if odds_str and drift_pct_str:
+            base = f"EV ổn định (odds {odds_str}{drift_pct_str})"
+        else:
+            base = f"EV gần như không đổi ({diff_pct:+.1f} điểm)"
+
     if drift:
         old_ln = drift.get("old_line")
         new_ln = drift.get("new_line")
-        base += f" | line {old_ln:+g} → {new_ln:+g}"
+        if old_ln is not None and new_ln is not None:
+            base += f" | line {old_ln:+g} → {new_ln:+g}"
     return base
 
 
@@ -709,7 +752,10 @@ async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
     old_ev = float(pred.expected_value or 0)
     old_odds = float(pred.best_odds or 0)
     decision, label = _decide(old_ev, new_ev)
-    note = _decision_note(decision, old_ev, new_ev, drift=drift)
+    note = _decision_note(
+        decision, old_ev, new_ev,
+        drift=drift, old_odds=old_odds, new_odds=new_odds,
+    )
 
     # Persist BEFORE pushing — even if Telegram fails, DB stays consistent so
     # the next cycle won't re-check the same pred.

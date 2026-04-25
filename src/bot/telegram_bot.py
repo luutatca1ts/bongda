@@ -824,7 +824,7 @@ def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> s
         elif p.result == "PUSH":
             result_str = " | THỰC TẾ: ↩️ PUSH"
 
-        # Lý do bỏ/giữ kèo — recomputed from decision + ev (drift not persisted)
+        # Lý do bỏ/giữ kèo — recomputed from decision + ev + odds (drift not persisted)
         note_str = ""
         try:
             note = _decision_note(
@@ -832,6 +832,8 @@ def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> s
                 chot.old_ev or 0.0,
                 chot.new_ev or 0.0,
                 drift=None,
+                old_odds=chot.old_odds,
+                new_odds=chot.new_odds,
             )
             if note:
                 note_str = f"\n\U0001f4a1 Lý do: {note}"
