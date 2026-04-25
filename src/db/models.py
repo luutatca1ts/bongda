@@ -143,6 +143,7 @@ class LivePrediction(Base):
     confidence = Column(String)
     is_value_bet = Column(Boolean, default=False)
     alerted = Column(Boolean, default=False)
+    result = Column(String, nullable=True)  # WIN/LOSE/PUSH/None — v25 result tracking
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 

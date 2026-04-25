@@ -1327,6 +1327,84 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             all_messages.append(msg)
 
+            # === v25: KÈO LIVE block ===
+            from src.db.models import LivePrediction
+            live_preds = (
+                session.query(LivePrediction)
+                .filter(
+                    LivePrediction.created_at >= day_start,
+                    LivePrediction.created_at < day_end,
+                    LivePrediction.is_value_bet == True,  # noqa: E712
+                )
+                .order_by(LivePrediction.created_at.desc())
+                .all()
+            )
+
+            if live_preds:
+                lp_total = len(live_preds)
+                lp_win = sum(1 for p in live_preds if p.result == "WIN")
+                lp_lose = sum(1 for p in live_preds if p.result == "LOSE")
+                lp_push = sum(1 for p in live_preds if p.result == "PUSH")
+                lp_pending = sum(1 for p in live_preds if p.result is None)
+                lp_wr = lp_win / (lp_win + lp_lose) * 100 if (lp_win + lp_lose) > 0 else 0
+                lp_stake = lp_win + lp_lose + lp_push
+                lp_return = sum(p.live_odds for p in live_preds if p.result == "WIN")
+                lp_roi = (lp_return - lp_stake) / lp_stake * 100 if lp_stake > 0 else 0
+
+                grand_total += lp_total
+                grand_value += lp_total
+                grand_win += lp_win
+                grand_lose += lp_lose
+                grand_pending += lp_pending
+
+                lp_msg = f"\n🔥 KÈO LIVE ({lp_total} picks)\n"
+                lp_msg += f"━━━━━━━━━━━━━━━━━\n"
+                if lp_win + lp_lose > 0:
+                    lp_msg += f"  Tỉ lệ thắng: {lp_wr:.1f}% ({lp_win}W/{lp_lose}L"
+                    if lp_push:
+                        lp_msg += f"/{lp_push}P"
+                    lp_msg += f")\n"
+                    lp_msg += f"  ROI: {lp_roi:+.1f}%\n"
+                if lp_pending > 0:
+                    lp_msg += f"  Chờ kết quả: {lp_pending}\n"
+                lp_msg += f"\n"
+
+                lp_match_map: dict[int, list] = {}
+                for p in live_preds:
+                    lp_match_map.setdefault(p.match_id, []).append(p)
+
+                lp_msg += f"⚽ Chi tiết trận:\n"
+                MARKET_NAMES_LIVE = {
+                    "h2h": "1X2", "totals": "T/X", "asian_handicap": "Châu Á",
+                    "corners_totals": "Góc T/X", "corners_spreads": "Góc CÁ",
+                }
+                for mid, m_preds in lp_match_map.items():
+                    match = session.query(Match).filter(Match.match_id == mid).first()
+                    if match:
+                        match_name = f"{match.home_team} vs {match.away_team}"
+                        score = f" ({match.home_goals}-{match.away_goals})" if match.home_goals is not None else ""
+                        league = match.competition_code or ""
+                    else:
+                        match_name = f"#{mid}"
+                        score = ""
+                        league = ""
+                    league_str = f" [{league}]" if league else ""
+                    lp_msg += f"  {match_name}{score}{league_str}\n"
+                    for p in sorted(m_preds, key=lambda x: x.expected_value, reverse=True):
+                        if p.result == "WIN":
+                            icon = "✅"
+                        elif p.result == "LOSE":
+                            icon = "❌"
+                        elif p.result == "PUSH":
+                            icon = "↩️"
+                        else:
+                            icon = "⏳"
+                        conf_tag = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(p.confidence, "⚪")
+                        mk_short = MARKET_NAMES_LIVE.get(p.market, p.market)
+                        lp_msg += f"    {icon}{conf_tag} {p.outcome} @{p.live_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) | phút {p.minute} [{p.best_bookmaker}]\n"
+
+                all_messages.append(lp_msg)
+
         # Grand summary if multiple days
         if len(target_dates) > 1 and grand_value > 0:
             g_wr = grand_win / (grand_win + grand_lose) * 100 if (grand_win + grand_lose) > 0 else 0

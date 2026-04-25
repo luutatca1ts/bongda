@@ -1385,6 +1385,78 @@ def _compute_pred_result(pred, match) -> str | None:
     return None
 
 
+def _resolve_live_predictions(session) -> int:
+    """v25: Resolve LivePrediction.result cho picks có Match đã FINISHED.
+
+    Reuse _compute_pred_result + Phase 2.5-style sibling lookup (canonical
+    team match + utc_date ±5 min) cho case Odds API record SCHEDULED nhưng
+    Football-Data sibling FINISHED. Returns số picks đã resolve.
+    """
+    from src.db.models import LivePrediction, Match
+
+    pending = (
+        session.query(LivePrediction)
+        .filter(LivePrediction.result.is_(None))
+        .filter(LivePrediction.is_value_bet == True)  # noqa: E712
+        .all()
+    )
+    if not pending:
+        return 0
+
+    resolved_count = 0
+    for lp in pending:
+        m = session.query(Match).filter(Match.match_id == lp.match_id).first()
+        if not m:
+            continue
+
+        # Sibling lookup khi Match chưa FINISHED (Odds API record có thể stuck SCHEDULED).
+        if m.status != "FINISHED" or m.home_goals is None or m.away_goals is None:
+            if not m.utc_date:
+                continue
+            home_tokens = _normalize_team_for_match(m.home_team or "")
+            away_tokens = _normalize_team_for_match(m.away_team or "")
+            if not home_tokens or not away_tokens:
+                continue
+            kickoff_min = m.utc_date.replace(second=0, microsecond=0)
+            sibling = None
+            candidates = (
+                session.query(Match)
+                .filter(
+                    Match.status == "FINISHED",
+                    Match.home_goals.isnot(None),
+                    Match.away_goals.isnot(None),
+                    Match.id != m.id,
+                )
+                .all()
+            )
+            for sib in candidates:
+                if not sib.utc_date:
+                    continue
+                if abs((sib.utc_date - kickoff_min).total_seconds()) > 300:
+                    continue
+                sib_h = _normalize_team_for_match(sib.home_team or "")
+                sib_a = _normalize_team_for_match(sib.away_team or "")
+                if (
+                    _token_overlap_with_prefix(home_tokens, sib_h) >= 1
+                    and _token_overlap_with_prefix(away_tokens, sib_a) >= 1
+                ):
+                    sibling = sib
+                    break
+            if not sibling:
+                continue
+            m = sibling
+
+        # Pass lp object — _compute_pred_result reads .market/.outcome/.match_id attrs.
+        result = _compute_pred_result(lp, m)
+        if result:
+            lp.result = result
+            resolved_count += 1
+
+    if resolved_count > 0:
+        session.commit()
+    return resolved_count
+
+
 def update_results() -> list[str]:
     """Pull recent results from API, match to DB Match rows by team name +
     kickoff time, flip Match.status, then resolve preds.
@@ -1577,6 +1649,14 @@ def update_results() -> list[str]:
             f"(no_match={unresolved_no_match}, not_finished_yet={unresolved_unfinished}, "
             f"unknown_market={unresolved_unknown_market}, recovered_via_sibling={recovered_via_sibling})"
         )
+
+        # v25: Resolve LivePrediction.result
+        try:
+            live_resolved = _resolve_live_predictions(session)
+            if live_resolved > 0:
+                logger.info(f"[update_results] v25: Resolved {live_resolved} LivePrediction(s)")
+        except Exception as e:
+            logger.warning(f"[update_results] v25 live resolve failed: {e}")
     finally:
         session.close()
 
