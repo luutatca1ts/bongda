@@ -104,10 +104,10 @@ def _get_pair_probs(pair: dict, ah: dict, match_home_team: str) -> dict:
         }
 
 
-async def _safe_reply(update, text: str, max_len: int = 3900):
-    """Send text, auto-splitting at line boundaries if too long."""
+async def _safe_reply(update, text: str, max_len: int = 3900, reply_markup=None):
+    """Send text, auto-splitting at line boundaries if too long. v31: support reply_markup (only attached to LAST chunk)."""
     if len(text) <= max_len:
-        await update.message.reply_text(text)
+        await update.message.reply_text(text, reply_markup=reply_markup)
         return
     chunks = []
     current = ""
@@ -120,8 +120,9 @@ async def _safe_reply(update, text: str, max_len: int = 3900):
             current += line + "\n"
     if current.strip():
         chunks.append(current)
-    for chunk in chunks:
-        await update.message.reply_text(chunk)
+    for i, chunk in enumerate(chunks):
+        is_last = (i == len(chunks) - 1)
+        await update.message.reply_text(chunk, reply_markup=reply_markup if is_last else None)
 
 
 # Per-chat selection state: {chat_id: {"command": str, "selected": set, "live_data": dict}}
@@ -1487,6 +1488,7 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     from datetime import date, datetime, timedelta
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from src.db.models import ChotReanalysis, LivePrediction
 
     args = (context.args or [])
     today = date.today()
