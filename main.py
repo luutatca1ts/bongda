@@ -215,15 +215,6 @@ def main():
                 id="analysis",
                 name="Football Analysis Pipeline",
             )
-            # Delay first run by 10 seconds so bot is ready
-            scheduler.add_job(
-                scheduled_analysis,
-                "date",
-                run_date=datetime.now() + timedelta(seconds=10),
-                args=[app],
-                id="analysis_startup",
-                name="Startup Analysis",
-            )
             scheduler.add_job(
                 scheduled_results_update,
                 "interval",
