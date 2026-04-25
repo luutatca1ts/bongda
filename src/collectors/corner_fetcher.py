@@ -154,8 +154,8 @@ def fetch_corners_batch(limit: int = 200, dry_run: bool = False) -> dict:
             .filter(
                 Match.status == "FINISHED",
                 Match.home_corners.is_(None),
-                Match.home_api_id.isnot(None),
-                Match.away_api_id.isnot(None),
+                # KHÔNG filter api_id — để borrow logic trong fetch_corners_for_match
+                # có thể xử lý matches missing api_ids (mượn từ sibling matches)
             )
             .order_by(Match.utc_date.desc())
             .limit(limit)
