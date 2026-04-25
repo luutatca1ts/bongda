@@ -159,48 +159,58 @@ def resolve_fixture_id_prematch(
         (kickoff_date - timedelta(days=1)).isoformat(),
         (kickoff_date + timedelta(days=1)).isoformat(),
     ]
-    season = kickoff_date.year if kickoff_date.month >= 7 else kickoff_date.year - 1
+    # European convention: Aug-May spans 2 calendar years (Aug 2025-May 2026 = season 2025).
+    # Calendar-year leagues (Brazilian, Sudamericana, Libertadores, MLS, Argentina):
+    # season = year of kickoff. Try both to handle either case.
+    season_european = kickoff_date.year if kickoff_date.month >= 7 else kickoff_date.year - 1
+    season_calendar = kickoff_date.year
+    seasons_to_try = [season_european]
+    if season_calendar != season_european:
+        seasons_to_try.append(season_calendar)
 
     found_fid: Optional[int] = None
-    for d in dates_to_try:
-        try:
-            params: dict = {"date": d, "season": season}
-            if league_api_id:
-                params["league"] = int(league_api_id)
-            resp = _session.get(
-                f"{BASE_URL}/fixtures",
-                params=params,
-                timeout=20,
-            )
-            if resp.status_code != 200:
-                logger.warning(
-                    f"[prematch_resolver] /fixtures HTTP {resp.status_code} "
-                    f"for date={d} league={league_api_id}"
+    for season in seasons_to_try:
+        if found_fid:
+            break
+        for d in dates_to_try:
+            try:
+                params: dict = {"date": d, "season": season}
+                if league_api_id:
+                    params["league"] = int(league_api_id)
+                resp = _session.get(
+                    f"{BASE_URL}/fixtures",
+                    params=params,
+                    timeout=20,
+                )
+                if resp.status_code != 200:
+                    logger.warning(
+                        f"[prematch_resolver] /fixtures HTTP {resp.status_code} "
+                        f"for date={d} season={season} league={league_api_id}"
+                    )
+                    continue
+                _update_af_quota(resp)
+                data = resp.json()
+                for item in data.get("response", []) or []:
+                    teams = item.get("teams", {}) or {}
+                    h_id = (teams.get("home") or {}).get("id")
+                    a_id = (teams.get("away") or {}).get("id")
+                    if h_id == int(home_api_id) and a_id == int(away_api_id):
+                        fid = (item.get("fixture") or {}).get("id")
+                        if fid:
+                            found_fid = int(fid)
+                            logger.info(
+                                f"[prematch_resolver] HIT home={home_api_id} "
+                                f"away={away_api_id} date={d} season={season} "
+                                f"→ fixture_id={found_fid}"
+                            )
+                            break
+                if found_fid:
+                    break
+            except Exception as e:  # noqa: BLE001
+                logger.debug(
+                    f"[prematch_resolver] error for date={d} season={season}: {e}"
                 )
                 continue
-            _update_af_quota(resp)
-            data = resp.json()
-            for item in data.get("response", []) or []:
-                teams = item.get("teams", {}) or {}
-                h_id = (teams.get("home") or {}).get("id")
-                a_id = (teams.get("away") or {}).get("id")
-                if h_id == int(home_api_id) and a_id == int(away_api_id):
-                    fid = (item.get("fixture") or {}).get("id")
-                    if fid:
-                        found_fid = int(fid)
-                        logger.info(
-                            f"[prematch_resolver] HIT home={home_api_id} "
-                            f"away={away_api_id} date={d} "
-                            f"→ fixture_id={found_fid}"
-                        )
-                        break
-            if found_fid:
-                break
-        except Exception as e:  # noqa: BLE001
-            logger.debug(
-                f"[prematch_resolver] error for date={d}: {e}"
-            )
-            continue
 
     if found_fid is None:
         logger.debug(
