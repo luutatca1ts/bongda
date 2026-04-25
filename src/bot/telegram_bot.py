@@ -842,7 +842,7 @@ def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> s
 
         body += (
             f"\n#{i} {icon} {label}{result_str}\n"
-            f"⚽ {m.home_team} vs {m.away_team}\n"
+            f"⚽ {m.home_team} vs {m.away_team}{' (ĐÃ ĐÁ XONG)' if m.status == 'FINISHED' else ''}\n"
             f"➜ {p.outcome} ({mkt})\n"
             f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
             f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%"
