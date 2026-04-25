@@ -27,6 +27,73 @@ def fetch_corners_for_match(match: Match, session) -> tuple[bool, str]:
     - resolve_fixture_id_prematch trả None
     - get_fixture_stats không có corner data
     """
+    # If api_ids missing, try to borrow from sibling matches with same team_name.
+    # DB sometimes has multiple records for the same team across matches; some have
+    # api_id, some don't.
+    if not match.home_api_id and match.home_team:
+        sibling = (
+            session.query(Match)
+            .filter(
+                Match.home_team == match.home_team,
+                Match.home_api_id.isnot(None),
+            )
+            .first()
+        )
+        if sibling:
+            match.home_api_id = sibling.home_api_id
+            logger.info(
+                f"[corner_fetch] borrowed home_api_id={sibling.home_api_id} "
+                f"for match_id={match.match_id} team={match.home_team!r}"
+            )
+        else:
+            # Try away_team in other matches (team can be on either side)
+            away_sibling = (
+                session.query(Match)
+                .filter(
+                    Match.away_team == match.home_team,
+                    Match.away_api_id.isnot(None),
+                )
+                .first()
+            )
+            if away_sibling:
+                match.home_api_id = away_sibling.away_api_id
+                logger.info(
+                    f"[corner_fetch] borrowed home_api_id={away_sibling.away_api_id} "
+                    f"(from away side) for match_id={match.match_id} team={match.home_team!r}"
+                )
+
+    if not match.away_api_id and match.away_team:
+        sibling = (
+            session.query(Match)
+            .filter(
+                Match.away_team == match.away_team,
+                Match.away_api_id.isnot(None),
+            )
+            .first()
+        )
+        if sibling:
+            match.away_api_id = sibling.away_api_id
+            logger.info(
+                f"[corner_fetch] borrowed away_api_id={sibling.away_api_id} "
+                f"for match_id={match.match_id} team={match.away_team!r}"
+            )
+        else:
+            home_sibling = (
+                session.query(Match)
+                .filter(
+                    Match.home_team == match.away_team,
+                    Match.home_api_id.isnot(None),
+                )
+                .first()
+            )
+            if home_sibling:
+                match.away_api_id = home_sibling.home_api_id
+                logger.info(
+                    f"[corner_fetch] borrowed away_api_id={home_sibling.home_api_id} "
+                    f"(from home side) for match_id={match.match_id} team={match.away_team!r}"
+                )
+
+    # After borrowing, check again
     if not match.home_api_id or not match.away_api_id:
         return False, "missing_api_ids"
     if not match.utc_date:
