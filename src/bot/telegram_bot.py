@@ -3838,14 +3838,29 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         is_corner = best["market"] in CORNER_MARKETS
                         conf_emoji = {"HIGH": "\U0001f534", "MEDIUM": "\U0001f7e1", "LOW": "\U0001f7e2"}.get(conf, "\u26aa")
 
-                        # === v22: Hướng B — Kèo siêu chặt ===
-                        # Chỉ ĐẶT khi: EV >= 12% AND confidence == HIGH AND odds hợp lệ
+                        # === v22+v27: Hướng B + suspicious filter ===
+                        # v27: Chặn picks model error (EV ảo trên Pinnacle/corner/low-data)
+                        # _is_ev_suspicious rules:
+                        #   - EV > 25% → suspicious (bất kể bookmaker)
+                        #   - Pinnacle + EV > 15% → suspicious
+                        #   - Corner + EV > 10% → suspicious
+                        #   - Low-conf league + EV > 8% → suspicious
+                        from src.pipeline import _is_ev_suspicious
                         EV_LIVE_HARD = 0.12      # 12%
                         MIN_ODDS_LIVE = 1.30
                         MAX_ODDS_LIVE = 5.00
                         live_sig_val = best.get("live_signal", "")
+                        # Build vb dict for _is_ev_suspicious check
+                        vb_check = {
+                            "ev": best["ev"],
+                            "bookmaker": best.get("bk", ""),
+                            "market": best["market"],
+                        }
+                        is_susp, susp_reason = _is_ev_suspicious(vb_check)
                         if "ĐÃ QUA" in live_sig_val:
                             decision = "✅ ĐÃ THẮNG"
+                        elif is_susp:
+                            decision = f"⏭ BỎ QUA (NGHI ẢO: {susp_reason})"
                         elif (
                             best["ev"] >= EV_LIVE_HARD
                             and conf == "HIGH"
