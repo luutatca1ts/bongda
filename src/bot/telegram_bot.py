@@ -723,15 +723,27 @@ async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session()
     try:
         cutoff = datetime.utcnow() - timedelta(hours=24)
-        rows = (
+        # Get all re-check records in 24h, then dedup in Python (keep latest per pred)
+        all_rows = (
             session.query(ChotReanalysis, Prediction, Match)
             .join(Prediction, Prediction.id == ChotReanalysis.prediction_id)
             .join(Match, Match.match_id == ChotReanalysis.match_id)
             .filter(ChotReanalysis.reanalyzed_at >= cutoff)
             .order_by(ChotReanalysis.reanalyzed_at.desc())
-            .limit(30)
             .all()
         )
+
+        # Dedup by (match_id, market, outcome) — keep first occurrence (already DESC sorted by reanalyzed_at)
+        seen: set[tuple] = set()
+        rows = []
+        for chot, p, m in all_rows:
+            key = (p.match_id, p.market, p.outcome)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append((chot, p, m))
+            if len(rows) >= 30:
+                break
         if not rows:
             await update.message.reply_text(
                 "\U0001f4ed Chưa có kèo nào được re-check trong 24h qua."
@@ -969,12 +981,25 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
             preds = (
                 session.query(Prediction)
                 .filter(Prediction.id.in_(chot_pred_ids))
-                .order_by(Prediction.created_at.asc())
+                .order_by(Prediction.created_at.desc())  # DESC để dedup giữ entry mới nhất
                 .all()
             )
             if not preds:
                 all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có kèo /chot\n")
                 continue
+
+            # Dedup theo (match_id, market, outcome) — giữ entry MỚI NHẤT (đã sort DESC)
+            # Pipeline lưu Prediction record mỗi lần chạy analysis → 1 (match, market, outcome)
+            # có thể có 4-10 records duplicate. /history chỉ cần entry mới nhất với result hiện tại.
+            seen_keys: set[tuple] = set()
+            deduped_preds = []
+            for p in preds:
+                key = (p.match_id, p.market, p.outcome)
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                deduped_preds.append(p)
+            preds = deduped_preds  # use deduped list for rest of function
 
             # Group by match
             match_map = {}
