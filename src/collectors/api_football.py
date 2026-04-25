@@ -416,6 +416,72 @@ def get_live_stats_batch(league_code: str = None) -> list[dict]:
     return results
 
 
+def resolve_fixture_id_no_season(
+    home_api_id: int,
+    away_api_id: int,
+    kickoff_utc,
+    league_api_id: int | None = None,
+) -> int | None:
+    """Fallback resolver — không truyền season param.
+
+    API-Football season=year(kickoff_utc) bị bug cho matches Jan-Jun 2026
+    (đúng season là 2025/26 = season 2025, không phải 2026).
+
+    Strategy:
+    1. Loop dates [-1, 0, +1] từ kickoff date
+    2. Gọi /fixtures?team=home_api_id&date=D (KHÔNG có season)
+    3. Filter response: tìm fixture có away.id == away_api_id
+    4. Trả về fixture_id nếu match, None nếu không
+    """
+    if not home_api_id or not away_api_id or not kickoff_utc:
+        return None
+
+    base_date = kickoff_utc.date() if hasattr(kickoff_utc, "date") else kickoff_utc
+    dates_to_try = [
+        (base_date - timedelta(days=1)).isoformat(),
+        base_date.isoformat() if hasattr(base_date, "isoformat") else str(base_date),
+        (base_date + timedelta(days=1)).isoformat(),
+    ]
+
+    for d in dates_to_try:
+        try:
+            params = {"team": int(home_api_id), "date": d}
+            if league_api_id:
+                params["league"] = int(league_api_id)
+
+            resp = _session.get(
+                f"{BASE_URL}/fixtures",
+                params=params,
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                continue
+            _update_af_quota(resp)
+
+            data = resp.json()
+            for item in data.get("response", []) or []:
+                teams = item.get("teams", {}) or {}
+                h_id = (teams.get("home") or {}).get("id")
+                a_id = (teams.get("away") or {}).get("id")
+                if h_id == int(home_api_id) and a_id == int(away_api_id):
+                    fid = (item.get("fixture") or {}).get("id")
+                    if fid:
+                        logger.info(
+                            f"[no_season_resolver] HIT home={home_api_id} away={away_api_id} "
+                            f"date={d} fixture_id={fid}"
+                        )
+                        return int(fid)
+        except Exception as e:
+            logger.debug(f"[no_season_resolver] error date={d}: {e}")
+            continue
+
+    logger.debug(
+        f"[no_season_resolver] MISS home={home_api_id} away={away_api_id} "
+        f"base_date={base_date}"
+    )
+    return None
+
+
 def _int(val) -> int:
     """Safe convert to int."""
     if val is None:
