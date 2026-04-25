@@ -737,128 +737,183 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
-async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Hiển thị re-check kèo theo ngày VN (cutoff 9h sáng UTC+7).
+def _build_chot_sections(session) -> dict:
+    """Query + dedup ChotReanalysis trong 7 ngày, group thành sections theo VN day.
 
-    4 sections:
-    - HÔM NAY (sau 9h sáng VN của ngày hiện tại)
-    - HÔM QUA (9h sáng VN ngày trước → 9h sáng VN hôm nay)
-    - HÔM TRƯỚC (9h sáng VN ngày trước nữa)
-    - 4-7 NGÀY TRƯỚC (rolling)
+    Returns dict: {today, yesterday, day_before, week, today_cutoff}
     """
-    if not await _require_auth(update):
-        return
-    from datetime import datetime, timedelta, timezone
-
-    DECISION_ICON = {
-        "keep": "✅",
-        "better": "\U0001f7e2",
-        "worse": "⚠️",
-        "drop": "❌",
-    }
-    DECISION_LABEL = {
-        "keep": "GIỮ",
-        "better": "ODDS TỐT HƠN",
-        "worse": "ODDS XẤU ĐI",
-        "drop": "BỎ KÈO",
-    }
-
-    # VN day starts at 9h VN = 02:00 UTC. Most recent 02:00 UTC that has passed.
+    from datetime import datetime, timedelta
     now_utc = datetime.utcnow()
-    VN_DAY_START_HOUR_UTC = 2
+    VN_DAY_START_HOUR_UTC = 2  # 9h VN = 02:00 UTC
     today_cutoff = now_utc.replace(hour=VN_DAY_START_HOUR_UTC, minute=0, second=0, microsecond=0)
     if now_utc < today_cutoff:
         today_cutoff = today_cutoff - timedelta(days=1)
 
-    section_boundaries = [
-        ("HÔM NAY", today_cutoff, now_utc + timedelta(seconds=1)),
-        ("HÔM QUA", today_cutoff - timedelta(days=1), today_cutoff),
-        ("HÔM TRƯỚC", today_cutoff - timedelta(days=2), today_cutoff - timedelta(days=1)),
-        ("4-7 NGÀY TRƯỚC", today_cutoff - timedelta(days=7), today_cutoff - timedelta(days=3)),
-    ]
+    cutoff_oldest = today_cutoff - timedelta(days=7)
+    all_rows = (
+        session.query(ChotReanalysis, Prediction, Match)
+        .join(Prediction, Prediction.id == ChotReanalysis.prediction_id)
+        .join(Match, Match.match_id == ChotReanalysis.match_id)
+        .filter(ChotReanalysis.reanalyzed_at >= cutoff_oldest)
+        .order_by(ChotReanalysis.reanalyzed_at.desc())
+        .all()
+    )
+
+    seen: set[tuple] = set()
+    deduped_rows = []
+    for chot, p, m in all_rows:
+        key = (p.match_id, p.market, p.outcome)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_rows.append((chot, p, m))
+
+    today, yesterday, day_before, week = [], [], [], []
+    for chot, p, m in deduped_rows:
+        ts = chot.reanalyzed_at
+        if ts is None:
+            continue
+        if ts >= today_cutoff:
+            today.append((chot, p, m))
+        elif ts >= today_cutoff - timedelta(days=1):
+            yesterday.append((chot, p, m))
+        elif ts >= today_cutoff - timedelta(days=2):
+            day_before.append((chot, p, m))
+        elif today_cutoff - timedelta(days=7) <= ts < today_cutoff - timedelta(days=2):
+            week.append((chot, p, m))
+
+    return {
+        "today": today,
+        "yesterday": yesterday,
+        "day_before": day_before,
+        "week": week,
+        "today_cutoff": today_cutoff,
+    }
+
+
+def _format_chot_picks(picks: list, section_label: str, max_show: int = 15) -> str:
+    """Format picks list thành Telegram message text."""
+    from datetime import timezone, timedelta
+    DECISION_ICON = {"keep": "✅", "better": "\U0001f7e2", "worse": "⚠️", "drop": "❌"}
+    DECISION_LABEL = {"keep": "GIỮ", "better": "ODDS TỐT HƠN", "worse": "ODDS XẤU ĐI", "drop": "BỎ KÈO"}
+    VN_TZ = timezone(timedelta(hours=7))
+
+    if not picks:
+        return f"\U0001f4c5 {section_label}\n━━━━━━━━━━━━━━━\n\nKhông có kèo nào.\n"
+
+    body = f"\U0001f4c5 {section_label} ({len(picks)} kèo)\n━━━━━━━━━━━━━━━\n"
+    for i, (chot, p, m) in enumerate(picks[:max_show], 1):
+        icon = DECISION_ICON.get(chot.decision, "•")
+        label = DECISION_LABEL.get(chot.decision, chot.decision or "?")
+        mkt = _MKT_NAMES.get(p.market, p.market)
+        old_ev = (chot.old_ev or 0) * 100
+        new_ev = (chot.new_ev or 0) * 100
+        ts_vn = (
+            chot.reanalyzed_at.replace(tzinfo=timezone.utc).astimezone(VN_TZ)
+            if chot.reanalyzed_at else None
+        )
+        when = ts_vn.strftime("%d/%m %H:%M") if ts_vn else "?"
+        body += (
+            f"\n#{i} {icon} {label}\n"
+            f"⚽ {m.home_team} vs {m.away_team}\n"
+            f"➜ {p.outcome} ({mkt})\n"
+            f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
+            f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%\n"
+            f"⏱ {when} (VN)\n"
+        )
+    if len(picks) > max_show:
+        body += f"\n... và {len(picks) - max_show} kèo khác trong {section_label.lower()}\n"
+    return body
+
+
+async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/chot — hiển thị HÔM NAY + buttons để xem các sections khác.
+
+    Default view = HÔM NAY (sau 9h sáng VN). User tap inline button để xem
+    HÔM QUA / HÔM TRƯỚC / 4-7 NGÀY TRƯỚC qua callback handler cb_chot_section.
+    """
+    if not await _require_auth(update):
+        return
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
     session = get_session()
     try:
-        cutoff_oldest = today_cutoff - timedelta(days=7)
-        all_rows = (
-            session.query(ChotReanalysis, Prediction, Match)
-            .join(Prediction, Prediction.id == ChotReanalysis.prediction_id)
-            .join(Match, Match.match_id == ChotReanalysis.match_id)
-            .filter(ChotReanalysis.reanalyzed_at >= cutoff_oldest)
-            .order_by(ChotReanalysis.reanalyzed_at.desc())
-            .all()
-        )
+        data = _build_chot_sections(session)
+        today_picks = data["today"]
 
-        if not all_rows:
+        total_all = (
+            len(data["today"]) + len(data["yesterday"])
+            + len(data["day_before"]) + len(data["week"])
+        )
+        if total_all == 0:
             await update.message.reply_text(
                 "\U0001f4ed Chưa có kèo nào được re-check trong 7 ngày qua."
             )
             return
 
-        # Dedup by (match_id, market, outcome) — keep latest (rows are DESC sorted)
-        seen: set[tuple] = set()
-        deduped_rows: list = []
-        for chot, p, m in all_rows:
-            key = (p.match_id, p.market, p.outcome)
-            if key in seen:
-                continue
-            seen.add(key)
-            deduped_rows.append((chot, p, m))
-
-        # Group by VN-day section
-        sections: dict[str, list] = {name: [] for name, _, _ in section_boundaries}
-        for chot, p, m in deduped_rows:
-            ts = chot.reanalyzed_at
-            if ts is None:
-                continue
-            for name, start, end in section_boundaries:
-                if start <= ts < end:
-                    sections[name].append((chot, p, m))
-                    break
-
-        VN_TZ = timezone(timedelta(hours=7))
-
-        total_picks = sum(len(v) for v in sections.values())
-        if total_picks == 0:
-            await update.message.reply_text(
-                "\U0001f4ed Chưa có kèo nào được re-check theo lịch ngày VN."
+        if today_picks:
+            text = _format_chot_picks(today_picks, "HÔM NAY")
+        else:
+            text = (
+                "\U0001f4c5 HÔM NAY (0 kèo)\n"
+                "━━━━━━━━━━━━━━━\n\n"
+                "Chưa có kèo re-check hôm nay.\n"
+                "\U0001f449 Xem các ngày trước:\n"
             )
-            return
 
-        header = (
-            f"\U0001f3af RE-CHECK KÈO (theo ngày VN, {total_picks} kèo)\n"
-            f"━━━━━━━━━━━━━━━\n"
-        )
-        body = ""
-        for name, _, _ in section_boundaries:
-            picks = sections[name]
-            if not picks:
-                continue
-            body += f"\n\U0001f4c5 {name} ({len(picks)} kèo)\n"
-            body += "───────────────\n"
-            for i, (chot, p, m) in enumerate(picks[:10], 1):
-                icon = DECISION_ICON.get(chot.decision, "•")
-                label = DECISION_LABEL.get(chot.decision, chot.decision or "?")
-                mkt = _MKT_NAMES.get(p.market, p.market)
-                old_ev = (chot.old_ev or 0) * 100
-                new_ev = (chot.new_ev or 0) * 100
-                ts_vn = (
-                    chot.reanalyzed_at.replace(tzinfo=timezone.utc).astimezone(VN_TZ)
-                    if chot.reanalyzed_at else None
-                )
-                when = ts_vn.strftime("%d/%m %H:%M") if ts_vn else "?"
-                body += (
-                    f"\n#{i} {icon} {label}\n"
-                    f"⚽ {m.home_team} vs {m.away_team}\n"
-                    f"➜ {p.outcome} ({mkt})\n"
-                    f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
-                    f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%\n"
-                    f"⏱ {when} (VN)\n"
-                )
-            if len(picks) > 10:
-                body += f"\n... và {len(picks) - 10} kèo khác trong {name.lower()}\n"
+        buttons = []
+        if data["yesterday"]:
+            buttons.append(InlineKeyboardButton(
+                f"\U0001f4c5 HÔM QUA ({len(data['yesterday'])})",
+                callback_data="chot_section:yesterday",
+            ))
+        if data["day_before"]:
+            buttons.append(InlineKeyboardButton(
+                f"\U0001f4c5 HÔM TRƯỚC ({len(data['day_before'])})",
+                callback_data="chot_section:day_before",
+            ))
+        if data["week"]:
+            buttons.append(InlineKeyboardButton(
+                f"\U0001f4c5 4-7 NGÀY ({len(data['week'])})",
+                callback_data="chot_section:week",
+            ))
 
-        await _send_chunked(update, header + body)
+        keyboard_rows = [[btn] for btn in buttons]
+        reply_markup = InlineKeyboardMarkup(keyboard_rows) if keyboard_rows else None
+
+        await update.message.reply_text(text, reply_markup=reply_markup)
+    finally:
+        session.close()
+
+
+async def cb_chot_section(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle callback khi user tap button section trong /chot.
+
+    Sends NEW message with the section's picks (Phương án B) — keeps original
+    /chot message intact for re-tapping.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    data_str = query.data or ""
+    if not data_str.startswith("chot_section:"):
+        return
+    section_key = data_str.split(":", 1)[1]
+
+    SECTION_LABELS = {
+        "today": "HÔM NAY",
+        "yesterday": "HÔM QUA",
+        "day_before": "HÔM TRƯỚC",
+        "week": "4-7 NGÀY TRƯỚC",
+    }
+    label = SECTION_LABELS.get(section_key, section_key.upper())
+
+    session = get_session()
+    try:
+        data = _build_chot_sections(session)
+        picks = data.get(section_key, [])
+        text = _format_chot_picks(picks, label)
+        await query.message.reply_text(text)
     finally:
         session.close()
 
@@ -4340,6 +4395,8 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("dethang", cmd_ancan))
     app.add_handler(CommandHandler("chot", cmd_chot))
     app.add_handler(CommandHandler("help", cmd_help))
+    # Pattern-specific handlers FIRST so they take priority over the generic one.
+    app.add_handler(CallbackQueryHandler(cb_chot_section, pattern=r"^chot_section:"))
     app.add_handler(CallbackQueryHandler(callback_league_picker))
 
     return app
