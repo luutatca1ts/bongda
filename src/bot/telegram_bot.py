@@ -457,6 +457,11 @@ _CORNER_MARKETS = {
     "corners_totals", "corners_spreads",
     "corners_h1_totals", "corners_h1_spreads",
 }
+# Goal markets (kèo chính — bàn thắng): used for /ancan + /phantich split.
+_GOAL_MARKETS = {"h2h", "totals", "spreads", "asian_handicap"}
+# Vietnamese display labels for corner markets (used in _run_full_analysis
+# TOP PICKS sort/split — pick["market"] there is a display label, not Prediction.market).
+_CORNER_MARKETS_VN = {"Phạt góc", "Góc Châu Á", "Góc hiệp 1", "Góc H1 Châu Á"}
 _MKT_NAMES = {
     "h2h": "1X2",
     "totals": "T\u00e0i/X\u1ec9u",
@@ -637,7 +642,9 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     session = get_session()
     try:
-        result = get_top_prob_picks(session, limit=30)
+        # Query bigger pool (60) so we can carve out 20 goal + 10 corner picks
+        # even when one category dominates.
+        result = get_top_prob_picks(session, limit=60)
         top = result["top"]
         filtered = result["filtered"]
         total_matches_24h = result["total_matches_24h"]
@@ -656,13 +663,24 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        has_negative_ev = any((p.expected_value or 0) < 0 for p, _ in top)
+        # Partition: goal markets up to 20, corner markets up to 10.
+        goal_top = [(p, m) for p, m in top if p.market in _GOAL_MARKETS][:20]
+        corner_top = [(p, m) for p, m in top if p.market in CORNER_MARKETS][:10]
+        total_displayed = len(goal_top) + len(corner_top)
+
+        has_negative_ev = any(
+            (p.expected_value or 0) < 0 for p, _ in (goal_top + corner_top)
+        )
 
         header = (
             f"\U0001f3af K\u00c8O PROB CAO (Prob \u2265 58%, \u0111\u00e3 l\u1ecdc \u1ea3o)\n"
             f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
-            f"\u2705 Top {len(top)} k\u00e8o t\u1eeb {total_matches_24h} tr\u1eadn trong 24h t\u1edbi\n"
+            f"\u2705 Top {total_displayed} k\u00e8o "
+            f"({len(goal_top)} ch\u00ednh + {len(corner_top)} ph\u1ee5) "
+            f"t\u1eeb {total_matches_24h} tr\u1eadn trong 24h t\u1edbi\n"
             f"\U0001f6ab \u0110\u00e3 lo\u1ea1i: {filtered} k\u00e8o \u1ea3o\n"
+            f"\n\U0001f4a1 Corner th\u01b0\u1eddng c\u00f3 win rate th\u1ea5p h\u01a1n "
+            f"\u2014 em \u0111\u00e3 h\u1ea1 xu\u1ed1ng k\u00e8o ph\u1ee5\n"
         )
         if has_negative_ev:
             header += (
@@ -670,8 +688,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"th\u1ea5p so v\u1edbi x\u00e1c su\u1ea5t th\u1eadt. Bet size nh\u1ecf.\n"
             )
 
-        body = ""
-        for i, (p, m) in enumerate(top, 1):
+        def _format_pick(idx: int, p, m) -> str:
             league = LEAGUES.get(
                 m.competition_code or "",
                 m.competition_code or m.competition or "?",
@@ -681,8 +698,8 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             prob = (p.model_probability or 0) * 100
             ev = (p.expected_value or 0) * 100
             odds = p.best_odds or 0
-            body += (
-                f"\n#{i} {m.home_team} vs {m.away_team}\n"
+            return (
+                f"\n#{idx} {m.home_team} vs {m.away_team}\n"
                 f"\u23f0 {when} | \U0001f3c6 {league}\n"
                 f"\u279c {p.outcome} ({mkt}) @ {odds:.2f}\n"
                 f"\u2705 X\u00e1c su\u1ea5t th\u1eafng: {prob:.0f}%\n"
@@ -690,9 +707,28 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"\U0001f4ca {p.best_bookmaker or '?'}\n"
             )
 
+        body = ""
+        if goal_top:
+            body += (
+                f"\n\U0001f3af K\u00c8O CH\u00cdNH (B\u00c0N TH\u1eaeNG) "
+                f"\u2014 Top {len(goal_top)}\n"
+                f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+            )
+            for i, (p, m) in enumerate(goal_top, 1):
+                body += _format_pick(i, p, m)
+        if corner_top:
+            body += (
+                f"\n\u26bd K\u00c8O PH\u1ee4 (PH\u1ea0T G\u00d3C) "
+                f"\u2014 Top {len(corner_top)}\n"
+                f"\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
+            )
+            for i, (p, m) in enumerate(corner_top, 1):
+                body += _format_pick(i, p, m)
+
         logger.info(
             f"[ancan] query returned {raw_total} raw predictions, "
-            f"after filter {result['kept_total']} survived, top {len(top)} displayed "
+            f"after filter {result['kept_total']} survived, "
+            f"displayed {total_displayed} (goal={len(goal_top)}, corner={len(corner_top)}) "
             f"(filtered {filtered} ảo, deduped {result.get('deduped', 0)}, "
             f"total_matches_24h={total_matches_24h})"
         )
@@ -1914,14 +1950,14 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
         # TOP PICKS
         if top_picks:
             tier_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
-            top_picks.sort(key=lambda x: (tier_order.get(x["confidence"], 9), -x["ev"]))
 
-            match_picks = {}
-            for pick in top_picks:
-                match_key = f"{pick['home']}__{pick['away']}"
-                if match_key not in match_picks:
-                    match_picks[match_key] = []
-                match_picks[match_key].append(pick)
+            # Partition: goal markets first, corner markets second (corner thua nhiều
+            # hơn → hạ xuống kèo phụ).
+            goal_top_picks = [p for p in top_picks if p["market"] not in _CORNER_MARKETS_VN]
+            corner_top_picks = [p for p in top_picks if p["market"] in _CORNER_MARKETS_VN]
+
+            for _group in (goal_top_picks, corner_top_picks):
+                _group.sort(key=lambda x: (tier_order.get(x["confidence"], 9), -x["ev"]))
 
             summary = (
                 f"\n\U0001f3c6 TOP PICKS \u2014 K\u00c8O GI\u00c1 TR\u1eca CAO\n"
@@ -1931,20 +1967,44 @@ async def _run_full_analysis(update, league_codes: list[str] | None = None, coll
             conf_emojis = {"HIGH": "\U0001f534", "MEDIUM": "\U0001f7e1", "LOW": "\U0001f7e2"}
             conf_labels = {"HIGH": "CAO", "MEDIUM": "TB", "LOW": "TH\u1ea4P"}
 
-            for match_key, picks in match_picks.items():
-                best_conf = picks[0]["confidence"]
-                emoji = conf_emojis.get(best_conf, "\u26aa")
-                label = conf_labels.get(best_conf, "?")
-                p0 = picks[0]
-                summary += (
-                    f"\n{emoji} [{label}] {p0['home']} vs {p0['away']}\n"
-                    f"  \U0001f552 {p0['time']} | {p0['league']}\n"
-                )
-                for pick in picks:
-                    summary += (
-                        f"  ➤ {pick['outcome']} ({pick['market']}) @ {pick['odds']:.2f}\n"
-                        f"    Prob: {pick['prob']*100:.0f}% | EV: {pick['ev']*100:+.1f}% | {pick['bk']}\n"
+            def _render_picks_group(picks_list: list, section_header: str) -> str:
+                if not picks_list:
+                    return ""
+                grouped: dict = {}
+                for pick in picks_list:
+                    match_key = f"{pick['home']}__{pick['away']}"
+                    if match_key not in grouped:
+                        grouped[match_key] = []
+                    grouped[match_key].append(pick)
+                out = section_header
+                for _mk, picks in grouped.items():
+                    best_conf = picks[0]["confidence"]
+                    emoji = conf_emojis.get(best_conf, "\u26aa")
+                    label = conf_labels.get(best_conf, "?")
+                    p0 = picks[0]
+                    out += (
+                        f"\n{emoji} [{label}] {p0['home']} vs {p0['away']}\n"
+                        f"  \U0001f552 {p0['time']} | {p0['league']}\n"
                     )
+                    for pick in picks:
+                        out += (
+                            f"  ➤ {pick['outcome']} ({pick['market']}) @ {pick['odds']:.2f}\n"
+                            f"    Prob: {pick['prob']*100:.0f}% | EV: {pick['ev']*100:+.1f}% | {pick['bk']}\n"
+                        )
+                return out
+
+            summary += _render_picks_group(
+                goal_top_picks,
+                f"\n\U0001f3c6 KÈO CHÍNH (BÀN THẮNG) "
+                f"— {len(goal_top_picks)} kèo\n"
+                f"━━━━━━━━━━━━━━━\n",
+            )
+            summary += _render_picks_group(
+                corner_top_picks,
+                f"\n⚽ KÈO PHỤ (PHẠT GÓC) "
+                f"— {len(corner_top_picks)} kèo\n"
+                f"━━━━━━━━━━━━━━━\n",
+            )
 
             summary += (
                 f"\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n"
