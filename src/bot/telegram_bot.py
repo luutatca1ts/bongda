@@ -738,10 +738,17 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Hiển thị 30 lượt re-check kèo gần nhất (24h qua) từ scheduler /chot."""
+    """Hiển thị re-check kèo theo ngày VN (cutoff 9h sáng UTC+7).
+
+    4 sections:
+    - HÔM NAY (sau 9h sáng VN của ngày hiện tại)
+    - HÔM QUA (9h sáng VN ngày trước → 9h sáng VN hôm nay)
+    - HÔM TRƯỚC (9h sáng VN ngày trước nữa)
+    - 4-7 NGÀY TRƯỚC (rolling)
+    """
     if not await _require_auth(update):
         return
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     DECISION_ICON = {
         "keep": "✅",
@@ -756,56 +763,101 @@ async def cmd_chot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "drop": "BỎ KÈO",
     }
 
+    # VN day starts at 9h VN = 02:00 UTC. Most recent 02:00 UTC that has passed.
+    now_utc = datetime.utcnow()
+    VN_DAY_START_HOUR_UTC = 2
+    today_cutoff = now_utc.replace(hour=VN_DAY_START_HOUR_UTC, minute=0, second=0, microsecond=0)
+    if now_utc < today_cutoff:
+        today_cutoff = today_cutoff - timedelta(days=1)
+
+    section_boundaries = [
+        ("HÔM NAY", today_cutoff, now_utc + timedelta(seconds=1)),
+        ("HÔM QUA", today_cutoff - timedelta(days=1), today_cutoff),
+        ("HÔM TRƯỚC", today_cutoff - timedelta(days=2), today_cutoff - timedelta(days=1)),
+        ("4-7 NGÀY TRƯỚC", today_cutoff - timedelta(days=7), today_cutoff - timedelta(days=3)),
+    ]
+
     session = get_session()
     try:
-        cutoff = datetime.utcnow() - timedelta(hours=24)
-        # Get all re-check records in 24h, then dedup in Python (keep latest per pred)
+        cutoff_oldest = today_cutoff - timedelta(days=7)
         all_rows = (
             session.query(ChotReanalysis, Prediction, Match)
             .join(Prediction, Prediction.id == ChotReanalysis.prediction_id)
             .join(Match, Match.match_id == ChotReanalysis.match_id)
-            .filter(ChotReanalysis.reanalyzed_at >= cutoff)
+            .filter(ChotReanalysis.reanalyzed_at >= cutoff_oldest)
             .order_by(ChotReanalysis.reanalyzed_at.desc())
             .all()
         )
 
-        # Dedup by (match_id, market, outcome) — keep first occurrence (already DESC sorted by reanalyzed_at)
+        if not all_rows:
+            await update.message.reply_text(
+                "\U0001f4ed Chưa có kèo nào được re-check trong 7 ngày qua."
+            )
+            return
+
+        # Dedup by (match_id, market, outcome) — keep latest (rows are DESC sorted)
         seen: set[tuple] = set()
-        rows = []
+        deduped_rows: list = []
         for chot, p, m in all_rows:
             key = (p.match_id, p.market, p.outcome)
             if key in seen:
                 continue
             seen.add(key)
-            rows.append((chot, p, m))
-            if len(rows) >= 30:
-                break
-        if not rows:
+            deduped_rows.append((chot, p, m))
+
+        # Group by VN-day section
+        sections: dict[str, list] = {name: [] for name, _, _ in section_boundaries}
+        for chot, p, m in deduped_rows:
+            ts = chot.reanalyzed_at
+            if ts is None:
+                continue
+            for name, start, end in section_boundaries:
+                if start <= ts < end:
+                    sections[name].append((chot, p, m))
+                    break
+
+        VN_TZ = timezone(timedelta(hours=7))
+
+        total_picks = sum(len(v) for v in sections.values())
+        if total_picks == 0:
             await update.message.reply_text(
-                "\U0001f4ed Chưa có kèo nào được re-check trong 24h qua."
+                "\U0001f4ed Chưa có kèo nào được re-check theo lịch ngày VN."
             )
             return
 
         header = (
-            f"\U0001f3af RE-CHECK KÈO (24h qua, {len(rows)} lượt)\n"
+            f"\U0001f3af RE-CHECK KÈO (theo ngày VN, {total_picks} kèo)\n"
             f"━━━━━━━━━━━━━━━\n"
         )
         body = ""
-        for i, (chot, p, m) in enumerate(rows, 1):
-            icon = DECISION_ICON.get(chot.decision, "•")
-            label = DECISION_LABEL.get(chot.decision, chot.decision or "?")
-            mkt = _MKT_NAMES.get(p.market, p.market)
-            old_ev = (chot.old_ev or 0) * 100
-            new_ev = (chot.new_ev or 0) * 100
-            when = chot.reanalyzed_at.strftime("%d/%m %H:%M") if chot.reanalyzed_at else "?"
-            body += (
-                f"\n#{i} {icon} {label}\n"
-                f"⚽ {m.home_team} vs {m.away_team}\n"
-                f"➜ {p.outcome} ({mkt})\n"
-                f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
-                f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%\n"
-                f"⏱ {when}\n"
-            )
+        for name, _, _ in section_boundaries:
+            picks = sections[name]
+            if not picks:
+                continue
+            body += f"\n\U0001f4c5 {name} ({len(picks)} kèo)\n"
+            body += "───────────────\n"
+            for i, (chot, p, m) in enumerate(picks[:10], 1):
+                icon = DECISION_ICON.get(chot.decision, "•")
+                label = DECISION_LABEL.get(chot.decision, chot.decision or "?")
+                mkt = _MKT_NAMES.get(p.market, p.market)
+                old_ev = (chot.old_ev or 0) * 100
+                new_ev = (chot.new_ev or 0) * 100
+                ts_vn = (
+                    chot.reanalyzed_at.replace(tzinfo=timezone.utc).astimezone(VN_TZ)
+                    if chot.reanalyzed_at else None
+                )
+                when = ts_vn.strftime("%d/%m %H:%M") if ts_vn else "?"
+                body += (
+                    f"\n#{i} {icon} {label}\n"
+                    f"⚽ {m.home_team} vs {m.away_team}\n"
+                    f"➜ {p.outcome} ({mkt})\n"
+                    f"\U0001f4b0 Odds: {chot.old_odds or 0:.2f} → {chot.new_odds or 0:.2f}\n"
+                    f"\U0001f4ca EV: {old_ev:+.1f}% → {new_ev:+.1f}%\n"
+                    f"⏱ {when} (VN)\n"
+                )
+            if len(picks) > 10:
+                body += f"\n... và {len(picks) - 10} kèo khác trong {name.lower()}\n"
+
         await _send_chunked(update, header + body)
     finally:
         session.close()
