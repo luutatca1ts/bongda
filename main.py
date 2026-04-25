@@ -136,10 +136,11 @@ async def scheduled_live_analysis(app):
     try:
         loop = asyncio.get_event_loop()
         alerts = await loop.run_in_executor(None, run_live_pipeline)
+        # v23: TẮT push notification live VB tự động.
+        # Pipeline vẫn chạy để save LiveMatchState + LivePrediction (bot học).
+        # User xem manual qua /live_vb hoặc /live khi cần.
         if alerts:
-            logger.info(f"[Scheduler] Sending {len(alerts)} live VB alerts...")
-            for alert in alerts:
-                await send_alert(app, alert)
+            logger.info(f"[Scheduler] {len(alerts)} live VB found (silent — push disabled by v23).")
         else:
             logger.info("[Scheduler] No live value bets this cycle.")
     except Exception as e:
