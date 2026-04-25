@@ -979,6 +979,50 @@ async def cb_chot_section(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
+async def cb_history_section(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """v28: Handle callback 'history_section:<key>' — render NEW message cho ngày đó."""
+    from datetime import date, timedelta
+
+    query = update.callback_query
+    await query.answer()
+    data_str = query.data or ""
+    if not data_str.startswith("history_section:"):
+        return
+    section_key = data_str.split(":", 1)[1]
+
+    SECTION_OFFSETS = {"yesterday": 1, "day_before": 2}
+    offset = SECTION_OFFSETS.get(section_key)
+    if offset is None:
+        return
+
+    today = date.today()
+    target_date = today - timedelta(days=offset)
+
+    session = get_session()
+    try:
+        text, _ = _build_history_block_for_date(session, target_date, today)
+        # callback_query không có update.message → reply qua query.message + chunk thủ công
+        max_len = 3900
+        if len(text) <= max_len:
+            await query.message.reply_text(text)
+        else:
+            chunks: list[str] = []
+            current = ""
+            for line in text.split("\n"):
+                if len(current) + len(line) + 1 > max_len:
+                    if current:
+                        chunks.append(current)
+                    current = line + "\n"
+                else:
+                    current += line + "\n"
+            if current.strip():
+                chunks.append(current)
+            for chunk in chunks:
+                await query.message.reply_text(chunk)
+    finally:
+        session.close()
+
+
 async def cb_chot_more(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """v26: Handle callback 'chot_more:<section>:<offset>' — load thêm 15 picks."""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -1166,25 +1210,331 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
+def _build_history_block_for_date(session, target_date, today) -> tuple[str, dict]:
+    """v28: Render 1 ngày /history (CHỐT + LIVE block).
+    Returns (text, stats_dict). stats_dict chứa: total, value, win, lose, pending
+    để caller cộng vào grand totals nếu cần.
+    """
+    from datetime import datetime, timedelta
+    from src.db.models import ChotReanalysis, Prediction, Match, LivePrediction
+
+    day_start = datetime(target_date.year, target_date.month, target_date.day)
+    day_end = day_start + timedelta(days=1)
+
+    stats = {"total": 0, "value": 0, "win": 0, "lose": 0, "pending": 0}
+
+    # === CHỐT block ===
+    chot_pred_ids_rows = (
+        session.query(ChotReanalysis.prediction_id)
+        .filter(
+            ChotReanalysis.reanalyzed_at >= day_start,
+            ChotReanalysis.reanalyzed_at < day_end,
+        )
+        .distinct()
+        .all()
+    )
+    chot_pred_ids = {r[0] for r in chot_pred_ids_rows}
+
+    date_str = target_date.strftime('%d/%m/%Y')
+    is_today = target_date == today
+    day_label = f"{date_str} (HÔM NAY)" if is_today else date_str
+
+    msg = ""
+
+    if not chot_pred_ids:
+        msg += f"📅 {day_label} — Không có kèo /chot\n"
+    else:
+        preds = (
+            session.query(Prediction)
+            .filter(Prediction.id.in_(chot_pred_ids))
+            .order_by(Prediction.created_at.desc())
+            .all()
+        )
+
+        seen_keys: set[tuple] = set()
+        deduped_preds = []
+        for p in preds:
+            key = (p.match_id, p.market, p.outcome)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            deduped_preds.append(p)
+        preds = deduped_preds
+
+        match_map: dict = {}
+        for p in preds:
+            if p.match_id not in match_map:
+                match_map[p.match_id] = []
+            match_map[p.match_id].append(p)
+
+        total_preds = len(preds)
+        value_bets = [p for p in preds if p.is_value_bet]
+
+        picks_for_filter = [{
+            "ev": p.expected_value or 0.0,
+            "bk": p.best_bookmaker or "",
+            "market": p.market or "",
+            "outcome": p.outcome or "",
+            "odds": p.best_odds or 0.0,
+            "home": "?",
+            "away": "?",
+            "_pred": p,
+        } for p in value_bets]
+        kept_dicts, n_filtered = _filter_suspicious_picks(picks_for_filter, label="history")
+        value_bets = [d["_pred"] for d in kept_dicts]
+        kept_pred_ids = {p.id for p in value_bets}
+
+        n_value = len(value_bets)
+        n_win = sum(1 for p in value_bets if p.result == "WIN")
+        n_lose = sum(1 for p in value_bets if p.result == "LOSE")
+        n_push = sum(1 for p in value_bets if p.result == "PUSH")
+        n_pending = sum(1 for p in value_bets if p.result is None)
+        n_high = sum(1 for p in value_bets if p.confidence == "HIGH")
+        n_med = sum(1 for p in value_bets if p.confidence == "MEDIUM")
+        n_low = sum(1 for p in value_bets if p.confidence == "LOW")
+        n_high_win = sum(1 for p in value_bets if p.confidence == "HIGH" and p.result == "WIN")
+        n_med_win = sum(1 for p in value_bets if p.confidence == "MEDIUM" and p.result == "WIN")
+        n_low_win = sum(1 for p in value_bets if p.confidence == "LOW" and p.result == "WIN")
+        win_rate = n_win / (n_win + n_lose) * 100 if (n_win + n_lose) > 0 else 0
+
+        total_stake = n_win + n_lose + n_push
+        total_return = sum(p.best_odds for p in value_bets if p.result == "WIN")
+        roi = (total_return - total_stake) / total_stake * 100 if total_stake > 0 else 0
+
+        stats["total"] += total_preds
+        stats["value"] += n_value
+        stats["win"] += n_win
+        stats["lose"] += n_lose
+        stats["pending"] += n_pending
+
+        msg += f"📅 {day_label}\n"
+        msg += f"━━━━━━━━━━━━━━━━━\n"
+        msg += f"📊 Tổng quan:\n"
+        msg += f"  Trận phân tích: {len(match_map)}\n"
+        msg += f"  Tổng dự đoán: {total_preds}\n"
+        msg += f"  Value bets: {n_value}\n"
+        if n_filtered > 0:
+            msg += f"  Đã lọc anti-ảo: {n_filtered}\n"
+        if n_win + n_lose > 0:
+            msg += f"  Tỉ lệ thắng: {win_rate:.1f}% ({n_win}W / {n_lose}L"
+            if n_push:
+                msg += f" / {n_push}P"
+            msg += ")\n"
+            msg += f"  ROI: {roi:+.1f}%\n"
+        if n_pending > 0:
+            msg += f"  Chờ kết quả: {n_pending}\n"
+        msg += f"\n"
+
+        msg += f"🎯 Theo độ tin cậy:\n"
+        if n_high:
+            h_wr = f" ({n_high_win}W)" if n_high_win else ""
+            msg += f"  🔴 HIGH: {n_high} picks{h_wr}\n"
+        if n_med:
+            m_wr = f" ({n_med_win}W)" if n_med_win else ""
+            msg += f"  🟡 MEDIUM: {n_med} picks{m_wr}\n"
+        if n_low:
+            l_wr = f" ({n_low_win}W)" if n_low_win else ""
+            msg += f"  🟢 LOW: {n_low} picks{l_wr}\n"
+        msg += f"\n"
+
+        market_stats: dict = {}
+        for p in value_bets:
+            mk = p.market
+            if mk not in market_stats:
+                market_stats[mk] = {"total": 0, "win": 0, "lose": 0, "pending": 0}
+            market_stats[mk]["total"] += 1
+            if p.result == "WIN":
+                market_stats[mk]["win"] += 1
+            elif p.result == "LOSE":
+                market_stats[mk]["lose"] += 1
+            elif p.result is None:
+                market_stats[mk]["pending"] += 1
+
+        MARKET_NAMES = {
+            "h2h": "1X2", "totals": "Tài/Xỉu", "asian_handicap": "Châu Á",
+            "corners_totals": "Góc T/X", "corners_spreads": "Góc CÁ",
+            "h1_corners_totals": "Góc H1 T/X", "h1_corners_spreads": "Góc H1 CÁ",
+        }
+        if market_stats:
+            msg += f"📈 Theo thị trường:\n"
+            for mk, st in sorted(market_stats.items(), key=lambda x: x[1]["total"], reverse=True):
+                mk_name = MARKET_NAMES.get(mk, mk)
+                wr = ""
+                if st["win"] + st["lose"] > 0:
+                    r = st["win"] / (st["win"] + st["lose"]) * 100
+                    wr = f" | {r:.0f}%"
+                msg += f"  {mk_name}: {st['total']} picks ({st['win']}W {st['lose']}L {st['pending']}⏳){wr}\n"
+            msg += f"\n"
+
+        msg += f"⚽ Chi tiết trận:\n"
+        for mid, match_preds in match_map.items():
+            match = session.query(Match).filter(Match.match_id == mid).first()
+            if match:
+                match_name = f"{match.home_team} vs {match.away_team}"
+                score = ""
+                if match.home_goals is not None:
+                    score = f" ({match.home_goals}-{match.away_goals})"
+                league = match.competition_code or ""
+            else:
+                match_name = f"#{mid}"
+                score = ""
+                league = ""
+
+            vb = [p for p in match_preds if p.is_value_bet and p.id in kept_pred_ids]
+            if not vb:
+                continue
+
+            league_str = f" [{league}]" if league else ""
+            msg += f"  {match_name}{score}{league_str}\n"
+            for p in sorted(vb, key=lambda x: x.expected_value, reverse=True):
+                if p.result == "WIN":
+                    icon = "✅"
+                elif p.result == "LOSE":
+                    icon = "❌"
+                elif p.result == "PUSH":
+                    icon = "↩️"
+                else:
+                    icon = "⏳"
+                conf_tag = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(p.confidence, "⚪")
+                mk_short = MARKET_NAMES.get(p.market, p.market)
+                msg += f"    {icon}{conf_tag} {p.outcome} @{p.best_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) [{p.best_bookmaker}]\n"
+
+    # === v25 KÈO LIVE block ===
+    live_preds = (
+        session.query(LivePrediction)
+        .filter(
+            LivePrediction.created_at >= day_start,
+            LivePrediction.created_at < day_end,
+            LivePrediction.is_value_bet == True,  # noqa: E712
+        )
+        .order_by(LivePrediction.created_at.desc())
+        .all()
+    )
+
+    if live_preds:
+        lp_total = len(live_preds)
+        lp_win = sum(1 for p in live_preds if p.result == "WIN")
+        lp_lose = sum(1 for p in live_preds if p.result == "LOSE")
+        lp_push = sum(1 for p in live_preds if p.result == "PUSH")
+        lp_pending = sum(1 for p in live_preds if p.result is None)
+        lp_wr = lp_win / (lp_win + lp_lose) * 100 if (lp_win + lp_lose) > 0 else 0
+        lp_stake = lp_win + lp_lose + lp_push
+        lp_return = sum(p.live_odds for p in live_preds if p.result == "WIN")
+        lp_roi = (lp_return - lp_stake) / lp_stake * 100 if lp_stake > 0 else 0
+
+        stats["total"] += lp_total
+        stats["value"] += lp_total
+        stats["win"] += lp_win
+        stats["lose"] += lp_lose
+        stats["pending"] += lp_pending
+
+        msg += f"\n🔥 KÈO LIVE ({lp_total} picks)\n"
+        msg += f"━━━━━━━━━━━━━━━━━\n"
+        if lp_win + lp_lose > 0:
+            msg += f"  Tỉ lệ thắng: {lp_wr:.1f}% ({lp_win}W/{lp_lose}L"
+            if lp_push:
+                msg += f"/{lp_push}P"
+            msg += f")\n"
+            msg += f"  ROI: {lp_roi:+.1f}%\n"
+        if lp_pending > 0:
+            msg += f"  Chờ kết quả: {lp_pending}\n"
+        msg += f"\n"
+
+        lp_match_map: dict[int, list] = {}
+        for p in live_preds:
+            lp_match_map.setdefault(p.match_id, []).append(p)
+
+        msg += f"⚽ Chi tiết trận:\n"
+        MARKET_NAMES_LIVE = {
+            "h2h": "1X2", "totals": "T/X", "asian_handicap": "Châu Á",
+            "corners_totals": "Góc T/X", "corners_spreads": "Góc CÁ",
+        }
+        for mid, m_preds in lp_match_map.items():
+            match = session.query(Match).filter(Match.match_id == mid).first()
+            if match:
+                match_name = f"{match.home_team} vs {match.away_team}"
+                score = f" ({match.home_goals}-{match.away_goals})" if match.home_goals is not None else ""
+                league = match.competition_code or ""
+            else:
+                match_name = f"#{mid}"
+                score = ""
+                league = ""
+            league_str = f" [{league}]" if league else ""
+            msg += f"  {match_name}{score}{league_str}\n"
+            for p in sorted(m_preds, key=lambda x: x.expected_value, reverse=True):
+                if p.result == "WIN":
+                    icon = "✅"
+                elif p.result == "LOSE":
+                    icon = "❌"
+                elif p.result == "PUSH":
+                    icon = "↩️"
+                else:
+                    icon = "⏳"
+                conf_tag = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(p.confidence, "⚪")
+                mk_short = MARKET_NAMES_LIVE.get(p.market, p.market)
+                msg += f"    {icon}{conf_tag} {p.outcome} @{p.live_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) | phút {p.minute} [{p.best_bookmaker}]\n"
+
+    return msg, stats
+
+
 async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /history        — thống kê 3 ngày gần nhất (hôm nay + hôm qua + hôm trước)
+    /history        — thống kê HÔM NAY + buttons HÔM QUA / HÔM TRƯỚC (v28)
     /history N      — thống kê N ngày gần nhất (max 7)
     /history YYYY-MM-DD — thống kê ngày cụ thể
     """
     if not await _require_auth(update):
         return
     from datetime import date, datetime, timedelta
-    from sqlalchemy import func
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
     args = (context.args or [])
     today = date.today()
 
-    # Parse argument
+    # v28: Default (no args) → HÔM NAY + buttons cho HÔM QUA / HÔM TRƯỚC
     if not args:
-        # v24: Mặc định hiện 3 ngày gần nhất (hôm nay + hôm qua + hôm trước)
-        target_dates = [today - timedelta(days=i) for i in range(3)]
-    elif args[0].isdigit():
+        session = get_session()
+        try:
+            text, _ = _build_history_block_for_date(session, today, today)
+
+            keyboard_rows = []
+            for offset, key, label in [(1, "yesterday", "HÔM QUA"), (2, "day_before", "HÔM TRƯỚC")]:
+                d = today - timedelta(days=offset)
+                d_start = datetime(d.year, d.month, d.day)
+                d_end = d_start + timedelta(days=1)
+                chot_count = (
+                    session.query(ChotReanalysis.prediction_id)
+                    .filter(
+                        ChotReanalysis.reanalyzed_at >= d_start,
+                        ChotReanalysis.reanalyzed_at < d_end,
+                    )
+                    .distinct()
+                    .count()
+                )
+                live_count = (
+                    session.query(LivePrediction)
+                    .filter(
+                        LivePrediction.created_at >= d_start,
+                        LivePrediction.created_at < d_end,
+                        LivePrediction.is_value_bet == True,  # noqa: E712
+                    )
+                    .count()
+                )
+                total_count = chot_count + live_count
+                if total_count > 0:
+                    keyboard_rows.append([InlineKeyboardButton(
+                        f"📅 {label} ({total_count})",
+                        callback_data=f"history_section:{key}",
+                    )])
+
+            reply_markup = InlineKeyboardMarkup(keyboard_rows) if keyboard_rows else None
+            await _safe_reply(update, text, reply_markup=reply_markup)
+        finally:
+            session.close()
+        return
+
+    # Args path: numeric N or date string YYYY-MM-DD
+    if args[0].isdigit():
         n_days = min(int(args[0]), 7)
         target_dates = [today - timedelta(days=i) for i in range(n_days)]
     else:
@@ -1197,297 +1547,20 @@ async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session = get_session()
     try:
         all_messages = []
-        grand_total = 0
-        grand_value = 0
-        grand_win = 0
-        grand_lose = 0
-        grand_pending = 0
-
+        grand = {"total": 0, "value": 0, "win": 0, "lose": 0, "pending": 0}
         for target_date in target_dates:
-            day_start = datetime(target_date.year, target_date.month, target_date.day)
-            day_end = day_start + timedelta(days=1)
+            text, day_stats = _build_history_block_for_date(session, target_date, today)
+            all_messages.append(text)
+            for k, v in day_stats.items():
+                grand[k] += v
 
-            # Anchor: /chot re-analyses DONE on this day (not Prediction.created_at).
-            # /history is a scoreboard of picks /chot re-checked during the day —
-            # the pred itself may have been generated earlier (kickoff day != created_at day).
-            # One pred can have several re-analyses — distinct() collapses them.
-            chot_pred_ids_rows = (
-                session.query(ChotReanalysis.prediction_id)
-                .filter(
-                    ChotReanalysis.reanalyzed_at >= day_start,
-                    ChotReanalysis.reanalyzed_at < day_end,
-                )
-                .distinct()
-                .all()
-            )
-            chot_pred_ids = {r[0] for r in chot_pred_ids_rows}
-            if not chot_pred_ids:
-                all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có kèo /chot\n")
-                continue
-
-            preds = (
-                session.query(Prediction)
-                .filter(Prediction.id.in_(chot_pred_ids))
-                .order_by(Prediction.created_at.desc())  # DESC để dedup giữ entry mới nhất
-                .all()
-            )
-            if not preds:
-                all_messages.append(f"📅 {target_date.strftime('%d/%m/%Y')} — Không có kèo /chot\n")
-                continue
-
-            # Dedup theo (match_id, market, outcome) — giữ entry MỚI NHẤT (đã sort DESC)
-            # Pipeline lưu Prediction record mỗi lần chạy analysis → 1 (match, market, outcome)
-            # có thể có 4-10 records duplicate. /history chỉ cần entry mới nhất với result hiện tại.
-            seen_keys: set[tuple] = set()
-            deduped_preds = []
-            for p in preds:
-                key = (p.match_id, p.market, p.outcome)
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
-                deduped_preds.append(p)
-            preds = deduped_preds  # use deduped list for rest of function
-
-            # Group by match
-            match_map = {}
-            for p in preds:
-                if p.match_id not in match_map:
-                    match_map[p.match_id] = []
-                match_map[p.match_id].append(p)
-
-            # Stats
-            total_preds = len(preds)
-            value_bets = [p for p in preds if p.is_value_bet]
-
-            # Apply anti-ảo filter — mirror /ancan rules so /history only counts
-            # picks /ancan would actually have surfaced. Rule 3 matches "corner"
-            # substring against raw ORM market values ("corners_totals" etc.)
-            # so no VN-label mapping is needed here.
-            picks_for_filter = [{
-                "ev": p.expected_value or 0.0,
-                "bk": p.best_bookmaker or "",
-                "market": p.market or "",
-                "outcome": p.outcome or "",
-                "odds": p.best_odds or 0.0,
-                "home": "?",
-                "away": "?",
-                "_pred": p,
-            } for p in value_bets]
-            kept_dicts, n_filtered = _filter_suspicious_picks(picks_for_filter, label="history")
-            value_bets = [d["_pred"] for d in kept_dicts]
-            kept_pred_ids = {p.id for p in value_bets}
-
-            n_value = len(value_bets)
-            n_win = sum(1 for p in value_bets if p.result == "WIN")
-            n_lose = sum(1 for p in value_bets if p.result == "LOSE")
-            n_push = sum(1 for p in value_bets if p.result == "PUSH")
-            n_pending = sum(1 for p in value_bets if p.result is None)
-            n_high = sum(1 for p in value_bets if p.confidence == "HIGH")
-            n_med = sum(1 for p in value_bets if p.confidence == "MEDIUM")
-            n_low = sum(1 for p in value_bets if p.confidence == "LOW")
-            n_high_win = sum(1 for p in value_bets if p.confidence == "HIGH" and p.result == "WIN")
-            n_med_win = sum(1 for p in value_bets if p.confidence == "MEDIUM" and p.result == "WIN")
-            n_low_win = sum(1 for p in value_bets if p.confidence == "LOW" and p.result == "WIN")
-            win_rate = n_win / (n_win + n_lose) * 100 if (n_win + n_lose) > 0 else 0
-
-            # ROI calculation
-            total_stake = n_win + n_lose + n_push  # each bet = 1 unit
-            total_return = sum(p.best_odds for p in value_bets if p.result == "WIN")
-            roi = (total_return - total_stake) / total_stake * 100 if total_stake > 0 else 0
-
-            grand_total += total_preds
-            grand_value += n_value
-            grand_win += n_win
-            grand_lose += n_lose
-            grand_pending += n_pending
-
-            date_str = target_date.strftime('%d/%m/%Y')
-            is_today = target_date == today
-            day_label = f"{date_str} (HÔM NAY)" if is_today else date_str
-
-            msg = f"📅 {day_label}\n"
-            msg += f"━━━━━━━━━━━━━━━━━\n"
-            msg += f"📊 Tổng quan:\n"
-            msg += f"  Trận phân tích: {len(match_map)}\n"
-            msg += f"  Tổng dự đoán: {total_preds}\n"
-            msg += f"  Value bets: {n_value}\n"
-            if n_filtered > 0:
-                msg += f"  Đã lọc anti-ảo: {n_filtered}\n"
-            if n_win + n_lose > 0:
-                msg += f"  Tỉ lệ thắng: {win_rate:.1f}% ({n_win}W / {n_lose}L"
-                if n_push:
-                    msg += f" / {n_push}P"
-                msg += ")\n"
-                msg += f"  ROI: {roi:+.1f}%\n"
-            if n_pending > 0:
-                msg += f"  Chờ kết quả: {n_pending}\n"
-            msg += f"\n"
-
-            # Confidence breakdown
-            msg += f"🎯 Theo độ tin cậy:\n"
-            if n_high:
-                h_wr = f" ({n_high_win}W)" if n_high_win else ""
-                msg += f"  🔴 HIGH: {n_high} picks{h_wr}\n"
-            if n_med:
-                m_wr = f" ({n_med_win}W)" if n_med_win else ""
-                msg += f"  🟡 MEDIUM: {n_med} picks{m_wr}\n"
-            if n_low:
-                l_wr = f" ({n_low_win}W)" if n_low_win else ""
-                msg += f"  🟢 LOW: {n_low} picks{l_wr}\n"
-            msg += f"\n"
-
-            # Market breakdown
-            market_stats = {}
-            for p in value_bets:
-                mk = p.market
-                if mk not in market_stats:
-                    market_stats[mk] = {"total": 0, "win": 0, "lose": 0, "pending": 0}
-                market_stats[mk]["total"] += 1
-                if p.result == "WIN":
-                    market_stats[mk]["win"] += 1
-                elif p.result == "LOSE":
-                    market_stats[mk]["lose"] += 1
-                elif p.result is None:
-                    market_stats[mk]["pending"] += 1
-
-            MARKET_NAMES = {
-                "h2h": "1X2", "totals": "Tài/Xỉu", "asian_handicap": "Châu Á",
-                "corners_totals": "Góc T/X", "corners_spreads": "Góc CÁ",
-                "h1_corners_totals": "Góc H1 T/X", "h1_corners_spreads": "Góc H1 CÁ",
-            }
-            if market_stats:
-                msg += f"📈 Theo thị trường:\n"
-                for mk, st in sorted(market_stats.items(), key=lambda x: x[1]["total"], reverse=True):
-                    mk_name = MARKET_NAMES.get(mk, mk)
-                    wr = ""
-                    if st["win"] + st["lose"] > 0:
-                        r = st["win"] / (st["win"] + st["lose"]) * 100
-                        wr = f" | {r:.0f}%"
-                    msg += f"  {mk_name}: {st['total']} picks ({st['win']}W {st['lose']}L {st['pending']}⏳){wr}\n"
-                msg += f"\n"
-
-            # Match details — value bets only
-            msg += f"⚽ Chi tiết trận:\n"
-            for mid, match_preds in match_map.items():
-                match = session.query(Match).filter(Match.match_id == mid).first()
-                if match:
-                    match_name = f"{match.home_team} vs {match.away_team}"
-                    score = ""
-                    if match.home_goals is not None:
-                        score = f" ({match.home_goals}-{match.away_goals})"
-                    league = match.competition_code or ""
-                else:
-                    match_name = f"#{mid}"
-                    score = ""
-                    league = ""
-
-                vb = [p for p in match_preds if p.is_value_bet and p.id in kept_pred_ids]
-                if not vb:
-                    continue
-
-                league_str = f" [{league}]" if league else ""
-                msg += f"  {match_name}{score}{league_str}\n"
-                for p in sorted(vb, key=lambda x: x.expected_value, reverse=True):
-                    if p.result == "WIN":
-                        icon = "✅"
-                    elif p.result == "LOSE":
-                        icon = "❌"
-                    elif p.result == "PUSH":
-                        icon = "↩️"
-                    else:
-                        icon = "⏳"
-                    conf_tag = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(p.confidence, "⚪")
-                    mk_short = MARKET_NAMES.get(p.market, p.market)
-                    msg += f"    {icon}{conf_tag} {p.outcome} @{p.best_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) [{p.best_bookmaker}]\n"
-
-            all_messages.append(msg)
-
-            # === v25: KÈO LIVE block ===
-            from src.db.models import LivePrediction
-            live_preds = (
-                session.query(LivePrediction)
-                .filter(
-                    LivePrediction.created_at >= day_start,
-                    LivePrediction.created_at < day_end,
-                    LivePrediction.is_value_bet == True,  # noqa: E712
-                )
-                .order_by(LivePrediction.created_at.desc())
-                .all()
-            )
-
-            if live_preds:
-                lp_total = len(live_preds)
-                lp_win = sum(1 for p in live_preds if p.result == "WIN")
-                lp_lose = sum(1 for p in live_preds if p.result == "LOSE")
-                lp_push = sum(1 for p in live_preds if p.result == "PUSH")
-                lp_pending = sum(1 for p in live_preds if p.result is None)
-                lp_wr = lp_win / (lp_win + lp_lose) * 100 if (lp_win + lp_lose) > 0 else 0
-                lp_stake = lp_win + lp_lose + lp_push
-                lp_return = sum(p.live_odds for p in live_preds if p.result == "WIN")
-                lp_roi = (lp_return - lp_stake) / lp_stake * 100 if lp_stake > 0 else 0
-
-                grand_total += lp_total
-                grand_value += lp_total
-                grand_win += lp_win
-                grand_lose += lp_lose
-                grand_pending += lp_pending
-
-                lp_msg = f"\n🔥 KÈO LIVE ({lp_total} picks)\n"
-                lp_msg += f"━━━━━━━━━━━━━━━━━\n"
-                if lp_win + lp_lose > 0:
-                    lp_msg += f"  Tỉ lệ thắng: {lp_wr:.1f}% ({lp_win}W/{lp_lose}L"
-                    if lp_push:
-                        lp_msg += f"/{lp_push}P"
-                    lp_msg += f")\n"
-                    lp_msg += f"  ROI: {lp_roi:+.1f}%\n"
-                if lp_pending > 0:
-                    lp_msg += f"  Chờ kết quả: {lp_pending}\n"
-                lp_msg += f"\n"
-
-                lp_match_map: dict[int, list] = {}
-                for p in live_preds:
-                    lp_match_map.setdefault(p.match_id, []).append(p)
-
-                lp_msg += f"⚽ Chi tiết trận:\n"
-                MARKET_NAMES_LIVE = {
-                    "h2h": "1X2", "totals": "T/X", "asian_handicap": "Châu Á",
-                    "corners_totals": "Góc T/X", "corners_spreads": "Góc CÁ",
-                }
-                for mid, m_preds in lp_match_map.items():
-                    match = session.query(Match).filter(Match.match_id == mid).first()
-                    if match:
-                        match_name = f"{match.home_team} vs {match.away_team}"
-                        score = f" ({match.home_goals}-{match.away_goals})" if match.home_goals is not None else ""
-                        league = match.competition_code or ""
-                    else:
-                        match_name = f"#{mid}"
-                        score = ""
-                        league = ""
-                    league_str = f" [{league}]" if league else ""
-                    lp_msg += f"  {match_name}{score}{league_str}\n"
-                    for p in sorted(m_preds, key=lambda x: x.expected_value, reverse=True):
-                        if p.result == "WIN":
-                            icon = "✅"
-                        elif p.result == "LOSE":
-                            icon = "❌"
-                        elif p.result == "PUSH":
-                            icon = "↩️"
-                        else:
-                            icon = "⏳"
-                        conf_tag = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(p.confidence, "⚪")
-                        mk_short = MARKET_NAMES_LIVE.get(p.market, p.market)
-                        lp_msg += f"    {icon}{conf_tag} {p.outcome} @{p.live_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) | phút {p.minute} [{p.best_bookmaker}]\n"
-
-                all_messages.append(lp_msg)
-
-        # Grand summary if multiple days
-        if len(target_dates) > 1 and grand_value > 0:
-            g_wr = grand_win / (grand_win + grand_lose) * 100 if (grand_win + grand_lose) > 0 else 0
+        if len(target_dates) > 1 and grand["value"] > 0:
+            g_wr = grand["win"] / (grand["win"] + grand["lose"]) * 100 if (grand["win"] + grand["lose"]) > 0 else 0
             summary = f"\n📊 TỔNG KẾT {len(target_dates)} NGÀY:\n"
             summary += f"━━━━━━━━━━━━━━━━━\n"
-            summary += f"  Value bets: {grand_value} | Thắng: {g_wr:.1f}% ({grand_win}W/{grand_lose}L)\n"
-            if grand_pending:
-                summary += f"  Chờ kết quả: {grand_pending}\n"
+            summary += f"  Value bets: {grand['value']} | Thắng: {g_wr:.1f}% ({grand['win']}W/{grand['lose']}L)\n"
+            if grand["pending"]:
+                summary += f"  Chờ kết quả: {grand['pending']}\n"
             all_messages.append(summary)
 
         await _safe_reply(update, "\n".join(all_messages))
@@ -4598,6 +4671,7 @@ def create_bot_app() -> Application:
     # Pattern-specific handlers FIRST so they take priority over the generic one.
     app.add_handler(CallbackQueryHandler(cb_chot_section, pattern=r"^chot_section:"))
     app.add_handler(CallbackQueryHandler(cb_chot_more, pattern=r"^chot_more:"))
+    app.add_handler(CallbackQueryHandler(cb_history_section, pattern=r"^history_section:"))
     app.add_handler(CallbackQueryHandler(callback_league_picker))
 
     return app
