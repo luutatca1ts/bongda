@@ -29,9 +29,17 @@ async def scheduled_analysis(app):
         loop = asyncio.get_event_loop()
         alerts = await loop.run_in_executor(None, run_analysis_pipeline)
         if alerts:
-            logger.info(f"[Scheduler] Sending {len(alerts)} alerts...")
-            for alert in alerts:
-                await send_alert(app, alert)
+            from src.config import USE_VALUE_BET_ALERTS
+            if USE_VALUE_BET_ALERTS:
+                logger.info(f"[Scheduler] Sending {len(alerts)} alerts...")
+                for alert in alerts:
+                    await send_alert(app, alert)
+            else:
+                logger.info(
+                    f"[Scheduler] Detected {len(alerts)} value bets — "
+                    f"alerts DISABLED via USE_VALUE_BET_ALERTS=False. "
+                    f"Predictions vẫn được lưu vào DB. Dùng /ancan, /phantich, /chot xem picks."
+                )
         else:
             logger.info("[Scheduler] No value bets found this cycle.")
         # Check API quota after analysis and alert if low

@@ -473,6 +473,10 @@ USE_PREMATCH_FIXTURE_RESOLVER = "log_only"
 #           are noisy.
 USE_STEAM_MOVE_ALERTS = False
 
+# Tắt push "VALUE BET DETECTED" qua Telegram. Pipeline vẫn tạo Prediction
+# để bot học + cho /ancan /phantich /chot dùng. False = chỉ log, không push.
+USE_VALUE_BET_ALERTS = False
+
 # ================================================================
 # LIVE / IN-PLAY CONFIG
 # ================================================================
