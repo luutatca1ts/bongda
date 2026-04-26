@@ -289,10 +289,9 @@ def resolve_corners_fuzzy(match, session) -> tuple[bool, str]:
                     home_c = home_stats.get("corners")
                     away_c = away_stats.get("corners")
                     if home_c is not None and away_c is not None:
-                        if match.home_corners is None:
-                            match.home_corners = int(home_c)
-                        if match.away_corners is None:
-                            match.away_corners = int(away_c)
+                        # v41: ALWAYS overwrite — data từ API-Football FT đáng tin hơn live snapshot cũ
+                        match.home_corners = int(home_c)
+                        match.away_corners = int(away_c)
                 
                 session.commit()
                 return True, "ok_fuzzy_v37_1"
