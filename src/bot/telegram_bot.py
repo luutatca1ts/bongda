@@ -768,6 +768,11 @@ def _build_chot_sections(session) -> dict:
             continue
         seen.add(key)
         deduped_rows.append((chot, p, m))
+    # v34.1: Layer A dedup cross-match-records (fuzzy team + utc + market)
+    preds_only = [p for _, p, _ in deduped_rows]
+    kept_preds = _dedup_predictions(preds_only, session)
+    kept_pred_ids = {p.id for p in kept_preds}
+    deduped_rows = [(c, p, m) for c, p, m in deduped_rows if p.id in kept_pred_ids]
 
     today, yesterday, day_before, week = [], [], [], []
     for chot, p, m in deduped_rows:
@@ -1261,6 +1266,8 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
             seen_keys.add(key)
             deduped_preds.append(p)
         preds = deduped_preds
+        # v34: Layer A dedup cross-match-records (fuzzy team + utc + market)
+        preds = _dedup_predictions(preds, session)
 
         match_map: dict = {}
         for p in preds:
@@ -1476,6 +1483,92 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
                 msg += f"    {icon}{conf_tag} {p.outcome} @{p.live_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) | phút {p.minute} [{p.best_bookmaker}]\n"
 
     return msg, stats
+
+
+
+
+def _dedup_predictions(preds: list, session) -> list:
+    """v34: Dedup predictions theo 2 layers.
+    
+    Layer B (exact): same (match_id, market, outcome) -> keep latest created_at.
+    Layer A (cross-match): same trận thật (fuzzy team + utc_date + market) -> keep highest EV.
+    
+    Args:
+        preds: list of Prediction objects (already sorted DESC by created_at)
+        session: SQLAlchemy session for Match lookup
+    
+    Returns:
+        List of deduped Prediction objects.
+    """
+    from src.db.models import Match
+    from src.pipeline import _normalize_team_for_match, _token_overlap_with_prefix
+    
+    if not preds:
+        return preds
+    
+    # Layer B: dedup exact (match_id + market + outcome), keep first (already sorted DESC by created_at)
+    seen_b = set()
+    layer_b = []
+    for p in preds:
+        key = (p.match_id, p.market, p.outcome)
+        if key in seen_b:
+            continue
+        seen_b.add(key)
+        layer_b.append(p)
+    
+    # Layer A: dedup cross-match-records via fuzzy team + utc_date + market
+    # Group preds by (fuzzy_team_pair, utc_date_min, market) -> keep highest EV
+    match_cache = {}  # match_id -> Match obj
+    def _get_match(mid):
+        if mid not in match_cache:
+            match_cache[mid] = session.query(Match).filter(Match.match_id == mid).first()
+        return match_cache[mid]
+    
+    # Build groups
+    groups = {}  # canonical_key -> list of (pred, match)
+    for p in layer_b:
+        m = _get_match(p.match_id)
+        if not m or not m.utc_date:
+            # No match info -> can't fuzzy match, keep as-is in own group
+            groups[("orphan", p.id, p.market)] = [(p, m)]
+            continue
+        kickoff_min = m.utc_date.replace(second=0, microsecond=0)
+        home_tokens = _normalize_team_for_match(m.home_team or "")
+        away_tokens = _normalize_team_for_match(m.away_team or "")
+        # Find existing group with overlap
+        merged = False
+        for key in list(groups.keys()):
+            if key[0] == "orphan":
+                continue
+            existing_kickoff, existing_home_str, existing_away_str, existing_market = key
+            if existing_market != p.market:
+                continue
+            if abs((existing_kickoff - kickoff_min).total_seconds()) > 300:
+                continue
+            existing_home = set(existing_home_str.split("|"))
+            existing_away = set(existing_away_str.split("|"))
+            if (
+                _token_overlap_with_prefix(home_tokens, existing_home) >= 1
+                and _token_overlap_with_prefix(away_tokens, existing_away) >= 1
+            ):
+                groups[key].append((p, m))
+                merged = True
+                break
+        if not merged:
+            new_key = (kickoff_min, "|".join(home_tokens), "|".join(away_tokens), p.market)
+            groups[new_key] = [(p, m)]
+    
+    # Pick highest EV per group
+    deduped = []
+    for key, items in groups.items():
+        if len(items) == 1:
+            deduped.append(items[0][0])
+            continue
+        # Multiple picks for same trận thật + market -> keep highest EV
+        best_pred, _ = max(items, key=lambda x: (x[0].expected_value or 0, x[0].created_at))
+        deduped.append(best_pred)
+    
+    return deduped
 
 
 async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):

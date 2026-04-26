@@ -192,3 +192,113 @@ def fetch_corners_batch(limit: int = 200, dry_run: bool = False) -> dict:
 
     logger.info(f"[corner_fetch] DONE: {counters}")
     return counters
+
+
+
+
+def resolve_corners_fuzzy(match, session) -> tuple[bool, str]:
+    """v37.1: Resolve goals + corners + status cho FINISHED match qua fuzzy team name.
+    
+    Bypass mọi ID mismatch (Football-Data vs API-Football vs Odds API) bằng cách:
+    1. Query /fixtures?date=<date>&season=<season> (không filter team)
+    2. Fuzzy match home + away theo tokens
+    3. Lấy fixture_id -> save goals/status/corners
+    
+    Returns (success, reason).
+    """
+    from src.collectors.api_football import _session, BASE_URL, API_FOOTBALL_KEY, get_fixture_stats
+    from src.pipeline import _normalize_team_for_match, _token_overlap_with_prefix
+    
+    if not API_FOOTBALL_KEY:
+        return False, "no_api_key"
+    if not match.utc_date:
+        return False, "no_utc_date"
+    if not match.home_team or not match.away_team:
+        return False, "no_team_names"
+    
+    home_tokens = _normalize_team_for_match(match.home_team)
+    away_tokens = _normalize_team_for_match(match.away_team)
+    if not home_tokens or not away_tokens:
+        return False, "no_tokens"
+    
+    date_iso = match.utc_date.date().isoformat()
+    season = match.utc_date.year if match.utc_date.month >= 7 else match.utc_date.year - 1
+    
+    # Try both seasons (calendar-year leagues use different season)
+    for s in [season, season + 1]:
+        try:
+            params = {"date": date_iso, "season": s}
+            resp = _session.get(
+                f"{BASE_URL}/fixtures",
+                params=params,
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                continue
+            data = resp.json().get("response", [])
+            if not data:
+                continue
+            
+            # Fuzzy match home + away
+            for item in data:
+                teams = item.get("teams", {})
+                home = teams.get("home", {})
+                away = teams.get("away", {})
+                api_home_name = home.get("name", "")
+                api_away_name = away.get("name", "")
+                if not api_home_name or not api_away_name:
+                    continue
+                api_home_tokens = _normalize_team_for_match(api_home_name)
+                api_away_tokens = _normalize_team_for_match(api_away_name)
+                if not api_home_tokens or not api_away_tokens:
+                    continue
+                # Both home and away must overlap >=1
+                home_ok = _token_overlap_with_prefix(home_tokens, api_home_tokens) >= 1
+                away_ok = _token_overlap_with_prefix(away_tokens, api_away_tokens) >= 1
+                if not (home_ok and away_ok):
+                    continue
+                
+                # Found match
+                fixture_id = item.get("fixture", {}).get("id")
+                if not fixture_id:
+                    continue
+                
+                fixture_status = (item.get("fixture", {}).get("status", {}) or {}).get("short", "")
+                goals_data = item.get("goals", {}) or {}
+                home_goals = goals_data.get("home")
+                away_goals = goals_data.get("away")
+                
+                # Save fixture_id always
+                match.api_football_fixture_id = int(fixture_id)
+                
+                # Save goals + status if FT
+                FT_STATES = {"FT", "AET", "PEN"}
+                if fixture_status in FT_STATES and home_goals is not None and away_goals is not None:
+                    if match.home_goals is None:
+                        match.home_goals = int(home_goals)
+                    if match.away_goals is None:
+                        match.away_goals = int(away_goals)
+                    if match.status != "FINISHED":
+                        match.status = "FINISHED"
+                
+                # Fetch corners stats
+                stats = get_fixture_stats(int(fixture_id))
+                if stats:
+                    home_stats = stats.get("home", {})
+                    away_stats = stats.get("away", {})
+                    home_c = home_stats.get("corners")
+                    away_c = away_stats.get("corners")
+                    if home_c is not None and away_c is not None:
+                        if match.home_corners is None:
+                            match.home_corners = int(home_c)
+                        if match.away_corners is None:
+                            match.away_corners = int(away_c)
+                
+                session.commit()
+                return True, "ok_fuzzy_v37_1"
+        
+        except Exception:
+            continue
+    
+    return False, "no_fixture_found"
+

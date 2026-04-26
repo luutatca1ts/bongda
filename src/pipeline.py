@@ -1451,6 +1451,21 @@ def _resolve_live_predictions(session) -> int:
                     break
             
             if not matched_ev:
+                # v36: Fallback to fuzzy API-Football lookup if Odds API /scores miss
+                if m.home_api_id is not None:
+                    from src.collectors.corner_fetcher import resolve_corners_fuzzy
+                    try:
+                        ok_f, _r = resolve_corners_fuzzy(m, session)
+                    except Exception:
+                        ok_f = False
+                    if ok_f:
+                        from src.db.models import Match as _M
+                        m = session.query(_M).filter(_M.id == m.id).first()
+                        if m.home_goals is not None and m.away_goals is not None:
+                            result = _compute_pred_result(lp, m)
+                            if result:
+                                lp.result = result
+                                resolved_count += 1
                 continue
             
             # Update Match with FT score
@@ -1639,10 +1654,44 @@ def update_results() -> list[str]:
                         match = sibling
                         recovered_via_sibling += 1
 
+                # v36.2+v36.3: Last-chance fuzzy fetch (goals + corners + status)
+                _need_goals = match.status != "FINISHED" or match.home_goals is None or match.away_goals is None
+                _need_corners = (
+                    pred.market in ("corners_totals", "corners_spreads", "h1_corners_totals", "h1_corners_spreads")
+                    and (match.home_corners is None or match.away_corners is None)
+                )
+                if (_need_goals or _need_corners) and match.home_api_id is not None and match.utc_date is not None:
+                    from src.collectors.corner_fetcher import resolve_corners_fuzzy
+                    try:
+                        ok_v363, _r_v363 = resolve_corners_fuzzy(match, session)
+                    except Exception:
+                        ok_v363 = False
+                    if ok_v363:
+                        from src.db.models import Match as _M
+                        match = session.query(_M).filter(_M.id == match.id).first()
+
                 if match.status != "FINISHED" or match.home_goals is None or match.away_goals is None:
                     unresolved_unfinished += 1
                     continue
 
+            # v35+v36: Fuzzy fetch goals/corners/status từ API-Football
+            # Gọi khi: (a) market corner mà thiếu corners, HOẶC (b) Match chưa FINISHED + có home_api_id
+            need_fuzzy_corners = (
+                pred.market in ("corners_totals", "corners_spreads", "h1_corners_totals", "h1_corners_spreads")
+                and (match.home_corners is None or match.away_corners is None)
+            )
+            need_fuzzy_goals = (
+                match.status != "FINISHED" or match.home_goals is None or match.away_goals is None
+            ) and match.home_api_id is not None
+            if need_fuzzy_corners or need_fuzzy_goals:
+                from src.collectors.corner_fetcher import resolve_corners_fuzzy
+                try:
+                    success, _reason = resolve_corners_fuzzy(match, session)
+                except Exception:
+                    success = False
+                if success:
+                    from src.db.models import Match as _M
+                    match = session.query(_M).filter(_M.id == match.id).first()
             result = _compute_pred_result(pred, match)
             if result is None:
                 unresolved_unknown_market += 1
