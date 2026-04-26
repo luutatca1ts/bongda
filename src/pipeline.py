@@ -731,6 +731,20 @@ def run_analysis_pipeline() -> list[str]:
                 # Find value bets
                 value_bets = find_value_bets(prediction, combined_odds, min_ev=dynamic_min_ev)
 
+                # v38: Fix asian_handicap outcome format ("Home -0.75" -> "AH -0.75 <team>")
+                # Bug gốc: find_value_bets lưu format không có team name khi bk_outcome="Home"/"Away"
+                _home_t = match.get("home_team", "")
+                _away_t = match.get("away_team", "")
+                for _vb in value_bets:
+                    if _vb.get("market") == "asian_handicap":
+                        _oc = _vb.get("outcome", "")
+                        if _oc.startswith("Home ") and _home_t:
+                            _line = _oc[5:].strip()
+                            _vb["outcome"] = f"AH {_line} {_home_t}"
+                        elif _oc.startswith("Away ") and _away_t:
+                            _line = _oc[5:].strip()
+                            _vb["outcome"] = f"AH {_line} {_away_t}"
+
                 for vb in value_bets:
                     confidence = get_confidence_tier(vb["ev"], vb["probability"])
                     if confidence == "SKIP":
