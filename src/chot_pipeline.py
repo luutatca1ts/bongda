@@ -369,7 +369,7 @@ def _decide(old_ev: float, new_ev: float) -> tuple[str, str]:
         return "drop", "❌ Bỏ KÈO"
     diff = new_ev - old_ev
     if diff >= _EV_BAND:
-        return "better", "✅ ODDS TỐT HƠN"
+        return "better", "⚠️ MARKET DỊCH CHUYỂN - CẨN TRỌNG"
     if abs(diff) < _EV_BAND:
         return "keep", "✅ GIỮ KÈO"
     # diff < -_EV_BAND and new_ev > 0
@@ -415,9 +415,9 @@ def _decision_note(decision: str, old_ev: float, new_ev: float,
             base = f"EV âm {new_ev*100:+.1f}% — không có value"
     elif decision == "better":
         if odds_str and drift_pct_str:
-            base = f"EV tăng {diff_pct:+.1f} điểm (odds {odds_str}{drift_pct_str}) — market chạy ngược, lock in nhanh"
+            base = f"EV tăng {diff_pct:+.1f} điểm (odds {odds_str}{drift_pct_str}) — market dịch chuyển ngược, có thể market biết điều mình chưa biết, cẩn trọng"
         else:
-            base = f"EV tăng {diff_pct:+.1f} điểm — opportunity"
+            base = f"EV tăng {diff_pct:+.1f} điểm — cẩn trọng, market dịch chuyển"
     elif decision == "worse":
         if odds_str and drift_pct_str:
             base = f"EV giảm {diff_pct:+.1f} điểm (odds {odds_str}{drift_pct_str}) — vẫn dương nhưng cảnh giác"
@@ -752,6 +752,10 @@ async def _reanalyze_pick(session, app, pred: Prediction, match: Match,
     old_ev = float(pred.expected_value or 0)
     old_odds = float(pred.best_odds or 0)
     decision, label = _decide(old_ev, new_ev)
+    # v40: SKIP picks có drift quá lớn (>10 điểm) — market dịch chuyển mạnh = nguy hiểm
+    if decision == "better" and (new_ev - old_ev) > 0.10:
+        decision = "drop"
+        label = "❌ BỎ KÈO (drift quá lớn)"
     note = _decision_note(
         decision, old_ev, new_ev,
         drift=drift, old_odds=old_odds, new_odds=new_odds,
