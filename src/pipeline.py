@@ -731,6 +731,62 @@ def run_analysis_pipeline() -> list[str]:
                 # Find value bets
                 value_bets = find_value_bets(prediction, combined_odds, min_ev=dynamic_min_ev)
 
+                # ============ v39: Quality filters ============
+                # Filter 6: League whitelist - chỉ top leagues có data tốt
+                _V39_TOP_LEAGUES = {"PL", "PD", "BL1", "SA", "FL1", "CL", "ELC"}
+                _league_code = match.get("competition_code", "")
+                if _league_code not in _V39_TOP_LEAGUES:
+                    logger.info(
+                        f"[v39] SKIP league: {_league_code} (not in top leagues whitelist)"
+                    )
+                    value_bets = []  # Skip this match entirely
+                
+                # Filter 1: EV threshold theo market
+                # Filter 7: Skip Over corners line >= 10.5
+                _v39_filtered = []
+                for _vb in value_bets:
+                    _mk = _vb.get("market", "")
+                    _ev = _vb.get("ev", 0)
+                    _oc = _vb.get("outcome", "")
+                    
+                    # Filter 1: EV >=8% cho corners, >=4% cho khác
+                    _is_corner = _mk in ("corners_totals", "corners_spreads", "h1_corners_totals", "h1_corners_spreads")
+                    _ev_threshold = 0.08 if _is_corner else 0.04
+                    if _ev < _ev_threshold:
+                        logger.info(
+                            f"[v39] SKIP low EV: {match.get('home_team', '?')} vs {match.get('away_team', '?')} "
+                            f"{_mk}/{_oc} ev={_ev*100:+.1f}% (need >={_ev_threshold*100:.0f}%)"
+                        )
+                        continue
+                    
+                    # Filter 7: Skip Over corners line >= 10.5
+                    if _mk == "corners_totals" and _oc.startswith("Over "):
+                        try:
+                            _line = float(_oc.split()[-1])
+                            if _line >= 10.5:
+                                logger.info(
+                                    f"[v39] SKIP high corner line: {match.get('home_team', '?')} vs "
+                                    f"{match.get('away_team', '?')} {_oc}"
+                                )
+                                continue
+                        except (ValueError, IndexError):
+                            pass
+                    
+                    _v39_filtered.append(_vb)
+                value_bets = _v39_filtered
+                
+                # Filter 4: Pinnacle priority - sort sao cho Pinnacle pick lên đầu
+                value_bets.sort(key=lambda v: 0 if v.get("bookmaker", "") == "Pinnacle" else 1)
+                
+                # Filter 3: Per-match max 1 pick / market type (giữ EV cao nhất)
+                _v39_seen_markets = {}  # market -> best_vb
+                for _vb in value_bets:
+                    _mk = _vb.get("market", "")
+                    if _mk not in _v39_seen_markets or _vb.get("ev", 0) > _v39_seen_markets[_mk].get("ev", 0):
+                        _v39_seen_markets[_mk] = _vb
+                value_bets = list(_v39_seen_markets.values())
+                # ============ End v39 filters ============
+
                 # v38: Fix asian_handicap outcome format ("Home -0.75" -> "AH -0.75 <team>")
                 # Bug gốc: find_value_bets lưu format không có team name khi bk_outcome="Home"/"Away"
                 _home_t = match.get("home_team", "")
