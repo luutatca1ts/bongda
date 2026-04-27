@@ -1424,12 +1424,14 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
                 msg += f"    {icon}{conf_tag} {p.outcome} @{p.best_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) [{p.best_bookmaker}]\n"
 
     # === v25 KÈO LIVE block ===
+    # v44d: Chỉ hiện picks user đã đánh dấu (qua button trong /live)
     live_preds = (
         session.query(LivePrediction)
         .filter(
             LivePrediction.created_at >= day_start,
             LivePrediction.created_at < day_end,
             LivePrediction.is_value_bet == True,  # noqa: E712
+            LivePrediction.user_marked == True,  # noqa: E712
         )
         .order_by(LivePrediction.created_at.desc())
         .all()
@@ -4088,6 +4090,50 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
         all_text = header + "".join(messages)
         await _safe_reply(update, all_text)
 
+        # v44c: Gửi message phụ với buttons để user đánh dấu picks đã đặt
+        if live_values:
+            try:
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                from src.db.models import get_session as _gs, LivePrediction as _LP
+                _s = _gs()
+                try:
+                    kb_rows = []
+                    from datetime import datetime as _dt, timedelta as _td
+                    cutoff = _dt.utcnow() - _td(hours=4)
+                    for vb in live_values[:20]:  # max 20 picks
+                        match_obj = _s.query(Match).filter(
+                            Match.home_team == vb.get("home", ""),
+                            Match.away_team == vb.get("away", ""),
+                        ).first()
+                        if not match_obj:
+                            continue
+                        pick = _s.query(_LP).filter(
+                            _LP.match_id == match_obj.match_id,
+                            _LP.market == vb.get("market", ""),
+                            _LP.outcome == vb.get("outcome", ""),
+                            _LP.created_at >= cutoff,
+                        ).order_by(_LP.created_at.desc()).first()
+                        if not pick:
+                            continue
+                        marked_now = bool(pick.user_marked)
+                        prefix = "\u2713 Đã đặt: " if marked_now else "\u2705 "
+                        label = (
+                            f"{prefix}{vb.get('home', '?')[:12]} {vb.get('outcome', '?')[:20]} @{vb.get('odds', 0):.2f}"
+                        )
+                        kb_rows.append([InlineKeyboardButton(
+                            label[:50],
+                            callback_data=f"mark_live:{pick.id}",
+                        )])
+                    if kb_rows:
+                        await update.message.reply_text(
+                            "\U0001f4cc Picks bot recommend (nhấn để đánh dấu đã đặt):",
+                            reply_markup=InlineKeyboardMarkup(kb_rows),
+                        )
+                finally:
+                    _s.close()
+            except Exception as _e:
+                logger.warning(f"[live] mark buttons failed: {_e}")
+
         # Live value picks summary
         if live_values:
             conf_emojis = {"HIGH": "\U0001f534", "MEDIUM": "\U0001f7e1", "LOW": "\U0001f7e2"}
@@ -4626,6 +4672,84 @@ def get_subscribers() -> set[int]:
     return _subscribers
 
 
+
+
+async def cb_mark_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """v44c: Handle inline button click để đánh dấu LIVE pick đã đặt cược."""
+    query = update.callback_query
+    await query.answer()
+    
+    data_str = query.data or ""
+    if not data_str.startswith("mark_live:"):
+        return
+    
+    try:
+        pick_id = int(data_str.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await query.answer("\u274c Pick ID không hợp lệ", show_alert=True)
+        return
+    
+    from datetime import datetime
+    from src.db.models import get_session, LivePrediction, Match
+    
+    session = get_session()
+    try:
+        pick = session.query(LivePrediction).filter(LivePrediction.id == pick_id).first()
+        if not pick:
+            await query.answer("\u274c Pick không tồn tại", show_alert=True)
+            return
+        
+        # Toggle user_marked
+        was_marked = bool(pick.user_marked)
+        pick.user_marked = not was_marked
+        pick.marked_at = datetime.utcnow() if not was_marked else None
+        session.commit()
+        
+        m = session.query(Match).filter(Match.match_id == pick.match_id).first()
+        home = m.home_team if m else "?"
+        away = m.away_team if m else "?"
+        
+        if was_marked:
+            await query.answer(f"\u2716 Đã BỎ tích: {pick.outcome}", show_alert=False)
+        else:
+            await query.answer(f"\u2705 Đã đặt: {home} vs {away} - {pick.outcome}", show_alert=False)
+        
+        # Edit lại button: hiện trạng thái mới
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        kb_rows = []
+        if query.message and query.message.reply_markup:
+            for row in query.message.reply_markup.inline_keyboard:
+                new_row = []
+                for btn in row:
+                    if btn.callback_data == data_str:
+                        # Pick này — đổi label
+                        new_label = btn.text
+                        if was_marked:
+                            # Vừa BỎ tích → đổi từ "✓ Đã đặt:..." về "✅..."
+                            if new_label.startswith("\u2713 Đã đặt: "):
+                                new_label = "\u2705 " + new_label[len("\u2713 Đã đặt: "):]
+                        else:
+                            # Vừa TÍCH → đổi từ "✅..." sang "✓ Đã đặt: ..."
+                            if new_label.startswith("\u2705 "):
+                                new_label = "\u2713 Đã đặt: " + new_label[2:]
+                        new_row.append(InlineKeyboardButton(new_label, callback_data=data_str))
+                    else:
+                        new_row.append(btn)
+                kb_rows.append(new_row)
+            try:
+                await query.edit_message_reply_markup(InlineKeyboardMarkup(kb_rows))
+            except Exception:
+                pass  # message edit có thể fail nếu đã quá lâu
+    except Exception as e:
+        logger.error(f"[mark_live] Error: {e}", exc_info=True)
+        try:
+            await query.answer(f"\u274c Lỗi: {e}", show_alert=True)
+        except Exception:
+            pass
+    finally:
+        session.close()
+
+
 async def callback_league_picker(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline keyboard button clicks for multi-select league picker."""
     query = update.callback_query
@@ -4943,6 +5067,7 @@ def create_bot_app() -> Application:
     app.add_handler(CallbackQueryHandler(cb_chot_section, pattern=r"^chot_section:"))
     app.add_handler(CallbackQueryHandler(cb_chot_more, pattern=r"^chot_more:"))
     app.add_handler(CallbackQueryHandler(cb_history_section, pattern=r"^history_section:"))
+    app.add_handler(CallbackQueryHandler(cb_mark_live, pattern=r"^mark_live:"))
     app.add_handler(CallbackQueryHandler(callback_league_picker))
 
     return app
