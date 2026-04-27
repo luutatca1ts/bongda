@@ -3626,19 +3626,11 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Stats display — all API-Football v3 stats
                         h_xg_str = f"{live_analysis['h_xg']:.2f}" if live_analysis.get("h_xg") else "?"
                         a_xg_str = f"{live_analysis['a_xg']:.2f}" if live_analysis.get("a_xg") else "?"
+                        # v44b: Chỉ giữ stats quan trọng (Phạt góc, Thẻ vàng, xG)
+                        # Bot vẫn dùng tất cả stats internally cho model
                         current_msg += (
-                            f"  \U0001f4ca Thống kê trực tiếp:\n"
-                            f"    Kiểm soát: {hs.get('possession', '?')} - {as_.get('possession', '?')}\n"
-                            f"    Sút (trúng/tổng): {hs.get('shots_on', 0)}/{hs.get('shots', 0)} - {as_.get('shots_on', 0)}/{as_.get('shots', 0)}\n"
-                            f"    Sút ngoài khung: {hs.get('shots_off', 0)} - {as_.get('shots_off', 0)}\n"
-                            f"    Sút bị chặn: {hs.get('blocked', 0)} - {as_.get('blocked', 0)}\n"
-                            f"    Trong vòng cấm: {hs.get('shots_insidebox', 0)} - {as_.get('shots_insidebox', 0)}\n"
-                            f"    Ngoài vòng cấm: {hs.get('shots_outsidebox', 0)} - {as_.get('shots_outsidebox', 0)}\n"
-                            f"    Chuyền (ch.xác): {hs.get('passes', 0)}({hs.get('pass_accuracy', 0)}) {hs.get('pass_pct', '?')} - {as_.get('passes', 0)}({as_.get('pass_accuracy', 0)}) {as_.get('pass_pct', '?')}\n"
+                            f"  \U0001f4ca Thống kê:\n"
                             f"    Phạt góc: {hs.get('corners', 0)} - {as_.get('corners', 0)} (pace {live_analysis['corners_pace']}/90')\n"
-                            f"    Phạm lỗi: {hs.get('fouls', 0)} - {as_.get('fouls', 0)}\n"
-                            f"    Việt vị: {hs.get('offsides', 0)} - {as_.get('offsides', 0)}\n"
-                            f"    Cứu thua: {hs.get('saves', 0)} - {as_.get('saves', 0)}\n"
                             f"    Thẻ vàng: {hs.get('yellow', 0)} - {as_.get('yellow', 0)}\n"
                             f"    xG: {h_xg_str} - {a_xg_str}\n"
                         )

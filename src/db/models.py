@@ -145,6 +145,9 @@ class LivePrediction(Base):
     alerted = Column(Boolean, default=False)
     result = Column(String, nullable=True)  # WIN/LOSE/PUSH/None — v25 result tracking
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    # v44a: User đánh dấu đã đặt cược (cho /history LIVE filter)
+    user_marked = Column(Boolean, default=False, nullable=True)
+    marked_at = Column(DateTime, nullable=True)
 
 
 class OddsHistory(Base):
