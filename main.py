@@ -75,11 +75,62 @@ async def scheduled_corner_fetch(app):
 
 
 async def scheduled_steam_check(app):
-    """Phát hiện steam move mỗi 15 phút và gửi alert."""
+    """Phát hiện steam move mỗi 15 phút và gửi alert + lưu vào SmartMoneyPick (v44f)."""
     logger.info("[Scheduler] Running steam check...")
     try:
         loop = asyncio.get_event_loop()
         steams = await loop.run_in_executor(None, detect_steam_moves)
+        
+        # === v44f: Lưu steam picks vào SmartMoneyPick table ===
+        if steams:
+            try:
+                import json as _json
+                from src.db.models import get_session as _gs, SmartMoneyPick as _SMP, Match as _Match
+                from datetime import datetime as _dt
+                _s = _gs()
+                try:
+                    saved_count = 0
+                    for steam in steams:
+                        match_id = steam.get("match_id")
+                        if not match_id:
+                            continue
+                        # Check duplicate (cùng match + market + outcome + direction trong 1h gần)
+                        from datetime import timedelta as _td
+                        cutoff = _dt.utcnow() - _td(hours=1)
+                        existing = _s.query(_SMP).filter(
+                            _SMP.match_id == match_id,
+                            _SMP.market == steam.get("market", ""),
+                            _SMP.outcome == steam.get("outcome", ""),
+                            _SMP.direction == steam.get("direction", ""),
+                            _SMP.detected_at >= cutoff,
+                        ).first()
+                        if existing:
+                            continue
+                        bks_count = steam.get("bookmakers_count", 0)
+                        confidence = "HIGH" if bks_count >= 4 else "MEDIUM"
+                        smp = _SMP(
+                            match_id=match_id,
+                            market=steam.get("market", ""),
+                            outcome=steam.get("outcome", ""),
+                            point=steam.get("point"),
+                            direction=steam.get("direction", ""),
+                            bookmakers_count=bks_count,
+                            bookmakers_list=_json.dumps(steam.get("bookmakers", [])[:10]),
+                            avg_drift_pct=steam.get("avg_drift_pct", 0),
+                            confidence=confidence,
+                            detected_at=_dt.utcnow(),
+                        )
+                        _s.add(smp)
+                        saved_count += 1
+                    if saved_count > 0:
+                        _s.commit()
+                        logger.info(f"[v44f] Saved {saved_count} new SmartMoneyPick(s)")
+                finally:
+                    _s.close()
+            except Exception as _e:
+                logger.error(f"[v44f] Save SmartMoneyPick failed: {_e}", exc_info=True)
+        
+        # === Original logic ===
         if steams:
             if USE_STEAM_MOVE_ALERTS:
                 logger.info(f"[Scheduler] Sending {len(steams)} steam alerts...")

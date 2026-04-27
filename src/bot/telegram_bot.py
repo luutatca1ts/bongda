@@ -1245,6 +1245,115 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
 
     stats = {"total": 0, "value": 0, "win": 0, "lose": 0, "pending": 0}
 
+    # === v44h: STATS OVERVIEW (3 nguồn: CHỐT / MONEY / LIVE) ===
+    from src.db.models import SmartMoneyPick as _SMP_overview
+    
+    # Stats CHỐT
+    chot_pred_ids_overview = set(r[0] for r in (
+        session.query(ChotReanalysis.prediction_id)
+        .filter(ChotReanalysis.reanalyzed_at >= day_start, ChotReanalysis.reanalyzed_at < day_end)
+        .distinct().all()
+    ))
+    chot_total = chot_pred_ids_overview and len(chot_pred_ids_overview) or 0
+    chot_win = chot_lose = chot_push = chot_pending = 0
+    chot_stake_total = chot_return_total = 0.0
+    if chot_pred_ids_overview:
+        chot_preds_overview = session.query(Prediction).filter(Prediction.id.in_(chot_pred_ids_overview)).all()
+        for cp in chot_preds_overview:
+            if cp.result == "WIN":
+                chot_win += 1
+                chot_stake_total += 1
+                chot_return_total += (cp.best_odds or 1.0)
+            elif cp.result == "LOSE":
+                chot_lose += 1
+                chot_stake_total += 1
+            elif cp.result == "PUSH":
+                chot_push += 1
+                chot_stake_total += 1
+                chot_return_total += 1
+            else:
+                chot_pending += 1
+    chot_wr = chot_win / (chot_win + chot_lose) * 100 if (chot_win + chot_lose) > 0 else 0
+    chot_roi = (chot_return_total - chot_stake_total) / chot_stake_total * 100 if chot_stake_total > 0 else 0
+    
+    # Stats MONEY (chỉ tính direction=shortening)
+    money_overview = session.query(_SMP_overview).filter(
+        _SMP_overview.detected_at >= day_start,
+        _SMP_overview.detected_at < day_end,
+        _SMP_overview.direction == "shortening",
+    ).all()
+    mp_total = len(money_overview)
+    mp_win = sum(1 for p in money_overview if p.result == "WIN")
+    mp_lose = sum(1 for p in money_overview if p.result == "LOSE")
+    mp_push = sum(1 for p in money_overview if p.result == "PUSH")
+    mp_pending = sum(1 for p in money_overview if p.result is None)
+    mp_wr = mp_win / (mp_win + mp_lose) * 100 if (mp_win + mp_lose) > 0 else 0
+    mp_stake = mp_win + mp_lose + mp_push
+    mp_return = sum((p.recommended_odds or 1.0) for p in money_overview if p.result == "WIN")
+    mp_return += mp_push
+    mp_roi = (mp_return - mp_stake) / mp_stake * 100 if mp_stake > 0 else 0
+    
+    # Stats LIVE
+    live_overview = session.query(LivePrediction).filter(
+        LivePrediction.created_at >= day_start,
+        LivePrediction.created_at < day_end,
+        LivePrediction.is_value_bet == True,  # noqa: E712
+        LivePrediction.user_marked == True,  # noqa: E712
+    ).all()
+    lp_total = len(live_overview)
+    lp_win = sum(1 for p in live_overview if p.result == "WIN")
+    lp_lose = sum(1 for p in live_overview if p.result == "LOSE")
+    lp_push = sum(1 for p in live_overview if p.result == "PUSH")
+    lp_pending = sum(1 for p in live_overview if p.result is None)
+    lp_wr = lp_win / (lp_win + lp_lose) * 100 if (lp_win + lp_lose) > 0 else 0
+    lp_stake = lp_win + lp_lose + lp_push
+    lp_return = sum(p.live_odds for p in live_overview if p.result == "WIN")
+    lp_return += lp_push
+    lp_roi = (lp_return - lp_stake) / lp_stake * 100 if lp_stake > 0 else 0
+    
+    msg = ""
+    date_str_overview = target_date.strftime("%d/%m/%Y")
+    is_today_overview = target_date == today
+    overview_label = f"{date_str_overview} (HÔM NAY)" if is_today_overview else date_str_overview
+    
+    msg += f"📊 TỔNG QUAN BOT ({overview_label})\n"
+    msg += f"━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    msg += f"🟢 CHỐT\n"
+    msg += f"─────────────────\n"
+    msg += f"  Tổng dự đoán: {chot_total}\n"
+    if chot_win + chot_lose > 0:
+        msg += f"  Tỉ lệ thắng: {chot_wr:.1f}% ({chot_win}W/{chot_lose}L"
+        if chot_push:
+            msg += f"/{chot_push}P"
+        msg += f")\n"
+        msg += f"  ROI: {chot_roi:+.1f}%\n"
+    msg += f"  Chờ kết quả: {chot_pending}\n\n"
+    
+    msg += f"💰 MONEY\n"
+    msg += f"─────────────────\n"
+    msg += f"  Tổng dự đoán: {mp_total}\n"
+    if mp_win + mp_lose > 0:
+        msg += f"  Tỉ lệ thắng: {mp_wr:.1f}% ({mp_win}W/{mp_lose}L"
+        if mp_push:
+            msg += f"/{mp_push}P"
+        msg += f")\n"
+        msg += f"  ROI: {mp_roi:+.1f}%\n"
+    msg += f"  Chờ kết quả: {mp_pending}\n\n"
+    
+    msg += f"🔥 LIVE\n"
+    msg += f"─────────────────\n"
+    msg += f"  Tổng dự đoán: {lp_total}\n"
+    if lp_win + lp_lose > 0:
+        msg += f"  Tỉ lệ thắng: {lp_wr:.1f}% ({lp_win}W/{lp_lose}L"
+        if lp_push:
+            msg += f"/{lp_push}P"
+        msg += f")\n"
+        msg += f"  ROI: {lp_roi:+.1f}%\n"
+    msg += f"  Chờ kết quả: {lp_pending}\n\n"
+    
+    msg += f"━━━━━━━━━━━━━━━━━━━━\n\n"
+
     # === CHỐT block ===
     chot_pred_ids_rows = (
         session.query(ChotReanalysis.prediction_id)
@@ -1422,6 +1531,92 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
                 conf_tag = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(p.confidence, "⚪")
                 mk_short = MARKET_NAMES.get(p.market, p.market)
                 msg += f"    {icon}{conf_tag} {p.outcome} @{p.best_odds:.2f} EV:{p.expected_value*100:+.1f}% ({mk_short}) [{p.best_bookmaker}]\n"
+
+    # === v44h: MONEY block (đã đá xong) ===
+    money_picks = (
+        session.query(_SMP_overview)
+        .filter(
+            _SMP_overview.detected_at >= day_start,
+            _SMP_overview.detected_at < day_end,
+            _SMP_overview.direction == "shortening",
+            _SMP_overview.result.isnot(None),
+        )
+        .order_by(_SMP_overview.bookmakers_count.desc(), _SMP_overview.avg_drift_pct.asc())
+        .all()
+    )
+    if money_picks:
+        msg += f"\n💰 MONEY ({len(money_picks)} picks)\n"
+        msg += f"━━━━━━━━━━━━━━━━━\n"
+        msg += f"\n⚽ Chi tiết:\n"
+        for mp in money_picks:
+            match_obj = session.query(Match).filter(Match.match_id == mp.match_id).first()
+            if match_obj:
+                m_name = f"{match_obj.home_team} vs {match_obj.away_team}"
+                score_str = f" ({match_obj.home_goals}-{match_obj.away_goals})" if match_obj.home_goals is not None else ""
+                league_lc = match_obj.competition_code or ""
+            else:
+                m_name = f"#{mp.match_id}"
+                score_str = ""
+                league_lc = ""
+            league_str = f" [{league_lc}]" if league_lc else ""
+            tier_emoji = "🔴" if mp.bookmakers_count >= 4 else "🟡"
+            tier_label = "NÊN ĐẶT" if mp.bookmakers_count >= 4 else "CÓ THỂ ĐẶT"
+            if mp.result == "WIN":
+                res_icon = "✅ WIN"
+            elif mp.result == "LOSE":
+                res_icon = "❌ LOSE"
+            elif mp.result == "PUSH":
+                res_icon = "↩️ PUSH"
+            else:
+                res_icon = "⏳"
+            outcome_disp_h = mp.outcome
+            if mp.point is not None:
+                outcome_disp_h = f"{mp.outcome} {mp.point:g}"
+            msg += f"  {tier_emoji} {m_name}{score_str}{league_str}\n"
+            msg += f"    {tier_label}: {outcome_disp_h} → {res_icon}\n"
+            msg += f"    📊 {mp.bookmakers_count} books steam ({mp.avg_drift_pct:+.1f}%)\n"
+        msg += "\n"
+
+    # === v44h: LINE NGƯỢC block (đã đá xong) ===
+    reverse_picks = (
+        session.query(_SMP_overview)
+        .filter(
+            _SMP_overview.detected_at >= day_start,
+            _SMP_overview.detected_at < day_end,
+            _SMP_overview.direction == "drifting",
+            _SMP_overview.result.isnot(None),
+        )
+        .order_by(_SMP_overview.bookmakers_count.desc())
+        .all()
+    )
+    if reverse_picks:
+        msg += f"\n🔄 LINE NGƯỢC ({len(reverse_picks)} picks)\n"
+        msg += f"━━━━━━━━━━━━━━━━━\n"
+        msg += f"\n⚽ Chi tiết:\n"
+        for rp in reverse_picks:
+            match_obj = session.query(Match).filter(Match.match_id == rp.match_id).first()
+            if match_obj:
+                m_name = f"{match_obj.home_team} vs {match_obj.away_team}"
+                score_str = f" ({match_obj.home_goals}-{match_obj.away_goals})" if match_obj.home_goals is not None else ""
+                league_lc = match_obj.competition_code or ""
+            else:
+                m_name = f"#{rp.match_id}"
+                score_str = ""
+                league_lc = ""
+            league_str = f" [{league_lc}]" if league_lc else ""
+            outcome_disp_h = rp.outcome
+            if rp.point is not None:
+                outcome_disp_h = f"{rp.outcome} {rp.point:g}"
+            if rp.result == "LOSE":
+                res_icon = "🟢 ĐÚNG (bot khuyên không đặt)"
+            elif rp.result == "WIN":
+                res_icon = "🔴 SAI (kèo lại thắng)"
+            else:
+                res_icon = "↩️ PUSH"
+            msg += f"  🟢 {m_name}{score_str}{league_str}\n"
+            msg += f"    KHÔNG NÊN ĐẶT: {outcome_disp_h} → {res_icon}\n"
+            msg += f"    📊 {rp.bookmakers_count} books reverse ({rp.avg_drift_pct:+.1f}%)\n"
+        msg += "\n"
 
     # === v25 KÈO LIVE block ===
     # v44d: Chỉ hiện picks user đã đánh dấu (qua button trong /live)
@@ -4432,18 +4627,32 @@ async def cmd_theodoi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_money(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """v43: /money — Dòng tiền thông minh tổng hợp.
+    """v44g: /money — Dòng tiền thông minh với khuyến nghị đặt cược.
     
-    Hiển thị 3 sections cho trận sắp đá 1-2h tới + CLV stats 7 ngày:
-    - Steam Moves (sharp money đang đặt)
-    - Line Movement (drift mạnh)
-    - CLV Stats (overall)
+    Hiển thị:
+    - Steam moves (sharp money đặt) - phân loại CAO/TB
+    - Line movement reverse (sharp fade)
+    - CLV stats overall 7 ngày
+    
+    Mỗi pick có khuyến nghị NÊN ĐẶT / CÓ THỂ ĐẶT / KHÔNG NÊN ĐẶT.
     """
     if not await _require_auth(update):
         return
     from datetime import datetime, timedelta
     from src.analytics.steam_detector import detect_steam_moves
     from src.analytics.clv import get_clv_stats
+    from src.config import LEAGUES
+    
+    MARKET_NAMES_MONEY = {
+        "h2h": "1X2",
+        "totals": "Tổng",
+        "asian_handicap": "Châu Á",
+        "corners_totals": "Góc T/X",
+        "corners_spreads": "Góc CÁ",
+        "h1_totals": "T/X H1",
+        "h1_corners_totals": "Góc H1 T/X",
+        "h1_corners_spreads": "Góc H1 CÁ",
+    }
     
     session = get_session()
     try:
@@ -4453,21 +4662,21 @@ async def cmd_money(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         msg_parts = ["💰 DÒNG TIỀN THÔNG MINH"]
         msg_parts.append("━━━━━━━━━━━━━━━━━━━━")
-        msg_parts.append(f"⏰ Trận trong 1-2h tới")
+        msg_parts.append("⏰ Trận trong 1-2h tới")
         msg_parts.append("")
         
-        # Get matches kickoff in 1-2h window
         upcoming = session.query(Match).filter(
             Match.utc_date >= window_start,
             Match.utc_date <= window_end,
             Match.status == "SCHEDULED",
         ).all()
         
-        # === Section 1: Steam Moves (sharp money vào) ===
+        # === Section 1: STEAM MOVES ===
         msg_parts.append("🔥 STEAM MOVES (Sharp money đang vào)")
         msg_parts.append("─────────────────")
+        msg_parts.append("")
         
-        steam_count = 0
+        steam_picks = []  # list of (match, steam_dict)
         for m in upcoming:
             try:
                 steams = detect_steam_moves(
@@ -4481,37 +4690,53 @@ async def cmd_money(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for s in steams:
                 if s.get("direction") != "shortening":
                     continue
-                steam_count += 1
-                if steam_count > 8:
-                    break
-                kickoff = m.utc_date.strftime("%H:%M") if m.utc_date else "?"
-                outcome = s.get("outcome", "")
-                point = s.get("point")
-                outcome_disp = f"{outcome} {point:g}" if point is not None else outcome
-                msg_parts.append(
-                    f"#{steam_count} {m.home_team} vs {m.away_team}"
-                )
-                msg_parts.append(
-                    f"   ➜ {outcome_disp} ({s.get('market', '')})"
-                )
-                msg_parts.append(
-                    f"   📉 Drift: {s.get('avg_drift_pct', 0):+.1f}% | "
-                    f"{s.get('bookmakers_count', 0)} books | ⏰ {kickoff}"
-                )
-                msg_parts.append("")
-            if steam_count > 8:
-                break
+                steam_picks.append((m, s))
+        
+        # Sort: HIGH (4+ books) first, then by drift magnitude
+        steam_picks.sort(key=lambda x: (-x[1].get("bookmakers_count", 0), x[1].get("avg_drift_pct", 0)))
+        
+        steam_count = 0
+        for m, s in steam_picks[:8]:  # max 8 picks
+            steam_count += 1
+            kickoff = m.utc_date.strftime("%H:%M") if m.utc_date else "?"
+            outcome = s.get("outcome", "")
+            point = s.get("point")
+            outcome_disp = f"{outcome} {point:g}" if point is not None else outcome
+            market_str = MARKET_NAMES_MONEY.get(s.get("market", ""), s.get("market", ""))
+            league_str = f" [{m.competition_code}]" if m.competition_code else ""
+            books_count = s.get("bookmakers_count", 0)
+            drift = s.get("avg_drift_pct", 0)
+            
+            # Phân loại tin cậy
+            if books_count >= 4:
+                emoji = "🔴"
+                rec_label = "✅ NÊN ĐẶT"
+                rec_reason = f"Tin cậy CAO — {books_count}+ books đồng thuận"
+            else:
+                emoji = "🟡"
+                rec_label = "⚠️ CÓ THỂ ĐẶT"
+                rec_reason = f"Tin cậy TRUNG BÌNH — chỉ {books_count} books"
+            
+            msg_parts.append(f"{emoji} #{steam_count} {m.home_team} vs {m.away_team}{league_str}")
+            msg_parts.append(f"   ⏰ {kickoff} (UTC)")
+            msg_parts.append(f"   📊 Pick: {outcome_disp} ({market_str})")
+            msg_parts.append(f"   📉 Drift: {drift:+.1f}%")
+            msg_parts.append(f"   📊 {books_count} bookmakers cùng giảm")
+            msg_parts.append(f"   {rec_label}: {outcome_disp}")
+            msg_parts.append(f"   💡 {rec_reason}")
+            msg_parts.append("")
         
         if steam_count == 0:
             msg_parts.append("📊 Không có steam move trong window 1-2h tới")
             msg_parts.append("")
         
-        # === Section 2: Line Movement Reverse (sharp đẩy ngược) ===
+        # === Section 2: LINE NGƯỢC ===
         msg_parts.append("")
-        msg_parts.append("🔄 LINE MOVEMENT NGƯỢC (Sharp fade)")
+        msg_parts.append("🔄 LINE NGƯỢC (Sharp fade)")
         msg_parts.append("─────────────────")
+        msg_parts.append("")
         
-        reverse_count = 0
+        reverse_picks = []
         for m in upcoming:
             try:
                 steams = detect_steam_moves(
@@ -4525,32 +4750,36 @@ async def cmd_money(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for s in steams:
                 if s.get("direction") != "drifting":
                     continue
-                reverse_count += 1
-                if reverse_count > 5:
-                    break
-                kickoff = m.utc_date.strftime("%H:%M") if m.utc_date else "?"
-                outcome = s.get("outcome", "")
-                point = s.get("point")
-                outcome_disp = f"{outcome} {point:g}" if point is not None else outcome
-                msg_parts.append(
-                    f"#{reverse_count} {m.home_team} vs {m.away_team}"
-                )
-                msg_parts.append(
-                    f"   ➜ {outcome_disp} ({s.get('market', '')})"
-                )
-                msg_parts.append(
-                    f"   📈 Drift: {s.get('avg_drift_pct', 0):+.1f}% | "
-                    f"{s.get('bookmakers_count', 0)} books | ⏰ {kickoff}"
-                )
-                msg_parts.append("")
-            if reverse_count > 5:
-                break
+                reverse_picks.append((m, s))
+        
+        reverse_picks.sort(key=lambda x: (-x[1].get("bookmakers_count", 0), -x[1].get("avg_drift_pct", 0)))
+        
+        reverse_count = 0
+        for m, s in reverse_picks[:5]:
+            reverse_count += 1
+            kickoff = m.utc_date.strftime("%H:%M") if m.utc_date else "?"
+            outcome = s.get("outcome", "")
+            point = s.get("point")
+            outcome_disp = f"{outcome} {point:g}" if point is not None else outcome
+            market_str = MARKET_NAMES_MONEY.get(s.get("market", ""), s.get("market", ""))
+            league_str = f" [{m.competition_code}]" if m.competition_code else ""
+            books_count = s.get("bookmakers_count", 0)
+            drift = s.get("avg_drift_pct", 0)
+            
+            msg_parts.append(f"🟢 #{reverse_count} {m.home_team} vs {m.away_team}{league_str}")
+            msg_parts.append(f"   ⏰ {kickoff} (UTC)")
+            msg_parts.append(f"   📊 Cửa: {outcome_disp} ({market_str})")
+            msg_parts.append(f"   📈 Drift: {drift:+.1f}%")
+            msg_parts.append(f"   📊 {books_count} bookmakers cùng tăng")
+            msg_parts.append(f"   ❌ KHÔNG NÊN ĐẶT: {outcome_disp}")
+            msg_parts.append(f"   💡 Sharp đang fade → cẩn thận")
+            msg_parts.append("")
         
         if reverse_count == 0:
             msg_parts.append("📊 Không có line movement ngược")
             msg_parts.append("")
         
-        # === Section 3: CLV Stats (7 ngày) ===
+        # === Section 3: CLV Stats ===
         msg_parts.append("")
         msg_parts.append("📈 CLV STATS (7 ngày)")
         msg_parts.append("─────────────────")
@@ -4580,15 +4809,18 @@ async def cmd_money(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg_parts.append("")
         msg_parts.append("━━━━━━━━━━━━━━━━━━━━")
         msg_parts.append("📌 GIẢI THÍCH:")
-        msg_parts.append("🔥 Steam = nhiều books cùng giảm odds → sharp đặt cửa này")
-        msg_parts.append("🔄 Reverse = nhiều books cùng tăng odds → sharp fade cửa này")
-        msg_parts.append("📈 CLV dương = bot lấy odds tốt hơn closing line")
+        msg_parts.append("🔴 Tin cậy CAO (4+ books) → ĐẶT")
+        msg_parts.append("🟡 Tin cậy TRUNG BÌNH (3 books) → cân nhắc")
+        msg_parts.append("🟢 Reverse line → cẩn thận, có thể fade")
+        msg_parts.append("")
+        msg_parts.append("🔥 Steam = nhiều books cùng GIẢM odds")
+        msg_parts.append("🔄 Reverse = nhiều books cùng TĂNG odds")
+        msg_parts.append("📈 CLV dương = bot có edge dài hạn")
         
         text = "\n".join(msg_parts)
         await _safe_reply(update, text)
     finally:
         session.close()
-
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _require_auth(update): return

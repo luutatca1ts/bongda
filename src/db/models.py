@@ -205,3 +205,24 @@ def init_db():
 
 def get_session():
     return SessionLocal()
+
+
+class SmartMoneyPick(Base):
+    """v44e: Track steam moves & reverse line picks for /money + /history."""
+    __tablename__ = "smart_money_picks"
+    id = Column(Integer, primary_key=True)
+    match_id = Column(Integer, index=True)
+    market = Column(String)  # h2h, totals, asian_handicap, corners_*
+    outcome = Column(String)  # Over 2.5, Home, etc.
+    point = Column(Float, nullable=True)  # 2.5, -0.5, etc.
+    direction = Column(String)  # "shortening" or "drifting"
+    bookmakers_count = Column(Integer)  # 3, 4, 5+
+    bookmakers_list = Column(String, nullable=True)  # JSON list
+    avg_drift_pct = Column(Float)  # -5.2 or +4.5
+    confidence = Column(String)  # "HIGH" (4+ books) or "MEDIUM" (3 books)
+    recommended_odds = Column(Float, nullable=True)  # current best odds for this outcome
+    recommended_bookmaker = Column(String, nullable=True)  # which bookmaker
+    result = Column(String, nullable=True)  # WIN/LOSE/PUSH/None
+    detected_at = Column(DateTime, default=datetime.utcnow, index=True)
+    resolved_at = Column(DateTime, nullable=True)
+
