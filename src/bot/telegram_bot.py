@@ -699,6 +699,21 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             prob = (p.model_probability or 0) * 100
             ev = (p.expected_value or 0) * 100
             odds = p.best_odds or 0
+            # v42: Add result line nếu match đã đá xong
+            result_line = ""
+            if p.result == "WIN":
+                result_line = f"\U0001f3c1 K\u1ebft qu\u1ea3: \u2705 WIN\n"
+            elif p.result == "LOSE":
+                result_line = f"\U0001f3c1 K\u1ebft qu\u1ea3: \u274c LOSE\n"
+            elif p.result == "PUSH":
+                result_line = f"\U0001f3c1 K\u1ebft qu\u1ea3: \u21a9\ufe0f PUSH (ho\u00e0 ti\u1ec1n)\n"
+            else:
+                # Chưa có result — check trận đã đá xong chưa
+                from datetime import datetime, timedelta
+                now = datetime.utcnow()
+                if m.utc_date and (now - m.utc_date).total_seconds() > 3 * 3600:
+                    # Quá kickoff > 3h mà chưa có result
+                    result_line = f"\U0001f3c1 K\u1ebft qu\u1ea3: \u23f3 \u0110ang ch\u1edd...\n"
             return (
                 f"\n#{idx} {m.home_team} vs {m.away_team}\n"
                 f"\u23f0 {when} | \U0001f3c6 {league}\n"
@@ -706,6 +721,7 @@ async def cmd_ancan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"\u2705 X\u00e1c su\u1ea5t th\u1eafng: {prob:.0f}%\n"
                 f"\U0001f4b0 Odds: {odds:.2f} | EV: {ev:+.1f}%\n"
                 f"\U0001f4ca {p.best_bookmaker or '?'}\n"
+                f"{result_line}"
             )
 
         body = ""
@@ -4375,6 +4391,167 @@ async def cmd_theodoi(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.close()
 
 
+
+
+async def cmd_money(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """v43: /money — Dòng tiền thông minh tổng hợp.
+    
+    Hiển thị 3 sections cho trận sắp đá 1-2h tới + CLV stats 7 ngày:
+    - Steam Moves (sharp money đang đặt)
+    - Line Movement (drift mạnh)
+    - CLV Stats (overall)
+    """
+    if not await _require_auth(update):
+        return
+    from datetime import datetime, timedelta
+    from src.analytics.steam_detector import detect_steam_moves
+    from src.analytics.clv import get_clv_stats
+    
+    session = get_session()
+    try:
+        now = datetime.utcnow()
+        window_start = now
+        window_end = now + timedelta(hours=2)
+        
+        msg_parts = ["💰 DÒNG TIỀN THÔNG MINH"]
+        msg_parts.append("━━━━━━━━━━━━━━━━━━━━")
+        msg_parts.append(f"⏰ Trận trong 1-2h tới")
+        msg_parts.append("")
+        
+        # Get matches kickoff in 1-2h window
+        upcoming = session.query(Match).filter(
+            Match.utc_date >= window_start,
+            Match.utc_date <= window_end,
+            Match.status == "SCHEDULED",
+        ).all()
+        
+        # === Section 1: Steam Moves (sharp money vào) ===
+        msg_parts.append("🔥 STEAM MOVES (Sharp money đang vào)")
+        msg_parts.append("─────────────────")
+        
+        steam_count = 0
+        for m in upcoming:
+            try:
+                steams = detect_steam_moves(
+                    window_minutes=30,
+                    min_bookmakers=3,
+                    min_drift_pct=3.0,
+                    match_id_filter=m.match_id,
+                )
+            except Exception:
+                continue
+            for s in steams:
+                if s.get("direction") != "shortening":
+                    continue
+                steam_count += 1
+                if steam_count > 8:
+                    break
+                kickoff = m.utc_date.strftime("%H:%M") if m.utc_date else "?"
+                outcome = s.get("outcome", "")
+                point = s.get("point")
+                outcome_disp = f"{outcome} {point:g}" if point is not None else outcome
+                msg_parts.append(
+                    f"#{steam_count} {m.home_team} vs {m.away_team}"
+                )
+                msg_parts.append(
+                    f"   ➜ {outcome_disp} ({s.get('market', '')})"
+                )
+                msg_parts.append(
+                    f"   📉 Drift: {s.get('avg_drift_pct', 0):+.1f}% | "
+                    f"{s.get('bookmakers_count', 0)} books | ⏰ {kickoff}"
+                )
+                msg_parts.append("")
+            if steam_count > 8:
+                break
+        
+        if steam_count == 0:
+            msg_parts.append("📊 Không có steam move trong window 1-2h tới")
+            msg_parts.append("")
+        
+        # === Section 2: Line Movement Reverse (sharp đẩy ngược) ===
+        msg_parts.append("")
+        msg_parts.append("🔄 LINE MOVEMENT NGƯỢC (Sharp fade)")
+        msg_parts.append("─────────────────")
+        
+        reverse_count = 0
+        for m in upcoming:
+            try:
+                steams = detect_steam_moves(
+                    window_minutes=30,
+                    min_bookmakers=4,
+                    min_drift_pct=2.5,
+                    match_id_filter=m.match_id,
+                )
+            except Exception:
+                continue
+            for s in steams:
+                if s.get("direction") != "drifting":
+                    continue
+                reverse_count += 1
+                if reverse_count > 5:
+                    break
+                kickoff = m.utc_date.strftime("%H:%M") if m.utc_date else "?"
+                outcome = s.get("outcome", "")
+                point = s.get("point")
+                outcome_disp = f"{outcome} {point:g}" if point is not None else outcome
+                msg_parts.append(
+                    f"#{reverse_count} {m.home_team} vs {m.away_team}"
+                )
+                msg_parts.append(
+                    f"   ➜ {outcome_disp} ({s.get('market', '')})"
+                )
+                msg_parts.append(
+                    f"   📈 Drift: {s.get('avg_drift_pct', 0):+.1f}% | "
+                    f"{s.get('bookmakers_count', 0)} books | ⏰ {kickoff}"
+                )
+                msg_parts.append("")
+            if reverse_count > 5:
+                break
+        
+        if reverse_count == 0:
+            msg_parts.append("📊 Không có line movement ngược")
+            msg_parts.append("")
+        
+        # === Section 3: CLV Stats (7 ngày) ===
+        msg_parts.append("")
+        msg_parts.append("📈 CLV STATS (7 ngày)")
+        msg_parts.append("─────────────────")
+        
+        try:
+            stats = get_clv_stats(days=7)
+            cnt = stats.get("count", 0)
+            if cnt > 0:
+                avg = stats.get("avg_clv", 0)
+                pos_pct = stats.get("positive_pct", 0)
+                pos_cnt = stats.get("positive_count", 0)
+                msg_parts.append(f"📊 Tổng picks có CLV: {cnt}")
+                msg_parts.append(f"💰 CLV trung bình: {avg:+.2f}%")
+                msg_parts.append(f"✅ CLV dương: {pos_pct:.1f}% ({pos_cnt}/{cnt})")
+                if avg > 0:
+                    msg_parts.append("")
+                    msg_parts.append("✓ Bot đang đánh bại market dài hạn")
+                else:
+                    msg_parts.append("")
+                    msg_parts.append("⚠️ Market biết hơn bot, cẩn thận")
+            else:
+                msg_parts.append("📊 Chưa có pick có CLV (cần thời gian)")
+        except Exception as e:
+            msg_parts.append(f"⚠️ CLV stats lỗi: {e}")
+        
+        # === Footer ===
+        msg_parts.append("")
+        msg_parts.append("━━━━━━━━━━━━━━━━━━━━")
+        msg_parts.append("📌 GIẢI THÍCH:")
+        msg_parts.append("🔥 Steam = nhiều books cùng giảm odds → sharp đặt cửa này")
+        msg_parts.append("🔄 Reverse = nhiều books cùng tăng odds → sharp fade cửa này")
+        msg_parts.append("📈 CLV dương = bot lấy odds tốt hơn closing line")
+        
+        text = "\n".join(msg_parts)
+        await _safe_reply(update, text)
+    finally:
+        session.close()
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await _require_auth(update): return
     await update.message.reply_text(
@@ -4768,6 +4945,7 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("ancan", cmd_ancan))
     app.add_handler(CommandHandler("dethang", cmd_ancan))
     app.add_handler(CommandHandler("chot", cmd_chot))
+    app.add_handler(CommandHandler("money", cmd_money))
     app.add_handler(CommandHandler("help", cmd_help))
     # Pattern-specific handlers FIRST so they take priority over the generic one.
     app.add_handler(CallbackQueryHandler(cb_chot_section, pattern=r"^chot_section:"))
