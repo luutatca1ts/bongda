@@ -1254,11 +1254,22 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
         .filter(ChotReanalysis.reanalyzed_at >= day_start, ChotReanalysis.reanalyzed_at < day_end)
         .distinct().all()
     ))
-    chot_total = chot_pred_ids_overview and len(chot_pred_ids_overview) or 0
     chot_win = chot_lose = chot_push = chot_pending = 0
     chot_stake_total = chot_return_total = 0.0
+    chot_total = 0
     if chot_pred_ids_overview:
         chot_preds_overview = session.query(Prediction).filter(Prediction.id.in_(chot_pred_ids_overview)).all()
+        # v44h fix: Apply same dedup logic as CHỐT block để khớp số
+        _seen_keys_overview = set()
+        _deduped_overview = []
+        for _p in chot_preds_overview:
+            _key = (_p.match_id, _p.market, _p.outcome)
+            if _key in _seen_keys_overview:
+                continue
+            _seen_keys_overview.add(_key)
+            _deduped_overview.append(_p)
+        chot_preds_overview = _dedup_predictions(_deduped_overview, session)
+        chot_total = len(chot_preds_overview)
         for cp in chot_preds_overview:
             if cp.result == "WIN":
                 chot_win += 1
@@ -1370,7 +1381,7 @@ def _build_history_block_for_date(session, target_date, today) -> tuple[str, dic
     is_today = target_date == today
     day_label = f"{date_str} (HÔM NAY)" if is_today else date_str
 
-    msg = ""
+    # v44h fix: KHÔNG reset msg, giữ overview phía trên
 
     if not chot_pred_ids:
         msg += f"📅 {day_label} — Không có kèo /chot\n"
